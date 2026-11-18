@@ -1,0 +1,17 @@
+import axios from 'axios';
+
+const http = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
+
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// Backend trả { ok, data } hoặc { ok: false, code, message }.
+http.interceptors.response.use(
+  (res) => res.data.data,
+  (err) => Promise.reject(new Error(err.response?.data?.message || err.message)),
+);
+
+export default http;

@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-page: #080213;
+  --color-card: #0b0910;
+  --color-topbar: #000000;
+  --color-accent: #7053e1;
+  --color-success: #1ca52c;
+  --radius-section: 40px;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-page font-sans text-white antialiased;
+  }
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
