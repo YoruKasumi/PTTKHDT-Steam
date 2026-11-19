@@ -1,13 +1,14 @@
 -- =====================================================================
 -- STEAM STORE - DỮ LIỆU MẪU (chạy SAU steam_store_schema.sql)
 -- Mã định danh được rút gọn (A001, G001...) để dễ đọc; bản thật dùng UUID 36 ký tự.
--- PasswordHash chỉ là chuỗi minh họa: tài khoản mẫu KHÔNG đăng nhập được; hãy đăng ký qua API.
+-- Hash tài khoản mẫu không dùng để đăng nhập. Sau khi nạp dữ liệu, chạy
+-- `npm run db:bootstrap-admin` để đặt mật khẩu mới cho A001 qua biến môi trường.
 -- Cột sinh tự động (GAMEVERSION.CurrentGameID, LICENSE.ActiveKey) không có trong INSERT.
 -- =====================================================================
 USE steam_store;
 
 INSERT INTO ACCOUNT (AccountID, Username, PasswordHash, Email, DisplayName, AvatarUrl, Status, NotifyEnabled, CreatedAt) VALUES
-  ('A001', 'admin01', '$2b$10$4fb49ce0c1875431f506d907c6793e6dcc01047dc37649718e3cb', 'admin@steamstore.vn', 'Quản trị viên', NULL, 'Active', 1, '2026-10-20 08:00:00'),
+  ('A001', 'admin01', 'SAMPLE_ADMIN_DISABLED', 'admin@steamstore.vn', 'Quản trị viên', NULL, 'Active', 1, '2026-10-20 08:00:00'),
   ('A002', 'mod_lan', '$2b$10$6cfec6bad14e5d1f96092df43eca706090977bbc39a34a203f9cb', 'lan.kiemduyet@steamstore.vn', 'Lan - Kiểm duyệt', NULL, 'Active', 1, '2026-10-21 09:30:00'),
   ('A003', 'nvh_studio', '$2b$10$825dadeff067f14458f7436c0755dcb7c7a8357f0c4d85144245b', 'contact@nvhstudio.vn', 'NVH Studio', 'avatars/a003.png', 'Active', 1, '2026-10-25 10:00:00'),
   ('A004', 'minhanh', '$2b$10$33132f41e49a1017cac84b9dbae616c3c9047d64eae5b1fa85b7a', 'minhanh@gmail.com', 'Minh Anh', NULL, 'Active', 1, '2026-11-05 19:20:00'),
@@ -150,3 +151,165 @@ INSERT INTO GAMEREVIEW (CheckID, GameID, ManagerID, Decision, Reason, CheckedAt)
   ('CK02', 'G002', 'A002', 'Approved', NULL, '2026-11-02 08:40:00'),
   ('CK03', 'G003', 'A002', 'Rejected', 'Thiếu tệp build hợp lệ', '2026-11-01 16:00:00'),
   ('CK04', 'G003', 'A002', 'Approved', NULL, '2026-11-05 10:00:00');
+
+-- =====================================================================
+-- DỮ LIỆU MỞ RỘNG: thêm 20 game thuộc ba nhà phát hành và dữ liệu liên quan
+-- =====================================================================
+INSERT INTO ACCOUNT (AccountID, Username, PasswordHash, Email, DisplayName, AvatarUrl, Status, NotifyEnabled, CreatedAt) VALUES
+  ('A006', 'mekong_pixel', 'SAMPLE_PASSWORD_DISABLED', 'hello@mekongpixel.example', 'Mekong Pixel', NULL, 'Active', 1, '2026-10-28 10:00:00'),
+  ('A007', 'lotus_forge', 'SAMPLE_PASSWORD_DISABLED', 'contact@lotusforge.example', 'Lotus Forge', NULL, 'Active', 1, '2026-10-29 10:00:00'),
+  ('A008', 'ngoc_demo', 'SAMPLE_PASSWORD_DISABLED', 'ngoc.demo@example.test', 'Ngọc Demo', NULL, 'Active', 1, '2026-11-12 09:00:00'),
+  ('A009', 'hoang_demo', 'SAMPLE_PASSWORD_DISABLED', 'hoang.demo@example.test', 'Hoàng Demo', NULL, 'Active', 1, '2026-11-12 09:30:00');
+
+INSERT INTO CUSTOMER (AccountID) VALUES
+  ('A008'),
+  ('A009');
+
+INSERT INTO DEVELOPER (AccountID, CompanyName, BankAccount, FeePaid, VerifyStatus) VALUES
+  ('A006', 'Mekong Pixel', NULL, 1, 'Verified'),
+  ('A007', 'Lotus Forge', NULL, 1, 'Verified');
+
+INSERT INTO GENRE (GenreID, GenreName, Description) VALUES
+  ('GN06', 'Adventure', 'Phiêu lưu và khám phá'),
+  ('GN07', 'Strategy', 'Chiến thuật và quản lý'),
+  ('GN08', 'Horror', 'Kinh dị và sinh tồn'),
+  ('GN09', 'Platformer', 'Đi cảnh và vượt chướng ngại'),
+  ('GN10', 'Sports', 'Thể thao và thi đấu'),
+  ('GN11', 'Casual', 'Trải nghiệm thư giãn');
+
+INSERT INTO GAME (GameID, DeveloperID, Title, Description, Price, CoverImage, TrailerUrl, MinSpec, RecSpec, Status, ReleaseDate) VALUES
+  ('G004', 'A003', 'Mekong: Delta Guardians', 'Phiêu lưu hành động bảo vệ vùng châu thổ trước sinh vật huyền bí.', 129000, 'covers/g004.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-09-10 00:00:00'),
+  ('G005', 'A003', 'Cloud Village: Farm Days', 'Mô phỏng xây dựng nông trại và kết nối những ngôi làng trên mây.', 89000, 'covers/g005.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-09-18 00:00:00'),
+  ('G006', 'A003', 'Neon Courier', 'Game đua xe arcade miễn phí đưa thư qua thành phố tương lai.', 0, 'covers/g006.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-09-22 00:00:00'),
+  ('G007', 'A003', 'Hành Trình Sao Bắc', 'Nhập vai khám phá quần đảo và giải mã những chòm sao cổ.', 179000, 'covers/g007.jpg', NULL, 'CPU 4 nhân, RAM 8GB', 'CPU 6 nhân, RAM 16GB', 'Approved', '2026-09-30 00:00:00'),
+  ('G008', 'A003', 'Mê Cung Thủy Tinh', 'Giải đố trong mê cung thay đổi hình dạng theo từng lựa chọn.', 69000, 'covers/g008.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-02 00:00:00'),
+  ('G009', 'A003', 'Iron Harbor Tactics', 'Chiến thuật theo lượt về một cảng biển công nghiệp giả tưởng.', 99000, 'covers/g009.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-05 00:00:00'),
+  ('G010', 'A003', 'Bóng Đêm Ở Đồi Sương', 'Phiêu lưu kinh dị điều tra một thị trấn miền núi bị bỏ hoang.', 119000, 'covers/g010.jpg', NULL, 'CPU 4 nhân, RAM 8GB', 'CPU 6 nhân, RAM 16GB', 'Approved', '2026-10-08 00:00:00'),
+  ('G011', 'A006', 'Skyline Skater', 'Trượt ván qua những mái nhà và đường ray trên cao.', 149000, 'covers/g011.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-10 00:00:00'),
+  ('G012', 'A006', 'Bếp Nhỏ Hội An', 'Mô phỏng quản lý quán ăn nhỏ với các món ăn và nguyên liệu địa phương.', 59000, 'covers/g012.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-12 00:00:00'),
+  ('G013', 'A006', 'Redline Delta', 'Đua xe tốc độ cao trên những cung đường ven sông.', 159000, 'covers/g013.jpg', NULL, 'CPU 4 nhân, RAM 8GB', 'CPU 6 nhân, RAM 16GB', 'Approved', '2026-10-14 00:00:00'),
+  ('G014', 'A006', 'Lục Địa Cổ Thư', 'Nhập vai chiến thuật trong thế giới được ghi chép bằng những cổ thư.', 199000, 'covers/g014.jpg', NULL, 'CPU 4 nhân, RAM 8GB', 'CPU 6 nhân, RAM 16GB', 'Approved', '2026-10-16 00:00:00'),
+  ('G015', 'A006', 'Thành Phố Sau Mưa', 'Phiêu lưu giải đố tìm lại ký ức trong thành phố ven biển.', 79000, 'covers/g015.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-18 00:00:00'),
+  ('G016', 'A006', 'Forest Keeper', 'Mô phỏng quản lý khu rừng và cân bằng hệ sinh thái.', 109000, 'covers/g016.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-20 00:00:00'),
+  ('G017', 'A006', 'Pixel Monsoon', 'Đi cảnh miễn phí qua những màn chơi lấy cảm hứng từ mùa mưa.', 0, 'covers/g017.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-22 00:00:00'),
+  ('G018', 'A007', 'Lotus Starship', 'Hành động chiến thuật trong các trận chiến tàu vũ trụ.', 189000, 'covers/g018.jpg', NULL, 'CPU 4 nhân, RAM 8GB', 'CPU 6 nhân, RAM 16GB', 'Approved', '2026-10-24 00:00:00'),
+  ('G019', 'A007', 'Đảo Mộng Mơ', 'Giải đố nhẹ nhàng trên quần đảo với những nhân vật kỳ thú.', 49000, 'covers/g019.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-26 00:00:00'),
+  ('G020', 'A007', 'Silent Ward', 'Kinh dị sinh tồn trong một bệnh viện mất điện.', 99000, 'covers/g020.jpg', NULL, 'CPU 4 nhân, RAM 8GB', 'CPU 6 nhân, RAM 16GB', 'Approved', '2026-10-28 00:00:00'),
+  ('G021', 'A007', 'Champions of Saigon', 'Thể thao đối kháng theo đội với chế độ thi đấu chiến thuật.', 129000, 'covers/g021.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-10-30 00:00:00'),
+  ('G022', 'A007', 'Tiny Workshop', 'Mô phỏng chế tạo vật dụng trong một xưởng nhỏ ấm cúng.', 79000, 'covers/g022.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-11-01 00:00:00'),
+  ('G023', 'A007', 'Aurora Circuit', 'Đua xe arcade trên những đường đua phủ ánh cực quang.', 139000, 'covers/g023.jpg', NULL, 'CPU 2 nhân, RAM 4GB', 'CPU 4 nhân, RAM 8GB', 'Approved', '2026-11-03 00:00:00');
+
+INSERT INTO GAME_GENRE (GameID, GenreID) VALUES
+  ('G004', 'GN01'), ('G004', 'GN06'),
+  ('G005', 'GN02'), ('G005', 'GN11'),
+  ('G006', 'GN04'), ('G006', 'GN01'),
+  ('G007', 'GN03'), ('G007', 'GN06'),
+  ('G008', 'GN05'), ('G008', 'GN06'),
+  ('G009', 'GN07'),
+  ('G010', 'GN08'), ('G010', 'GN06'),
+  ('G011', 'GN09'), ('G011', 'GN10'),
+  ('G012', 'GN02'), ('G012', 'GN11'),
+  ('G013', 'GN04'), ('G013', 'GN10'),
+  ('G014', 'GN03'), ('G014', 'GN07'),
+  ('G015', 'GN06'), ('G015', 'GN05'),
+  ('G016', 'GN02'), ('G016', 'GN07'),
+  ('G017', 'GN09'), ('G017', 'GN11'),
+  ('G018', 'GN01'), ('G018', 'GN07'),
+  ('G019', 'GN05'), ('G019', 'GN11'),
+  ('G020', 'GN08'),
+  ('G021', 'GN10'), ('G021', 'GN07'),
+  ('G022', 'GN02'), ('G022', 'GN11'),
+  ('G023', 'GN04'), ('G023', 'GN01');
+
+INSERT INTO GAMEVERSION (VersionID, GameID, VersionNumber, BuildFile, FileSize, Sha256, ChangeLog, UploadDate, IsCurrent) VALUES
+  ('V005', 'G004', '1.0.0', 'games/G004/1.0.0/build.zip', 52428800, NULL, 'Bản mẫu đầu tiên', '2026-09-10 10:00:00', 1),
+  ('V006', 'G005', '1.0.0', 'games/G005/1.0.0/build.zip', 31457280, NULL, 'Bản mẫu đầu tiên', '2026-09-18 10:00:00', 1),
+  ('V007', 'G006', '1.0.0', 'games/G006/1.0.0/build.zip', 41943040, NULL, 'Bản mẫu đầu tiên', '2026-09-22 10:00:00', 1),
+  ('V008', 'G007', '1.0.0', 'games/G007/1.0.0/build.zip', 73400320, NULL, 'Bản mẫu đầu tiên', '2026-09-30 10:00:00', 1),
+  ('V009', 'G008', '1.0.0', 'games/G008/1.0.0/build.zip', 26214400, NULL, 'Bản mẫu đầu tiên', '2026-10-02 10:00:00', 1),
+  ('V010', 'G009', '1.0.0', 'games/G009/1.0.0/build.zip', 36700160, NULL, 'Bản mẫu đầu tiên', '2026-10-05 10:00:00', 1),
+  ('V011', 'G010', '1.0.0', 'games/G010/1.0.0/build.zip', 57671680, NULL, 'Bản mẫu đầu tiên', '2026-10-08 10:00:00', 1),
+  ('V012', 'G011', '1.0.0', 'games/G011/1.0.0/build.zip', 47185920, NULL, 'Bản mẫu đầu tiên', '2026-10-10 10:00:00', 1),
+  ('V013', 'G012', '1.0.0', 'games/G012/1.0.0/build.zip', 29360128, NULL, 'Bản mẫu đầu tiên', '2026-10-12 10:00:00', 1),
+  ('V014', 'G013', '1.0.0', 'games/G013/1.0.0/build.zip', 62914560, NULL, 'Bản mẫu đầu tiên', '2026-10-14 10:00:00', 1),
+  ('V015', 'G014', '1.0.0', 'games/G014/1.0.0/build.zip', 83886080, NULL, 'Bản mẫu đầu tiên', '2026-10-16 10:00:00', 1),
+  ('V016', 'G015', '1.0.0', 'games/G015/1.0.0/build.zip', 26214400, NULL, 'Bản mẫu đầu tiên', '2026-10-18 10:00:00', 1),
+  ('V017', 'G016', '1.0.0', 'games/G016/1.0.0/build.zip', 41943040, NULL, 'Bản mẫu đầu tiên', '2026-10-20 10:00:00', 1),
+  ('V018', 'G017', '1.0.0', 'games/G017/1.0.0/build.zip', 31457280, NULL, 'Bản mẫu đầu tiên', '2026-10-22 10:00:00', 1),
+  ('V019', 'G018', '1.0.0', 'games/G018/1.0.0/build.zip', 78643200, NULL, 'Bản mẫu đầu tiên', '2026-10-24 10:00:00', 1),
+  ('V020', 'G019', '1.0.0', 'games/G019/1.0.0/build.zip', 20971520, NULL, 'Bản mẫu đầu tiên', '2026-10-26 10:00:00', 1),
+  ('V021', 'G020', '1.0.0', 'games/G020/1.0.0/build.zip', 52428800, NULL, 'Bản mẫu đầu tiên', '2026-10-28 10:00:00', 1),
+  ('V022', 'G021', '1.0.0', 'games/G021/1.0.0/build.zip', 47185920, NULL, 'Bản mẫu đầu tiên', '2026-10-30 10:00:00', 1),
+  ('V023', 'G022', '1.0.0', 'games/G022/1.0.0/build.zip', 26214400, NULL, 'Bản mẫu đầu tiên', '2026-11-01 10:00:00', 1),
+  ('V024', 'G023', '1.0.0', 'games/G023/1.0.0/build.zip', 62914560, NULL, 'Bản mẫu đầu tiên', '2026-11-03 10:00:00', 1);
+
+INSERT INTO ACTIVATIONKEY (KeyID, KeyCode, GameID, Status, CreatedDate, ActivatedDate, RedeemedBy) VALUES
+  ('K004', 'MEK04-8F2KQ-77XPA', 'G004', 'Unused', '2026-09-10 10:30:00', NULL, NULL),
+  ('K005', 'NEON6-3H9TZ-21MQB', 'G006', 'Unused', '2026-09-22 10:30:00', NULL, NULL),
+  ('K006', 'HARB9-5R7LC-90WDE', 'G009', 'Unused', '2026-10-05 10:30:00', NULL, NULL),
+  ('K007', 'BEP12-4T8NX-31QWE', 'G012', 'Unused', '2026-10-12 10:30:00', NULL, NULL),
+  ('K008', 'RAIN5-9K2LM-44PZX', 'G015', 'Unused', '2026-10-18 10:30:00', NULL, NULL),
+  ('K009', 'LOT18-6V3BN-82JHA', 'G018', 'Unused', '2026-10-24 10:30:00', NULL, NULL),
+  ('K010', 'WARD0-7C4DP-15MNS', 'G020', 'Unused', '2026-10-28 10:30:00', NULL, NULL),
+  ('K011', 'AUR23-2X5FG-93RKT', 'G023', 'Unused', '2026-11-03 10:30:00', NULL, NULL);
+
+INSERT INTO SALECAMPAIGN (CampaignID, GameID, PercentOff, StartDate, EndDate) VALUES
+  ('C004', 'G005', 25, '2026-11-15 00:00:00', '2026-12-01 23:59:59'),
+  ('C005', 'G011', 15, '2026-11-15 00:00:00', '2026-12-01 23:59:59'),
+  ('C006', 'G015', 30, '2026-11-15 00:00:00', '2026-12-01 23:59:59'),
+  ('C007', 'G020', 40, '2026-11-15 00:00:00', '2026-12-01 23:59:59'),
+  ('C008', 'G023', 20, '2026-11-15 00:00:00', '2026-12-01 23:59:59');
+
+INSERT INTO CART (CustomerID) VALUES
+  ('A008'),
+  ('A009');
+
+INSERT INTO CARTITEM (CustomerID, GameID, PriceAtAdd) VALUES
+  ('A008', 'G007', 179000),
+  ('A008', 'G020', 99000),
+  ('A009', 'G013', 159000),
+  ('A009', 'G021', 129000);
+
+INSERT INTO ORDERS (OrderID, CustomerID, CouponID, OrderDate, TotalAmount, Status) VALUES
+  ('O004', 'A008', NULL, '2026-11-13 10:15:00', 129000, 'Completed'),
+  ('O005', 'A008', NULL, '2026-11-14 11:20:00', 59000, 'Completed'),
+  ('O006', 'A009', NULL, '2026-11-15 12:25:00', 189000, 'Completed'),
+  ('O007', 'A009', NULL, '2026-11-16 13:30:00', 79000, 'Completed');
+
+INSERT INTO ORDERITEM (OrderID, GameID, UnitPrice, PriceAfterDiscount) VALUES
+  ('O004', 'G004', 129000, 129000),
+  ('O005', 'G012', 59000, 59000),
+  ('O006', 'G018', 189000, 189000),
+  ('O007', 'G022', 79000, 79000);
+
+INSERT INTO WALLET (WalletID, CustomerID, Balance, Currency) VALUES
+  ('W004', 'A008', 62000, 'VND'),
+  ('W005', 'A009', 32000, 'VND');
+
+INSERT INTO `TRANSACTION` (TransID, WalletID, OrderID, Type, Amount, TransDate, Status) VALUES
+  ('T09', 'W004', NULL, 'Deposit', 250000, '2026-11-13 10:00:00', 'Success'),
+  ('T10', 'W004', 'O004', 'Purchase', 129000, '2026-11-13 10:15:00', 'Success'),
+  ('T11', 'W004', 'O005', 'Purchase', 59000, '2026-11-14 11:20:00', 'Success'),
+  ('T12', 'W005', NULL, 'Deposit', 300000, '2026-11-15 12:00:00', 'Success'),
+  ('T13', 'W005', 'O006', 'Purchase', 189000, '2026-11-15 12:25:00', 'Success'),
+  ('T14', 'W005', 'O007', 'Purchase', 79000, '2026-11-16 13:30:00', 'Success');
+
+INSERT INTO LICENSE (LicenseID, CustomerID, GameID, Source, PurchaseDate, AccessToken, Status, RevokedAt) VALUES
+  ('L005', 'A008', 'G004', 'Purchase', '2026-11-13 10:15:00', 'f933fca1ed1e1f3f1e9160d55e4c460b9cb663f34fc70c5eb167563557afa60c', 'Active', NULL),
+  ('L006', 'A008', 'G012', 'Purchase', '2026-11-14 11:20:00', '1726b93dd05f2fdb46ba299f3df9f4e11b8f0e5bcccab38807a94edeb09646c1', 'Active', NULL),
+  ('L007', 'A009', 'G018', 'Purchase', '2026-11-15 12:25:00', 'ff16ff2cfd6034ca9110ff2726dc7573baa17465dbcd0494441f218e7d11e3c5', 'Active', NULL),
+  ('L008', 'A009', 'G022', 'Purchase', '2026-11-16 13:30:00', '5366db0c2d8c88573916264674b32c318b5a2c68b60d36e068d3f6a9d0c856a0', 'Active', NULL);
+
+INSERT INTO WISHLISTITEM (CustomerID, GameID, AddedDate) VALUES
+  ('A008', 'G023', '2026-11-15 20:00:00'),
+  ('A009', 'G005', '2026-11-16 20:00:00');
+
+INSERT INTO REVIEW (ReviewID, CustomerID, GameID, Rating, Content, ReviewDate, Status) VALUES
+  ('RV04', 'A008', 'G004', 5, 'Không khí phiêu lưu thú vị và chạy ổn định.', '2026-11-14 18:00:00', 'Visible'),
+  ('RV05', 'A008', 'G012', 4, 'Mô phỏng thư giãn, nội dung mẫu đa dạng.', '2026-11-15 18:00:00', 'Visible'),
+  ('RV06', 'A009', 'G018', 5, 'Các trận chiến chiến thuật có nhịp độ tốt.', '2026-11-16 18:00:00', 'Visible'),
+  ('RV07', 'A009', 'G022', 4, 'Một game mô phỏng nhẹ nhàng để chơi ngắn.', '2026-11-17 18:00:00', 'Visible');
+
+INSERT INTO NOTIFICATION (NotificationID, AccountID, Type, Content, SentAt, IsRead) VALUES
+  ('N04', 'A008', 'OrderCompleted', 'Đơn O004 đã hoàn tất.', '2026-11-13 10:15:00', 1),
+  ('N05', 'A009', 'WishlistSale', 'Cloud Village: Farm Days đang giảm giá.', '2026-11-16 00:05:00', 0);

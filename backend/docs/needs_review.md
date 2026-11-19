@@ -1,5 +1,12 @@
 # Những điểm cần đối chiếu lại
 
+## Trạng thái audit backend
+
+- Đã xử lý các lỗi nền tảng trong `auth.routes.js` (đăng ký/đăng nhập Guest), `utils/requestContext.js` (không cho input ghi đè danh tính/tệp upload), `config/env.js` (secret JWT production), `middlewares/errorHandler.js` (JSON sai và payload quá lớn), và `app.js` (`/health` dùng response envelope chung).
+- Đã thay test script giả bằng `node --test`; test tập trung được thêm trong `backend/tests/` cho HTTP envelope, JSON lỗi, luồng Guest/auth và các guard cấu hình/context.
+- **Chưa thể đánh dấu các luồng nghiệp vụ đã kiểm chứng:** 132 service method, 126 DAO method và 8 integration method hiện là stub ném `NotImplementedException`. Cần triển khai rồi mới xác minh SQL, transaction/rollback, IDOR, RBAC PermissionCode, trạng thái đơn/refund, tồn kho, giá, license, wallet và withdrawal theo schema.
+- Chi tiết phát hiện baseline, các sửa đã áp dụng và tiêu chí còn chặn được ghi trong [`audit_report.md`](./audit_report.md).
+
 Tên hàm được đọc trực tiếp từ ảnh sequence (không dùng OCR cho chính tả); hướng mũi tên và nét đứt được đo tự động. Nhóm nên rà các mục dưới đây.
 
 ## 1. Nhãn chưa đọc được
