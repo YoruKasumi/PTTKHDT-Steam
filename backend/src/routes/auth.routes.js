@@ -10,10 +10,10 @@ const { authService } = require('../services');
 const router = express.Router();
 
 /** UC1. Đăng ký tài khoản (#4)  | quyền: Guest */
-router.post('/guiThongTinDangKy', authenticate, authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangKy(requestContext(req)))));
+router.post('/guiThongTinDangKy', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangKy(requestContext(req)))));
 
 /** UC2. Đăng nhập hệ thống (#2)  | quyền: Guest */
-router.post('/guiThongTinDangNhap', authenticate, authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangNhap(requestContext(req)))));
+router.post('/guiThongTinDangNhap', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangNhap(requestContext(req)))));
 
 /** UC3. Đăng xuất khỏi hệ thống (#2)  | quyền: Authenticated */
 router.post('/guiYeuCauDangXuat', authenticate, asyncHandler(async (req, res) => ok(res, await authService.guiYeuCauDangXuat(requestContext(req)))));

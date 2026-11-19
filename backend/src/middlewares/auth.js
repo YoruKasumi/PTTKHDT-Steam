@@ -19,7 +19,8 @@ function authenticate(req, res, next) {
 function authorize(...roles) {
   return (req, res, next) => {
     const have = (req.user && req.user.roles) || [];
-    if (roles.length && !roles.some((r) => have.includes(r))) return next(new ForbiddenException());
+    const isGuest = roles.includes('Guest') && !req.user;
+    if (roles.length && !isGuest && !roles.some((r) => have.includes(r))) return next(new ForbiddenException());
     next();
   };
 }

@@ -32,10 +32,14 @@ cp .env.example .env        # sửa DB_PASSWORD, JWT_SECRET
 npm run db:schema          # tạo CSDL (MySQL 8.0.16+)
 npm run db:extra           # bảng BANNER, SYSTEM_PARAMETER
 npm run db:sample          # dữ liệu mẫu (tùy chọn)
+# đặt BOOTSTRAP_ADMIN_USERNAME/EMAIL/DISPLAY_NAME/PASSWORD trong môi trường
+npm run db:bootstrap-admin # tạo Admin đầu tiên hoặc kích hoạt A001 mẫu đã bị vô hiệu hóa
 npm run dev
 ```
 
 Kiểm tra: `GET http://localhost:3000/health`. Các API có dạng `/api/<service>/<tenHamTrongSequence>`, ví dụ `POST /api/auth/guiThongTinDangKy`.
+
+`db:bootstrap-admin` không nhận mật khẩu qua tham số dòng lệnh, không có mật khẩu mặc định và chỉ chạy khi bảng `ADMIN` trống hoặc chứa đúng tài khoản mẫu A001 đang bị vô hiệu hóa. Không ghi các biến `BOOTSTRAP_ADMIN_*` vào SQL hay commit chúng. Nếu bỏ qua dữ liệu mẫu, có thể chạy lệnh bootstrap ngay sau `db:extra`; nếu đã nạp sample, script sẽ đặt thông tin đăng nhập mới cho A001. Lệnh này chỉ khởi tạo dữ liệu Admin; `AuthService`/`StaffService` hiện vẫn là khung chưa triển khai nên đăng nhập và các API tương ứng chưa hoạt động cho đến khi các service đó được cài đặt.
 
 ## Quy ước
 
