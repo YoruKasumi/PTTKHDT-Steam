@@ -3,11 +3,19 @@
 @theme {
   --color-page: #080213;
   --color-card: #0b0910;
+  --color-panel: #15111f;
+  --color-field: #0b0b0c;
+  --color-line: #281e3c;
+  --color-muted: #a29bad;
   --color-topbar: #000000;
   --color-accent: #7053e1;
+  --color-accent-light: #a18dff;
   --color-success: #1ca52c;
+  --color-ok: #35c978;
+  --color-mint: #5be0bb;
   --radius-section: 40px;
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 @layer base {

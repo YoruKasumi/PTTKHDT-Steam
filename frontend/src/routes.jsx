@@ -1,7 +1,22 @@
 import Home from './pages/Home';
 import ScreenPlaceholder from './pages/ScreenPlaceholder';
+import Cart from './pages/cart/Cart';
+import Wallet from './pages/wallet/Wallet';
+import Settings from './pages/settings/Settings';
+import DeveloperRegistration from './pages/developer/DeveloperRegistration';
+import DeveloperProfile from './pages/developer/DeveloperProfile';
+import DeveloperGames from './pages/developer/DeveloperGames';
+import DeveloperKeys from './pages/developer/DeveloperKeys';
+import DeveloperRevenue from './pages/developer/DeveloperRevenue';
+import AdminAccounts from './pages/admin/AdminAccounts';
+import AdminKeyApprovals from './pages/admin/AdminKeyApprovals';
+import Wishlist from './pages/Wishlist';
+import Library from './pages/Library';
+import GameDetail from './pages/GameDetail';
+import Orders from './pages/Orders';
+import WalletTransactions from './pages/wallet/WalletTransactions';
 
-// Các màn hình đã có trong Figma nhưng chưa dựng; thay element bằng trang thật khi làm xong.
+// Danh mục route và metadata Figma; các màn hình đã dựng được ánh xạ ở routes bên dưới.
 export const pendingScreens = [
   { path: "/search", title: "Bộ lọc tìm kiếm game", node: "90:29", uc: "UC6 CatalogService" },
   { path: "/search/results", title: "Kết quả tìm kiếm", node: "169:2", uc: "UC6 CatalogService" },
@@ -34,5 +49,26 @@ export const pendingScreens = [
 
 export const routes = [
   { path: '/', element: <Home /> },
-  ...pendingScreens.map((s) => ({ path: s.path, element: <ScreenPlaceholder screen={s} /> })),
+  ...pendingScreens
+    .filter((screen) => !['/login', '/register', '/forgot-password'].includes(screen.path))
+    .map((screen) => ({
+      path: screen.path,
+      element: {
+        '/cart': <Cart />,
+        '/wallet': <Wallet />,
+        '/wallet/transactions': <WalletTransactions />,
+        '/settings': <Settings />,
+        '/games/:id': <GameDetail />,
+        '/library': <Library />,
+        '/wishlist': <Wishlist />,
+        '/orders': <Orders />,
+        '/developer/register': <DeveloperRegistration />,
+        '/developer/profile': <DeveloperProfile />,
+        '/developer/games': <DeveloperGames />,
+        '/developer/keys': <DeveloperKeys />,
+        '/developer/revenue': <DeveloperRevenue />,
+        '/admin/accounts': <AdminAccounts />,
+        '/admin/keys': <AdminKeyApprovals />,
+      }[screen.path] ?? <ScreenPlaceholder screen={screen} />,
+    })),
 ];

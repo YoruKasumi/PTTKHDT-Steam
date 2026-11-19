@@ -1,0 +1,41 @@
+import { NavLink } from 'react-router-dom';
+
+const links = [
+  { to: '/admin/accounts', label: 'Tài khoản' },
+  { to: '/admin/games', label: 'Kiểm duyệt game' },
+  { to: '/admin/keys', label: 'Duyệt mã Key' },
+  { to: '/admin/withdrawals', label: 'Lệnh rút tiền' },
+  { to: '/admin/system-config', label: 'Cấu hình' },
+  { to: '/admin/rbac', label: 'Phân quyền' },
+  { to: '/admin/staff', label: 'Nhân sự' },
+];
+
+export default function AdminShell({ title, description, children }) {
+  return (
+    <div className="mx-auto w-full max-w-[1440px] px-4 pb-20 pt-10 md:px-8">
+      <header className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-slate-900 via-card to-page p-6 shadow-xl">
+        <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-accent-light">Vortex Admin Console</p>
+        <h1 className="mb-2 mt-3 text-2xl font-extrabold md:text-3xl">{title}</h1>
+        <p className="m-0 max-w-3xl text-sm text-muted">{description}</p>
+      </header>
+
+      <nav aria-label="Điều hướng quản trị" className="my-5 flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-card p-2">
+        {links.map((link) => (
+          <NavLink
+            key={link.to}
+            to={link.to}
+            className={({ isActive }) =>
+              `shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                isActive ? 'bg-accent text-white' : 'text-muted hover:bg-white/5 hover:text-white'
+              }`
+            }
+          >
+            {link.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="space-y-5">{children}</div>
+    </div>
+  );
+}
