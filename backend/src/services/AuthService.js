@@ -1,16 +1,18 @@
 'use strict';
 const BaseService = require('./BaseService');
-const { NotImplementedException } = require('../exceptions');
+const { NghiepVuException, NotImplementedException, UnauthorizedException } = require('../exceptions');
 const AccountDAO = require('../dao/AccountDAO');
+const password = require('../utils/password');
+const token = require('../utils/token');
 
 /**
- * AuthService - tầng Business Logic.
- * Tên phương thức lấy đúng từ sơ đồ sequence; nội dung bên dưới chỉ là khung cần cài đặt.
+ * AuthService - tầng Business Logic cho xác thực tài khoản.
+ * Tên phương thức lấy đúng từ sơ đồ sequence; các luồng chưa hỗ trợ vẫn được giữ dưới dạng khung.
  */
 class AuthService extends BaseService {
-  constructor() {
+  constructor(accountDAO = new AccountDAO()) {
     super();
-    this.accountDAO = new AccountDAO();
+    this.accountDAO = accountDAO;
   }
 
   // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)
@@ -30,7 +32,54 @@ class AuthService extends BaseService {
    * @param {object} params
    */
   async guiThongTinDangKy(params = {}) {
-    throw new NotImplementedException('AuthService.guiThongTinDangKy');
+    const username = typeof params.username === 'string' ? params.username.trim() : '';
+    const email = typeof params.email === 'string' ? params.email.trim().toLowerCase() : '';
+    const displayName = typeof params.displayName === 'string' && params.displayName.trim()
+      ? params.displayName.trim()
+      : username;
+    const plainPassword = typeof params.password === 'string' ? params.password : '';
+    const otp = typeof params.otp === 'string' ? params.otp.trim() : '';
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new NghiepVuException('Đăng ký OTP chưa được cấu hình trong môi trường production', 503, 'OTP_NOT_CONFIGURED');
+    }
+    if (!/^\d{4}$/.test(otp) || otp === '0000') {
+      throw new NghiepVuException('Mã OTP không hợp lệ', 400, 'OTP_INVALID');
+    }
+    if (!/^[A-Za-z0-9._-]{3,30}$/.test(username)) {
+      throw new NghiepVuException('Tên tài khoản cần từ 3 đến 30 ký tự chữ, số, dấu chấm, gạch dưới hoặc gạch ngang', 400, 'INVALID_USERNAME');
+    }
+    if (email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new NghiepVuException('Email không hợp lệ', 400, 'INVALID_EMAIL');
+    }
+    if (displayName.length > 50) {
+      throw new NghiepVuException('Tên hiển thị tối đa 50 ký tự', 400, 'INVALID_DISPLAY_NAME');
+    }
+    if (plainPassword.length < 8 || Buffer.byteLength(plainPassword, 'utf8') > 72) {
+      throw new NghiepVuException('Mật khẩu cần ít nhất 8 ký tự và tối đa 72 byte', 400, 'INVALID_PASSWORD');
+    }
+
+    const passwordHash = await password.hash(plainPassword);
+    return this.transaction(async (conn) => {
+      const existing = await this.accountDAO.kiemTraTenTaiKhoan({ username, email }, conn);
+      if (existing) {
+        throw new NghiepVuException('Tên tài khoản hoặc email đã được sử dụng', 409, 'ACCOUNT_EXISTS');
+      }
+      const accountId = await this.accountDAO.taoTaiKhoanMoi({
+        username,
+        email,
+        displayName,
+        passwordHash,
+      }, conn);
+      return {
+        accountId,
+        username,
+        email,
+        displayName,
+        role: 'Customer',
+        otpVerified: true,
+      };
+    });
   }
 
   /**
@@ -42,7 +91,39 @@ class AuthService extends BaseService {
    * @param {object} params
    */
   async guiThongTinDangNhap(params = {}) {
-    throw new NotImplementedException('AuthService.guiThongTinDangNhap');
+    const accountName = typeof params.account === 'string' ? params.account.trim() : '';
+    const plainPassword = typeof params.password === 'string' ? params.password : '';
+    if (!accountName || !plainPassword) {
+      throw new NghiepVuException('Vui lòng nhập tên tài khoản/email và mật khẩu', 400, 'MISSING_CREDENTIALS');
+    }
+
+    const account = await this.accountDAO.kiemTraTaiKhoan({ account: accountName });
+    if (!account || !(await password.compare(plainPassword, account.PasswordHash))) {
+      throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không chính xác');
+    }
+    if (account.Status !== 'Active') {
+      throw new NghiepVuException('Tài khoản đang bị khóa hoặc tạm ngưng', 403, 'ACCOUNT_INACTIVE');
+    }
+
+    const roles = [];
+    if (Number(account.IsCustomer) === 1) roles.push('Customer');
+    if (Number(account.IsDeveloper) === 1) roles.push('Developer');
+    if (Number(account.IsManager) === 1) roles.push('Manager');
+    if (Number(account.IsAdmin) === 1) roles.push('Admin');
+    if (!roles.length) throw new NghiepVuException('Tài khoản chưa được gán vai trò', 403, 'ROLE_NOT_ASSIGNED');
+
+    const user = {
+      accountId: account.AccountID,
+      username: account.Username,
+      email: account.Email,
+      displayName: account.DisplayName,
+      roles,
+      staffRole: account.StaffRole || null,
+    };
+    return {
+      token: token.sign({ accountId: user.accountId, username: user.username, roles }),
+      user,
+    };
   }
 
   /**

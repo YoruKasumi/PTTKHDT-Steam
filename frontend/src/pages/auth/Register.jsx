@@ -16,7 +16,7 @@ const promo = {
 /** Màn hình Đăng ký (Figma: node 8:284). Sequence UC1: nhapThongTinDangKy → guiThongTinDangKy. */
 export default function Register() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ gamertag: '', email: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ gamertag: '', email: '', otp: '', password: '', confirm: '' });
   const [agree, setAgree] = useState(true);
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState('');
@@ -30,6 +30,7 @@ export default function Register() {
     const e = {};
     if (!form.gamertag.trim()) e.gamertag = 'Vui lòng nhập tên hiển thị';
     if (!/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Email chưa đúng định dạng';
+    if (!/^\d{4}$/.test(form.otp)) e.otp = 'Nhập mã OTP gồm 4 chữ số';
     if (form.password.length < 8) e.password = 'Mật khẩu cần ít nhất 8 ký tự';
     if (form.confirm !== form.password) e.confirm = 'Mật khẩu nhập lại không khớp';
     if (!agree) e.agree = 'Bạn cần đồng ý với Điều khoản Dịch vụ';
@@ -48,6 +49,7 @@ export default function Register() {
         username: form.gamertag.trim(),
         displayName: form.gamertag.trim(),
         email: form.email.trim(),
+        otp: form.otp,
         password: form.password,
       });
       navigate('/login');
@@ -68,6 +70,9 @@ export default function Register() {
           placeholder="Ví dụ: ShadowHunter99" autoComplete="nickname" error={errors.gamertag} />
         <Field id="email" className="mt-5" label="Địa chỉ Email" icon="✉️" type="email" value={form.email} onChange={set('email')}
           placeholder="tentaikhoan@gmail.com" autoComplete="email" error={errors.email} />
+        <Field id="otp" className="mt-5" label="Mã OTP xác minh (mô phỏng)" icon="🔐" inputMode="numeric" maxLength={4}
+          value={form.otp} onChange={set('otp')} placeholder="Nhập 4 chữ số" autoComplete="one-time-code" error={errors.otp} />
+        <p className="mb-0 mt-2 text-[11px] text-muted">Demo: nhập <span className="font-mono text-accent-light">0000</span> để kiểm tra thất bại; OTP 4 chữ số khác để đăng ký thành công.</p>
         <div className="mt-5 grid gap-5 md:grid-cols-2">
           <Field id="password" label="Mật khẩu" icon="🔒" type="password" value={form.password} onChange={set('password')}
             placeholder="Ít nhất 8 ký tự" autoComplete="new-password" error={errors.password} />
