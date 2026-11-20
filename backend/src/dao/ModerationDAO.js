@@ -43,72 +43,110 @@ class ModerationDAO extends BaseDAO {
   }
 
   /**
-   * UC38. Kiểm tra thông tin game mới (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * UC38. Kiểm tra thông tin game mới (#3) — Danh sách game chờ duyệt.
    */
   async truyVanDanhSachGameChoDuyet(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.truyVanDanhSachGameChoDuyet');
+    return this.query(
+      `SELECT g.GameID, g.Title, g.Status, g.Price, g.ReleaseDate,
+              a.Username AS DeveloperName, a.Email AS DeveloperEmail,
+              gv.VersionID, gv.VersionNumber, gv.BuildFile, gv.FileSize, gv.Sha256, gv.UploadDate
+       FROM GAME g
+       INNER JOIN ACCOUNT a ON a.AccountID = g.DeveloperID
+       LEFT JOIN GAMEVERSION gv ON gv.GameID = g.GameID AND gv.IsCurrent = 1
+       WHERE g.Status = 'Pending'
+       ORDER BY gv.UploadDate DESC
+       LIMIT 200`,
+      [],
+      conn,
+    );
   }
 
   /**
-   * UC38. Kiểm tra thông tin game mới (#8)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * UC38. Chi tiết hồ sơ game (#8)
    */
   async truyVanChiTietGame(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.truyVanChiTietGame');
+    return this.one(
+      `SELECT g.GameID, g.DeveloperID, g.Title, g.Description, g.Price, g.Status,
+              g.CoverImage, g.MinSpec, g.RecSpec, g.ReleaseDate,
+              a.Username AS DeveloperName, a.Email AS DeveloperEmail,
+              gv.VersionID, gv.VersionNumber, gv.BuildFile, gv.FileSize, gv.Sha256,
+              gv.ChangeLog, gv.UploadDate
+       FROM GAME g
+       INNER JOIN ACCOUNT a ON a.AccountID = g.DeveloperID
+       LEFT JOIN GAMEVERSION gv ON gv.GameID = g.GameID AND gv.IsCurrent = 1
+       WHERE g.GameID = ?
+       LIMIT 1`,
+      [params.gameId],
+      conn,
+    );
   }
 
   /**
-   * UC38. Kiểm tra thông tin game mới (#13)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * UC38. Lưu trạng thái đã kiểm tra (#13) — Ghi GAMEREVIEW (pre-review note).
    */
   async luuTrangThaiDaKiemTra(params = {}, conn = null) {
     throw new NotImplementedException('ModerationDAO.luuTrangThaiDaKiemTra');
   }
 
   /**
-   * UC39. Phê duyệt phát hành game (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * UC39. Kiểm tra trạng thái game và file (#3).
+   * @param {{ gameId: string }} params
    */
   async kiemTraTrangThaiGameVaFile(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.kiemTraTrangThaiGameVaFile');
+    return this.one(
+      `SELECT g.GameID, g.Status AS GameStatus, g.DeveloperID, g.Title,
+              gv.VersionID, gv.VersionNumber, gv.BuildFile, gv.FileSize, gv.Sha256
+       FROM GAME g
+       LEFT JOIN GAMEVERSION gv ON gv.GameID = g.GameID AND gv.IsCurrent = 1
+       WHERE g.GameID = ?
+       LIMIT 1`,
+      [params.gameId],
+      conn,
+    );
   }
 
   /**
-   * UC39. Phê duyệt phát hành game (#7)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * UC39. Cập nhật trạng thái phát hành store (#7) — Ghi GAMEREVIEW + cập nhật GAME.
+   * @param {{ gameId, managerId, decision, reason, fileSize, sha256, versionId, autoWrapped }} params
    */
   async capNhatTrangThaiPhatHanhStore(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.capNhatTrangThaiPhatHanhStore');
+    // Ghi GAMEREVIEW
+    await this.query(
+      `INSERT INTO GAMEREVIEW (GameID, ManagerID, Decision, Reason)
+       VALUES (?, ?, ?, ?)`,
+      [params.gameId, params.managerId, params.decision, params.reason || null],
+      conn,
+    );
   }
 
   /**
-   * UC40. Từ chối phát hành game (#8)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * UC40. Cập nhật trạng thái Rejected (#8).
+   * @param {{ gameId, managerId, reason }} params
    */
   async capNhatTrangThaiRejected(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.capNhatTrangThaiRejected');
+    await this.query(
+      `INSERT INTO GAMEREVIEW (GameID, ManagerID, Decision, Reason)
+       VALUES (?, ?, 'Rejected', ?)`,
+      [params.gameId, params.managerId, params.reason],
+      conn,
+    );
   }
 
   /**
-   * UC41. Gỡ bỏ game khẩn cấp (#5)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * UC41. Gỡ bỏ game khẩn cấp (#5).
+   * @param {{ gameId, managerId, reason }} params
    */
   async capNhatTrangThaiDelisted(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.capNhatTrangThaiDelisted');
+    await this.query(
+      `INSERT INTO GAMEREVIEW (GameID, ManagerID, Decision, Reason)
+       VALUES (?, ?, 'EmergencyDelist', ?)`,
+      [params.gameId, params.managerId, params.reason || null],
+      conn,
+    );
   }
 
   /**
    * UC43. Xử lý đánh giá vi phạm (#5)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatTrangThaiAnHoacXoaDanhGia(params = {}, conn = null) {
     throw new NotImplementedException('ModerationDAO.capNhatTrangThaiAnHoacXoaDanhGia');
@@ -116,8 +154,6 @@ class ModerationDAO extends BaseDAO {
 
   /**
    * UC47. Giám sát nội dung cộng đồng (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
    */
   async truyVanNoiDungBiGanCo(params = {}, conn = null) {
     throw new NotImplementedException('ModerationDAO.truyVanNoiDungBiGanCo');
@@ -125,11 +161,21 @@ class ModerationDAO extends BaseDAO {
 
   /**
    * UC47. Giám sát nội dung cộng đồng (#8)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
    */
   async luuTrangThaiKiemDuyet(params = {}, conn = null) {
     throw new NotImplementedException('ModerationDAO.luuTrangThaiKiemDuyet');
+  }
+
+  /**
+   * Gửi NOTIFICATION cho Developer.
+   * @param {{ accountId, type, content }} params
+   */
+  async taoThongBaoChoDeveloper(params = {}, conn = null) {
+    await this.query(
+      'INSERT INTO NOTIFICATION (AccountID, Type, Content) VALUES (?, ?, ?)',
+      [params.accountId, params.type, params.content],
+      conn,
+    );
   }
 }
 

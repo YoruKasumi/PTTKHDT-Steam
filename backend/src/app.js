@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
 const swaggerUi = require('swagger-ui-express');
 const routes = require('./routes');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
@@ -11,8 +12,41 @@ const { createOpenApiSpec } = require('./docs/openapi');
 const { ok } = require('./utils/response');
 
 const app = express();
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
+
+// ─── Helmet: nới lỏng CSP để game iframe gọi được /api/library/verify-launch ───
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],   // drm.js cần inline script
+        connectSrc: ["'self'"],                       // fetch /api/library/verify-launch
+        frameSrc:   ["'self'"],                       // iframe _game_app.html
+        imgSrc:     ["'self'", 'data:', 'blob:'],
+        styleSrc:   ["'self'", "'unsafe-inline'"],
+      },
+    },
+    // Cho phép game chạy trong iframe từ cùng origin
+    frameguard: { action: 'sameorigin' },
+    crossOriginEmbedderPolicy: false,
+  }),
+);
+
+// ─── CORS: hỗ trợ credentials để cookie hoạt động trong iframe ───────────────
+const corsOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : true;
+
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,                    // cần cho cookie __sstore_lt_*
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }),
+);
+
+app.use(cookieParser());
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
 
@@ -29,6 +63,7 @@ app.get('/health/database', asyncHandler(async (req, res) => {
     });
   }
 }));
+
 app.use('/api', routes);
 
 if (process.env.NODE_ENV !== 'production') {
@@ -36,9 +71,7 @@ if (process.env.NODE_ENV !== 'production') {
   app.get('/api-docs/openapi.json', (req, res) => res.json(openApiSpec));
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
     explorer: true,
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
+    swaggerOptions: { persistAuthorization: true },
   }));
 }
 
