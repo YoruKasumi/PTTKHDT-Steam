@@ -1,6 +1,7 @@
 'use strict';
+const { randomUUID } = require('node:crypto');
 const BaseService = require('./BaseService');
-const { NotImplementedException } = require('../exceptions');
+const { NotImplementedException, ValidationException } = require('../exceptions');
 const NotificationDAO = require('../dao/NotificationDAO');
 
 /**
@@ -11,6 +12,33 @@ class NotificationService extends BaseService {
   constructor() {
     super();
     this.notificationDAO = new NotificationDAO();
+  }
+
+  /**
+   * Create a notification; pass the caller's connection to include it in a transaction.
+   */
+  async createNotification(params = {}, conn = null) {
+    const accountId = typeof params.accountId === 'string' ? params.accountId.trim() : '';
+    const type = typeof params.type === 'string' ? params.type.trim() : '';
+    const content = typeof params.content === 'string' ? params.content.trim() : '';
+
+    if (!accountId) throw new ValidationException('accountId là bắt buộc');
+    if (!type || type.length > 30) {
+      throw new ValidationException('type là bắt buộc và tối đa 30 ký tự');
+    }
+    if (!content || content.length > 1000) {
+      throw new ValidationException('content là bắt buộc và tối đa 1000 ký tự');
+    }
+
+    const notification = {
+      notificationId: randomUUID(),
+      accountId,
+      type,
+      content,
+      isRead: false,
+    };
+    await this.notificationDAO.createNotification(notification, conn);
+    return notification;
   }
 
   // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)

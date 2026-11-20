@@ -1,6 +1,12 @@
 'use strict';
+const { randomUUID } = require('node:crypto');
 const BaseService = require('./BaseService');
-const { NotImplementedException } = require('../exceptions');
+const {
+  ConflictException,
+  NotFoundException,
+  NotImplementedException,
+  ValidationException,
+} = require('../exceptions');
 const WalletDAO = require('../dao/WalletDAO');
 
 /**
@@ -101,8 +107,65 @@ class WalletService extends BaseService {
    * UC15. Thanh toán - sequence #16: Service khác → WalletService
    * @param {object} params
    */
-  async truTienVi(params = {}) {
-    throw new NotImplementedException('WalletService.truTienVi');
+  /**
+   * Deducts a purchase or Steam Direct fee and records it atomically.
+   * Pass conn to participate in an existing transaction; Fee records have no OrderID.
+   * @param {{ accountId: string, amount: number|string, type?: 'Purchase'|'Fee', orderId?: string }} params
+   * @param {object|null} conn
+   */
+  async truTienVi(params = {}, conn = null) {
+    const accountId = typeof params.accountId === 'string' ? params.accountId.trim() : '';
+    const amount = Number(params.amount);
+    const type = params.type === undefined ? 'Purchase' : params.type;
+    if (!accountId) throw new ValidationException('accountId là bắt buộc');
+    if (!Number.isFinite(amount) || amount <= 0
+      || amount > 9999999999999.99 || Number(amount.toFixed(2)) !== amount) {
+      throw new ValidationException('amount phải là số dương, tối đa 2 chữ số thập phân');
+    }
+    if (!['Purchase', 'Fee'].includes(type)) {
+      throw new ValidationException('type chỉ được là Purchase hoặc Fee');
+    }
+
+    const operation = async (conn) => {
+      const wallet = await this.walletDAO.truyVanSoDuKhaDung({ accountId }, conn);
+      if (!wallet) throw new NotFoundException('Không tìm thấy ví của tài khoản');
+
+      const available = Number(wallet.Balance);
+      if (available < amount) {
+        throw new ValidationException('Số dư ví không đủ để thanh toán', {
+          required: amount,
+          available,
+        });
+      }
+
+      const updated = await this.walletDAO.capNhatSoDuVi({
+        walletId: wallet.WalletID,
+        amount,
+        operation: 'debit',
+      }, conn);
+      if (!updated) {
+        throw new ConflictException('Số dư ví đã thay đổi; vui lòng thử lại');
+      }
+
+      const transactionId = randomUUID();
+      await this.walletDAO.luuLichSuGiaoDich({
+        transactionId,
+        walletId: wallet.WalletID,
+        orderId: params.orderId || null,
+        type,
+        amount,
+      }, conn);
+
+      return {
+        transactionId,
+        walletId: wallet.WalletID,
+        amount,
+        type,
+        balance: available - amount,
+      };
+    };
+
+    return conn ? operation(conn) : this.transaction(operation);
   }
 
   /**

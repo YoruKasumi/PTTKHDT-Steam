@@ -1,5 +1,6 @@
 'use strict';
 const BaseDAO = require('./BaseDAO');
+const { NotImplementedException } = require('../exceptions');
 
 class AccountDAO extends BaseDAO {
   /**
@@ -62,16 +63,48 @@ class AccountDAO extends BaseDAO {
          (developer.AccountID IS NOT NULL) AS IsDeveloper,
          (manager.AccountID IS NOT NULL) AS IsManager,
          (admin.AccountID IS NOT NULL) AS IsAdmin,
-         role.RoleName AS StaffRole
+         staffRole.RoleName AS StaffRole,
+         rolePermissions.PermissionCodes
        FROM ACCOUNT AS account
        LEFT JOIN CUSTOMER AS customer ON customer.AccountID = account.AccountID
        LEFT JOIN DEVELOPER AS developer ON developer.AccountID = account.AccountID
        LEFT JOIN MANAGER AS manager ON manager.AccountID = account.AccountID
-       LEFT JOIN \`ROLE\` AS role ON role.RoleID = manager.RoleID
+       LEFT JOIN \`ROLE\` AS staffRole ON staffRole.RoleID = manager.RoleID
+       LEFT JOIN (
+         SELECT RoleID, GROUP_CONCAT(DISTINCT PermissionCode) AS PermissionCodes
+         FROM ROLE_PERMISSION
+         GROUP BY RoleID
+       ) AS rolePermissions ON rolePermissions.RoleID = manager.RoleID
        LEFT JOIN ADMIN AS admin ON admin.AccountID = account.AccountID
        WHERE account.Username = ? OR account.Email = ?
        LIMIT 1`,
       [params.account, params.account],
+      conn,
+    );
+  }
+
+  async layDanhTinhVaQuyen(params = {}, conn = null) {
+    return this.one(
+      `SELECT
+         account.AccountID,
+         account.Username,
+         account.Status,
+         (customer.AccountID IS NOT NULL) AS IsCustomer,
+         (developer.AccountID IS NOT NULL) AS IsDeveloper,
+         (manager.AccountID IS NOT NULL) AS IsManager,
+         (admin.AccountID IS NOT NULL) AS IsAdmin,
+         GROUP_CONCAT(DISTINCT rolePermission.PermissionCode) AS PermissionCodes
+       FROM ACCOUNT AS account
+       LEFT JOIN CUSTOMER AS customer ON customer.AccountID = account.AccountID
+       LEFT JOIN DEVELOPER AS developer ON developer.AccountID = account.AccountID
+       LEFT JOIN MANAGER AS manager ON manager.AccountID = account.AccountID
+       LEFT JOIN ROLE_PERMISSION AS rolePermission ON rolePermission.RoleID = manager.RoleID
+       LEFT JOIN ADMIN AS admin ON admin.AccountID = account.AccountID
+       WHERE account.AccountID = ?
+       GROUP BY account.AccountID, account.Username, account.Status,
+         customer.AccountID, developer.AccountID, manager.AccountID, admin.AccountID
+       LIMIT 1`,
+      [params.accountId],
       conn,
     );
   }
@@ -118,7 +151,147 @@ class AccountDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async truyVanThongTinVaLichSuTaiKhoan(params = {}, conn = null) {
-    throw new NotImplementedException('AccountDAO.truyVanThongTinVaLichSuTaiKhoan');
+    const accountId = params.accountId;
+    const account = await this.one(
+      `SELECT AccountID, Username, Email, DisplayName, Status, CreatedAt
+       FROM ACCOUNT WHERE AccountID = ? LIMIT 1`,
+      [accountId],
+      conn,
+    );
+    if (!account) return null;
+
+    const [roles, wallet, orders, licenses, auditLogs] = await Promise.all([
+      this.query(
+        `SELECT 'Customer' AS RoleName FROM CUSTOMER WHERE AccountID = ?
+         UNION ALL SELECT 'Developer' FROM DEVELOPER WHERE AccountID = ?
+         UNION ALL SELECT staffRole.RoleName FROM MANAGER AS manager
+           INNER JOIN \`ROLE\` AS staffRole ON staffRole.RoleID = manager.RoleID
+           WHERE manager.AccountID = ?
+         UNION ALL SELECT 'Admin' FROM ADMIN WHERE AccountID = ?`,
+        [accountId, accountId, accountId, accountId],
+        conn,
+      ),
+      this.one('SELECT Balance, Currency FROM WALLET WHERE CustomerID = ? LIMIT 1', [accountId], conn),
+      this.query(
+        `SELECT OrderID, OrderDate, TotalAmount, Status
+         FROM ORDERS WHERE CustomerID = ? ORDER BY OrderDate DESC LIMIT 100`,
+        [accountId],
+        conn,
+      ),
+      this.query(
+        `SELECT license.LicenseID, license.GameID, game.Title, license.Source,
+                license.PurchaseDate, license.Status, license.RevokedAt
+         FROM LICENSE AS license
+         INNER JOIN GAME AS game ON game.GameID = license.GameID
+         WHERE license.CustomerID = ?
+         ORDER BY license.PurchaseDate DESC LIMIT 100`,
+        [accountId],
+        conn,
+      ),
+      this.query(
+        `SELECT LogID, Action, Target, LogAt, Detail
+         FROM AUDITLOG
+         WHERE Target = CONCAT('ACCOUNT:', ?)
+         ORDER BY LogAt DESC LIMIT 100`,
+        [accountId],
+        conn,
+      ),
+    ]);
+
+    return {
+      account,
+      roles: roles.map((row) => row.RoleName),
+      wallet: wallet ? { balance: Number(wallet.Balance), currency: wallet.Currency } : null,
+      orders,
+      licenses,
+      violations: auditLogs,
+    };
+  }
+
+  async truyVanDanhSachTaiKhoan(params = {}, conn = null) {
+    const conditions = [];
+    const values = [];
+    if (params.keyword) {
+      const keyword = `%${params.keyword}%`;
+      conditions.push('(account.AccountID LIKE ? OR account.Username LIKE ? OR account.Email LIKE ?)');
+      values.push(keyword, keyword, keyword);
+    }
+    if (params.status) {
+      conditions.push('account.Status = ?');
+      values.push(params.status);
+    }
+    if (params.role === 'Customer') conditions.push('customer.AccountID IS NOT NULL');
+    if (params.role === 'Developer') conditions.push('developer.AccountID IS NOT NULL');
+    if (params.role === 'Manager') conditions.push('manager.AccountID IS NOT NULL');
+    if (params.role === 'Admin') conditions.push('admin.AccountID IS NOT NULL');
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const rows = await this.query(
+      `SELECT account.AccountID, account.Username, account.Email, account.DisplayName,
+              account.Status, account.CreatedAt,
+              GROUP_CONCAT(DISTINCT roleName.RoleName ORDER BY roleName.RoleName) AS RoleNames,
+              wallet.Balance AS WalletBalance
+       FROM ACCOUNT AS account
+       LEFT JOIN CUSTOMER AS customer ON customer.AccountID = account.AccountID
+       LEFT JOIN DEVELOPER AS developer ON developer.AccountID = account.AccountID
+       LEFT JOIN MANAGER AS manager ON manager.AccountID = account.AccountID
+       LEFT JOIN ADMIN AS admin ON admin.AccountID = account.AccountID
+       LEFT JOIN WALLET AS wallet ON wallet.CustomerID = account.AccountID
+       LEFT JOIN (
+         SELECT accountId, roleName FROM (
+           SELECT AccountID AS accountId, 'Customer' AS roleName FROM CUSTOMER
+           UNION ALL SELECT AccountID, 'Developer' FROM DEVELOPER
+           UNION ALL SELECT manager.AccountID, staffRole.RoleName FROM MANAGER AS manager
+             INNER JOIN \`ROLE\` AS staffRole ON staffRole.RoleID = manager.RoleID
+           UNION ALL SELECT AccountID, 'Admin' FROM ADMIN
+         ) AS roleRows
+       ) AS roleName ON roleName.accountId = account.AccountID
+       ${where}
+       GROUP BY account.AccountID, account.Username, account.Email, account.DisplayName,
+                account.Status, account.CreatedAt, wallet.Balance
+       ORDER BY account.CreatedAt DESC
+       LIMIT 500`,
+      values,
+      conn,
+    );
+    return rows.map((row) => ({
+      accountId: row.AccountID,
+      username: row.Username,
+      email: row.Email,
+      displayName: row.DisplayName,
+      status: row.Status,
+      createdAt: row.CreatedAt,
+      roles: row.RoleNames ? row.RoleNames.split(',') : [],
+      walletBalance: row.WalletBalance === null ? null : Number(row.WalletBalance),
+    }));
+  }
+
+  async kiemTraLaQuanTri(params = {}, conn = null) {
+    return this.one('SELECT AccountID FROM ADMIN WHERE AccountID = ? LIMIT 1', [params.accountId], conn);
+  }
+
+  async layTaiKhoanTheoId(params = {}, conn = null) {
+    return this.one(
+      'SELECT AccountID, Status FROM ACCOUNT WHERE AccountID = ? LIMIT 1',
+      [params.accountId],
+      conn,
+    );
+  }
+
+  async capNhatTrangThaiTaiKhoan(params = {}, conn = null) {
+    const result = await this.query(
+      'UPDATE ACCOUNT SET Status = ? WHERE AccountID = ?',
+      [params.status, params.accountId],
+      conn,
+    );
+    return result.affectedRows;
+  }
+
+  async taoThongBaoTaiKhoan(params = {}, conn = null) {
+    await this.query(
+      'INSERT INTO NOTIFICATION (AccountID, Type, Content) VALUES (?, ?, ?)',
+      [params.accountId, params.type, params.content],
+      conn,
+    );
   }
 
   /**
@@ -127,7 +300,7 @@ class AccountDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatTrangThaiTamKhoaTaiKhoan(params = {}, conn = null) {
-    throw new NotImplementedException('AccountDAO.capNhatTrangThaiTamKhoaTaiKhoan');
+    return this.capNhatTrangThaiTaiKhoan({ ...params, status: 'Suspended' }, conn);
   }
 
   /**
@@ -136,7 +309,11 @@ class AccountDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatTrangThaiBanned(params = {}, conn = null) {
-    throw new NotImplementedException('AccountDAO.capNhatTrangThaiBanned');
+    return this.capNhatTrangThaiTaiKhoan({ ...params, status: 'Banned' }, conn);
+  }
+
+  async capNhatTrangThaiMoKhoa(params = {}, conn = null) {
+    return this.capNhatTrangThaiTaiKhoan({ ...params, status: 'Active' }, conn);
   }
 }
 

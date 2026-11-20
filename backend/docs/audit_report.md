@@ -28,7 +28,7 @@ Bảng dưới đây ghi nhận các phát hiện baseline trước khi sửa. C
 
 ## Trạng thái sau sửa và xác minh
 
-- Đã sửa các phát hiện 2–6 và 8 như mô tả trong bảng. `/health` giữ hợp đồng `{ ok, data }` tương thích adapter hiện tại; không đổi cấu trúc response các API khác.
-- Test bổ sung bao phủ health/404, JSON sai/payload quá lớn, truy cập Guest tới login, chặn route Customer khi thiếu/sai JWT, bảo vệ identity/files trong request context và kiểm tra điều kiện JWT secret production.
-- Endpoint login trong kiểm thử hiện trả 501 sau khi vượt qua middleware, vì `AuthService` vẫn là stub. Đây không phải luồng đăng nhập đã triển khai.
-- Phát hiện 1 và 7, kiểm tra status 201 cho các POST tạo tài nguyên, cùng các tiêu chí schema/transaction/IDOR/nghiệp vụ vẫn chưa được giải quyết hoặc xác minh do thiếu implementation. Không có thay đổi nào tuyên bố các luồng này đã đạt.
+- Phần trên là kết quả audit baseline trước khi triển khai các yêu cầu Admin/RBAC. Sau triển khai, mọi API success dùng `{ success, message, data, meta? }`; lỗi dùng `{ success: false, code, message, details? }`.
+- Các flow RBAC, account moderation/history, staff, review moderation, genres, banners, system config và audit log đã được triển khai theo DAO/Service/Route; thao tác nhiều bảng ghi audit trong transaction.
+- `npm test` và `npm run build` được chạy lại sau thay đổi. Các kiểm thử tập trung bao gồm envelope/OpenAPI, route authentication, middleware role/permission, validation tham số, staff, genre, banner và request context.
+- Chưa xác minh trực tiếp các luồng trên với database MySQL đang chạy; cần cấu hình DB, áp dụng schema/`extra_tables.sql`, sau đó test qua Swagger/UI. Các UC ngoài phạm vi Admin (thanh toán/refund, wallet, license, game approval, withdrawal...) vẫn cần được triển khai và kiểm thử riêng.

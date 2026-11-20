@@ -2,9 +2,10 @@
 
 ## Trạng thái audit backend
 
-- Đã xử lý các lỗi nền tảng trong `auth.routes.js` (đăng ký/đăng nhập Guest), `utils/requestContext.js` (không cho input ghi đè danh tính/tệp upload), `config/env.js` (secret JWT production), `middlewares/errorHandler.js` (JSON sai và payload quá lớn), và `app.js` (`/health` dùng response envelope chung).
-- Đã thay test script giả bằng `node --test`; test tập trung được thêm trong `backend/tests/` cho HTTP envelope, JSON lỗi, luồng Guest/auth và các guard cấu hình/context.
-- **Chưa thể đánh dấu các luồng nghiệp vụ đã kiểm chứng:** 132 service method, 126 DAO method và 8 integration method hiện là stub ném `NotImplementedException`. Cần triển khai rồi mới xác minh SQL, transaction/rollback, IDOR, RBAC PermissionCode, trạng thái đơn/refund, tồn kho, giá, license, wallet và withdrawal theo schema.
+- Các API mới dùng envelope `{ success, message, data, meta? }`; lỗi dùng `{ success: false, code, message, details? }`. `requestContext.js` ưu tiên path params hơn body và luôn giữ danh tính từ middleware.
+- Đã triển khai nền RBAC động từ `ROLE_PERMISSION`, CRUD vai trò, quản lý trạng thái/lịch sử tài khoản, nhân sự, kiểm duyệt review, thể loại/banner, system config và audit log. Các luồng ghi nhiều bảng ghi audit cùng transaction.
+- `npm test` có kiểm thử hợp đồng API, middleware quyền và validation; frontend được build bằng Vite.
+- **Các luồng nghiệp vụ ngoài phạm vi Admin này vẫn chưa được kiểm chứng:** nhiều service/DAO cho thanh toán, refund, tồn kho, giá, license, wallet, withdrawal và developer còn stub. Cần kiểm tra theo schema trước khi tuyên bố các luồng đó hoàn tất.
 - Chi tiết phát hiện baseline, các sửa đã áp dụng và tiêu chí còn chặn được ghi trong [`audit_report.md`](./audit_report.md).
 
 Tên hàm được đọc trực tiếp từ ảnh sequence (không dùng OCR cho chính tả); hướng mũi tên và nét đứt được đo tự động. Nhóm nên rà các mục dưới đây.
@@ -56,5 +57,5 @@ Một số lifeline trong sơ đồ mang tên khác với service đã chốt. M
 
 ## 6. Bảng CSDL bổ sung
 
-- `BANNER` (UC49) và `SYSTEM_PARAMETER` (UC58) chưa có trong lược đồ 29 bảng; xem `sql/extra_tables.sql`.
+- `BANNER` và `SYSTEM_PARAMETER` nằm trong `sql/steam_store_schema.sql`; `sql/extra_tables.sql` bổ sung các tham số mới cho database đã khởi tạo.
 - UC56 và UC61-63 làm việc với nhân sự nội bộ (MANAGER, ADMIN, ROLE) - dùng `StaffDAO` và `RoleDAO`.
