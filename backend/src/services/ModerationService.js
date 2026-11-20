@@ -1,7 +1,7 @@
 'use strict';
 const BaseService = require('./BaseService');
-const { NotImplementedException } = require('../exceptions');
 const ModerationDAO = require('../dao/ModerationDAO');
+const { NotFoundException, NotImplementedException, ValidationException } = require('../exceptions');
 
 /**
  * ModerationService - tầng Business Logic.
@@ -123,7 +123,49 @@ class ModerationService extends BaseService {
    * @param {object} params
    */
   async yeuCauXuLyDanhGiaViPham(params = {}) {
-    throw new NotImplementedException('ModerationService.yeuCauXuLyDanhGiaViPham');
+    const status = params.status;
+    const reason = typeof params.reason === 'string' ? params.reason.trim() : '';
+    if (!['Visible', 'Hidden', 'Removed'].includes(status)) {
+      throw new ValidationException('Trạng thái đánh giá không hợp lệ');
+    }
+    if (!reason || reason.length > 500) {
+      throw new ValidationException('Lý do xử lý là bắt buộc và tối đa 500 ký tự');
+    }
+    return this.transaction(async (conn) => {
+      const review = await this.moderationDAO.layDanhGiaTheoId({ reviewId: params.reviewId }, conn);
+      if (!review) throw new NotFoundException('Không tìm thấy đánh giá');
+      await this.moderationDAO.capNhatTrangThaiDanhGia({
+        reviewId: params.reviewId,
+        status,
+      }, conn);
+      await this.auditLogService.recordLog({
+        accountId: params.user.accountId,
+        action: 'REVIEW_MODERATE',
+        target: `REVIEW:${params.reviewId}`,
+        detail: JSON.stringify({ previousStatus: review.Status, status, reason }),
+      }, conn);
+      await this.moderationDAO.taoThongBaoDanhGia({
+        accountId: review.CustomerID,
+        type: 'ReviewModeration',
+        content: `Đánh giá của bạn đã được cập nhật: ${status}. Lý do: ${reason}`,
+      }, conn);
+      return { reviewId: params.reviewId, status, reason };
+    });
+  }
+
+  async listReviews() {
+    const rows = await this.moderationDAO.listReviews();
+    return rows.map((row) => ({
+      reviewId: row.ReviewID,
+      customerId: row.CustomerID,
+      username: row.Username,
+      gameId: row.GameID,
+      gameTitle: row.GameTitle,
+      rating: Number(row.Rating),
+      content: row.Content,
+      reviewDate: row.ReviewDate,
+      status: row.Status,
+    }));
   }
 
   /**

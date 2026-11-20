@@ -1,15 +1,30 @@
 'use strict';
 const BaseDAO = require('./BaseDAO');
-const { NotImplementedException } = require('../exceptions');
 
 class GenreDAO extends BaseDAO {
+  async listGenres(params = {}, conn = null) {
+    return this.query(
+      'SELECT GenreID, GenreName, Description FROM GENRE ORDER BY GenreName',
+      [],
+      conn,
+    );
+  }
+
+  async layTheLoaiTheoId(params = {}, conn = null) {
+    return this.one(
+      'SELECT GenreID, GenreName, Description FROM GENRE WHERE GenreID = ? LIMIT 1',
+      [params.genreId],
+      conn,
+    );
+  }
+
   /**
    * UC48. Quản lý danh mục thể loại (#4)
    * @param {object} params
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async kiemTraTrungLapTenTheLoai(params = {}, conn = null) {
-    throw new NotImplementedException('GenreDAO.kiemTraTrungLapTenTheLoai');
+    return this.one('SELECT GenreID FROM GENRE WHERE GenreName = ? LIMIT 1', [params.genreName], conn);
   }
 
   /**
@@ -18,7 +33,12 @@ class GenreDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async taoTheLoaiMoi(params = {}, conn = null) {
-    throw new NotImplementedException('GenreDAO.taoTheLoaiMoi');
+    await this.query(
+      'INSERT INTO GENRE (GenreName, Description) VALUES (?, ?)',
+      [params.genreName, params.description || null],
+      conn,
+    );
+    return this.one('SELECT GenreID, GenreName, Description FROM GENRE WHERE GenreName = ? LIMIT 1', [params.genreName], conn);
   }
 
   /**
@@ -27,7 +47,11 @@ class GenreDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async kiemTraTrungLapTenMoi(params = {}, conn = null) {
-    throw new NotImplementedException('GenreDAO.kiemTraTrungLapTenMoi');
+    return this.one(
+      'SELECT GenreID FROM GENRE WHERE GenreName = ? AND GenreID <> ? LIMIT 1',
+      [params.genreName, params.genreId],
+      conn,
+    );
   }
 
   /**
@@ -36,7 +60,12 @@ class GenreDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatTheLoai(params = {}, conn = null) {
-    throw new NotImplementedException('GenreDAO.capNhatTheLoai');
+    const result = await this.query(
+      'UPDATE GENRE SET GenreName = ?, Description = ? WHERE GenreID = ?',
+      [params.genreName, params.description || null, params.genreId],
+      conn,
+    );
+    return result.affectedRows;
   }
 
   /**
@@ -45,7 +74,12 @@ class GenreDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async kiemTraRangBuocGameDangDung(params = {}, conn = null) {
-    throw new NotImplementedException('GenreDAO.kiemTraRangBuocGameDangDung');
+    const row = await this.one(
+      'SELECT COUNT(*) AS Count FROM GAME_GENRE WHERE GenreID = ?',
+      [params.genreId],
+      conn,
+    );
+    return Number(row.Count);
   }
 
   /**
@@ -54,7 +88,8 @@ class GenreDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async xoaTheLoai(params = {}, conn = null) {
-    throw new NotImplementedException('GenreDAO.xoaTheLoai');
+    const result = await this.query('DELETE FROM GENRE WHERE GenreID = ?', [params.genreId], conn);
+    return result.affectedRows;
   }
 }
 

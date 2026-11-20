@@ -3,6 +3,60 @@ const BaseDAO = require('./BaseDAO');
 const { NotImplementedException } = require('../exceptions');
 
 class AuditLogDAO extends BaseDAO {
+  async recordLog(params = {}, conn = null) {
+    await this.query(
+      'INSERT INTO AUDITLOG (AccountID, Action, Target, Detail) VALUES (?, ?, ?, ?)',
+      [params.accountId, params.action, params.target, params.detail || null],
+      conn,
+    );
+  }
+
+  async listLogs(params = {}, conn = null) {
+    const conditions = [];
+    const values = [];
+    if (params.accountId) {
+      conditions.push('log.AccountID = ?');
+      values.push(params.accountId);
+    }
+    if (params.action) {
+      conditions.push('log.Action = ?');
+      values.push(params.action);
+    }
+    if (params.fromDate) {
+      conditions.push('log.LogAt >= ?');
+      values.push(params.fromDate);
+    }
+    if (params.toDate) {
+      conditions.push('log.LogAt < DATE_ADD(?, INTERVAL 1 DAY)');
+      values.push(params.toDate);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limit = Math.min(Math.max(Number(params.limit) || 100, 1), 500);
+    return this.query(
+      `SELECT log.LogID, log.AccountID, account.Username, log.Action, log.Target, log.LogAt, log.Detail
+       FROM AUDITLOG AS log
+       INNER JOIN ACCOUNT AS account ON account.AccountID = log.AccountID
+       ${where}
+       ORDER BY log.LogAt DESC
+       LIMIT ?`,
+      [...values, limit],
+      conn,
+    );
+  }
+
+  async truyVanChiTietBanGhiLog(params = {}, conn = null) {
+    return this.one(
+      `SELECT log.LogID, log.AccountID, account.Username, log.Action, log.Target, log.LogAt, log.Detail
+       FROM AUDITLOG AS log
+       INNER JOIN ACCOUNT AS account ON account.AccountID = log.AccountID
+       WHERE log.LogID = ?
+       LIMIT 1`,
+      [params.logId],
+      conn,
+    );
+  }
+
   /**
    * UC39. Phê duyệt phát hành game (#10)
    * @param {object} params

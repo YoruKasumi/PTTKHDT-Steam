@@ -23,7 +23,7 @@ app.get('/health/database', asyncHandler(async (req, res) => {
     return ok(res, { status: 'ok', database: process.env.DB_NAME || 'steam_store' });
   } catch (error) {
     return res.status(503).json({
-      ok: false,
+      success: false,
       code: 'DATABASE_UNAVAILABLE',
       message: 'Không kết nối được MySQL. Kiểm tra DB_HOST, DB_PORT, DB_USER, DB_PASSWORD và DB_NAME.',
     });

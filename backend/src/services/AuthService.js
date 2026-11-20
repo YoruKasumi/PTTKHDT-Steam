@@ -119,6 +119,7 @@ class AuthService extends BaseService {
       displayName: account.DisplayName,
       roles,
       staffRole: account.StaffRole || null,
+      permissions: account.PermissionCodes ? account.PermissionCodes.split(',') : [],
     };
     return {
       token: token.sign({ accountId: user.accountId, username: user.username, roles }),

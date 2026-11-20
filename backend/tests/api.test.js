@@ -31,7 +31,8 @@ test('health endpoint uses the standard success response envelope', async () => 
   const response = await fetch(`${baseUrl}/health`);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    ok: true,
+    success: true,
+    message: 'Request completed successfully',
     data: { status: 'ok' },
   });
 });
@@ -46,6 +47,11 @@ test('Swagger UI and generated OpenAPI document are available in development', a
   const spec = await specResponse.json();
   assert.equal(spec.openapi, '3.0.3');
   assert.ok(spec.paths['/api/auth/guiThongTinDangNhap']);
+  assert.ok(spec.paths['/api/admin/roles']);
+  assert.ok(spec.paths['/api/admin/accounts/{accountId}/history']);
+  assert.ok(spec.paths['/api/moderation/reviews']);
+  assert.ok(spec.paths['/api/genres']);
+  assert.ok(spec.paths['/api/banners/active']);
   assert.deepEqual(spec.paths['/api/cart/yeuCauXemGioHang'].get.security, [{ bearerAuth: [] }]);
   assert.ok(spec.paths['/health/database']);
 });
@@ -54,7 +60,7 @@ test('unknown paths use the standard error response envelope', async () => {
   const response = await fetch(`${baseUrl}/api/not-a-route`);
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), {
-    ok: false,
+    success: false,
     code: 'NOT_FOUND',
     message: 'Không có đường dẫn GET /api/not-a-route',
   });
@@ -68,7 +74,7 @@ test('malformed JSON is returned as a client error, not an internal error', asyn
   });
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), {
-    ok: false,
+    success: false,
     code: 'BAD_REQUEST',
     message: 'JSON request body không hợp lệ',
   });
@@ -82,7 +88,7 @@ test('oversized JSON is returned as a payload-too-large error', async () => {
   });
   assert.equal(response.status, 413);
   assert.deepEqual(await response.json(), {
-    ok: false,
+    success: false,
     code: 'PAYLOAD_TOO_LARGE',
     message: 'Request body vượt quá kích thước cho phép',
   });
@@ -96,7 +102,7 @@ test('login rejects a missing username or password as a client error', async () 
   });
   assert.equal(response.status, 400);
   const body = await response.json();
-  assert.equal(body.ok, false);
+  assert.equal(body.success, false);
   assert.equal(body.code, 'MISSING_CREDENTIALS');
 });
 
@@ -128,8 +134,18 @@ test('customer-only routes still reject requests without a JWT', async () => {
   const response = await fetch(`${baseUrl}/api/cart/yeuCauXemGioHang`);
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
-    ok: false,
+    success: false,
     code: 'UNAUTHORIZED',
     message: 'Chưa đăng nhập hoặc phiên đã hết hạn',
+  });
+
+  test('admin endpoints require authentication', async () => {
+    const response = await fetch(`${baseUrl}/api/admin/roles`);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      success: false,
+      code: 'UNAUTHORIZED',
+      message: 'Chưa đăng nhập hoặc phiên đã hết hạn',
+    });
   });
 });

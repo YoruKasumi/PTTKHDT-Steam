@@ -3,6 +3,45 @@ const BaseDAO = require('./BaseDAO');
 const { NotImplementedException } = require('../exceptions');
 
 class ModerationDAO extends BaseDAO {
+  async listReviews(params = {}, conn = null) {
+    return this.query(
+      `SELECT review.ReviewID, review.CustomerID, account.Username, review.GameID,
+              game.Title AS GameTitle, review.Rating, review.Content, review.ReviewDate, review.Status
+       FROM REVIEW AS review
+       INNER JOIN ACCOUNT AS account ON account.AccountID = review.CustomerID
+       INNER JOIN GAME AS game ON game.GameID = review.GameID
+       ORDER BY review.ReviewDate DESC
+       LIMIT 500`,
+      [],
+      conn,
+    );
+  }
+
+  async layDanhGiaTheoId(params = {}, conn = null) {
+    return this.one(
+      `SELECT ReviewID, CustomerID, Status FROM REVIEW WHERE ReviewID = ? LIMIT 1`,
+      [params.reviewId],
+      conn,
+    );
+  }
+
+  async capNhatTrangThaiDanhGia(params = {}, conn = null) {
+    const result = await this.query(
+      'UPDATE REVIEW SET Status = ? WHERE ReviewID = ?',
+      [params.status, params.reviewId],
+      conn,
+    );
+    return result.affectedRows;
+  }
+
+  async taoThongBaoDanhGia(params = {}, conn = null) {
+    await this.query(
+      'INSERT INTO NOTIFICATION (AccountID, Type, Content) VALUES (?, ?, ?)',
+      [params.accountId, params.type, params.content],
+      conn,
+    );
+  }
+
   /**
    * UC38. Kiểm tra thông tin game mới (#3)
    * @param {object} params

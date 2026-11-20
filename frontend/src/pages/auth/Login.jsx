@@ -42,7 +42,12 @@ export default function Login() {
     try {
       const data = await authApi.guiThongTinDangNhap({ account: form.account.trim(), password: form.password });
       const storage = remember ? localStorage : sessionStorage;
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
       storage.setItem('token', data.token);
+      storage.setItem('user', JSON.stringify(data.user));
       navigate('/', { state: { loginSuccess: true } });
     } catch (err) {
       setMessage(err.message); // hiển thị thông báo lỗi (hienThiThongBaoDangNhapThatBai)
