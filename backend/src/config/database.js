@@ -1,5 +1,13 @@
 const mysql = require('mysql2/promise');
 
+function typeCast(field, next) {
+  if (field.type === 'TINY' && field.length === 1) {
+    const value = field.string();
+    return value === null ? null : Number(value) !== 0;
+  }
+  return next();
+}
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 3306),
@@ -10,6 +18,7 @@ const pool = mysql.createPool({
   connectionLimit: Number(process.env.DB_POOL_SIZE || 10),
   charset: 'utf8mb4',
   decimalNumbers: true,
+  typeCast,
 });
 
 /**
@@ -31,4 +40,4 @@ async function withTransaction(fn) {
   }
 }
 
-module.exports = { pool, withTransaction };
+module.exports = { pool, withTransaction, typeCast };

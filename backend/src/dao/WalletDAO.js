@@ -28,7 +28,18 @@ class WalletDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async luuLichSuGiaoDich(params = {}, conn = null) {
-    throw new NotImplementedException('WalletDAO.luuLichSuGiaoDich');
+    await this.query(
+      `INSERT INTO \`TRANSACTION\` (TransID, WalletID, OrderID, Type, Amount, Status)
+       VALUES (?, ?, ?, ?, ?, 'Success')`,
+      [
+        params.transactionId,
+        params.walletId,
+        params.orderId || null,
+        params.type,
+        params.amount,
+      ],
+      conn,
+    );
   }
 
   /**
@@ -37,7 +48,14 @@ class WalletDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async truyVanSoDuKhaDung(params = {}, conn = null) {
-    throw new NotImplementedException('WalletDAO.truyVanSoDuKhaDung');
+    return this.one(
+      `SELECT WalletID, CustomerID, Balance
+       FROM WALLET
+       WHERE CustomerID = ?
+       FOR UPDATE`,
+      [params.accountId],
+      conn,
+    );
   }
 
   /**
@@ -65,7 +83,25 @@ class WalletDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatSoDuVi(params = {}, conn = null) {
-    throw new NotImplementedException('WalletDAO.capNhatSoDuVi');
+    const operation = params.operation || 'debit';
+    if (!['credit', 'debit'].includes(operation)) {
+      throw new TypeError('Wallet balance operation must be credit or debit');
+    }
+    const balanceExpression = operation === 'credit'
+      ? 'Balance + ?'
+      : 'Balance - ?';
+    const balanceCondition = operation === 'credit' ? '' : ' AND Balance >= ?';
+    const values = operation === 'credit'
+      ? [params.amount, params.walletId]
+      : [params.amount, params.walletId, params.amount];
+    const result = await this.query(
+      `UPDATE WALLET
+       SET Balance = ${balanceExpression}
+       WHERE WalletID = ?${balanceCondition}`,
+      values,
+      conn,
+    );
+    return result.affectedRows === 1;
   }
 
   /**
