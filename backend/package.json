@@ -11,7 +11,8 @@
     "db:schema": "mysql -u root -p < sql/steam_store_schema.sql",
     "db:extra": "mysql -u root -p < sql/extra_tables.sql",
     "db:sample": "mysql -u root -p < sql/steam_store_sample_data.sql",
-    "db:bootstrap-admin": "node scripts/bootstrap-admin.js"
+    "db:bootstrap-admin": "node scripts/bootstrap-admin.js",
+    "db:bootstrap-demo": "node scripts/bootstrap-demo-accounts.js"
   },
   "engines": {
     "node": ">=18"
@@ -25,7 +26,8 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.9.7"
+    "mysql2": "^3.9.7",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

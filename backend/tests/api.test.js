@@ -36,6 +36,20 @@ test('health endpoint uses the standard success response envelope', async () => 
   });
 });
 
+test('Swagger UI and generated OpenAPI document are available in development', async () => {
+  const uiResponse = await fetch(`${baseUrl}/api-docs/`);
+  assert.equal(uiResponse.status, 200);
+  assert.match(await uiResponse.text(), /swagger-ui/);
+
+  const specResponse = await fetch(`${baseUrl}/api-docs/openapi.json`);
+  assert.equal(specResponse.status, 200);
+  const spec = await specResponse.json();
+  assert.equal(spec.openapi, '3.0.3');
+  assert.ok(spec.paths['/api/auth/guiThongTinDangNhap']);
+  assert.deepEqual(spec.paths['/api/cart/yeuCauXemGioHang'].get.security, [{ bearerAuth: [] }]);
+  assert.ok(spec.paths['/health/database']);
+});
+
 test('unknown paths use the standard error response envelope', async () => {
   const response = await fetch(`${baseUrl}/api/not-a-route`);
   assert.equal(response.status, 404);
@@ -74,16 +88,32 @@ test('oversized JSON is returned as a payload-too-large error', async () => {
   });
 });
 
-test('Guest can reach public login without a JWT', async () => {
+test('login rejects a missing username or password as a client error', async () => {
   const response = await fetch(`${baseUrl}/api/auth/guiThongTinDangNhap`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{}',
   });
-  assert.equal(response.status, 501);
+  assert.equal(response.status, 400);
   const body = await response.json();
   assert.equal(body.ok, false);
-  assert.equal(body.code, 'NOT_IMPLEMENTED');
+  assert.equal(body.code, 'MISSING_CREDENTIALS');
+});
+
+test('registration rejects the simulated failure OTP without accessing the database', async () => {
+  const response = await fetch(`${baseUrl}/api/auth/guiThongTinDangKy`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      username: 'otp_failure',
+      email: 'otp.failure@example.test',
+      displayName: 'OTP Failure',
+      password: 'strong-password-123',
+      otp: '0000',
+    }),
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).code, 'OTP_INVALID');
 });
 
 test('protected routes reject an invalid JWT', async () => {

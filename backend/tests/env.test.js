@@ -15,7 +15,7 @@ test('requires a strong JWT secret in production', () => {
 
 test('uses the local-only fallback outside production', () => {
   assert.equal(
-    resolveJwtSecret('development', undefined),
+    resolveJwtSecret('development', ''),
     'local-development-only-secret',
   );
 });

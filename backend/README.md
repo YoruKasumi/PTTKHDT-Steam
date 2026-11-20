@@ -26,20 +26,74 @@ backend/
 
 ## Chạy thử
 
-```bash
+### Cài MySQL và kết nối backend trên Windows
+
+Backend dùng **MySQL Server 8.0.16 trở lên**. MySQL Workbench chỉ là ứng dụng giao diện để quản lý/chạy SQL; cài Workbench một mình chưa có MySQL Server để backend kết nối. Cài và khởi động dịch vụ MySQL Server trước, thường có tên dịch vụ `MySQL80`.
+
+Mở PowerShell tại thư mục backend:
+
+```powershell
+cd D:\Code\PTTKHDT-Steam\backend
+Copy-Item .env.example .env
+notepad .env
+```
+
+Trong `.env`, đặt thông tin trùng với MySQL Server đang chạy:
+
+```dotenv
+PORT=3000
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=mat_khau_root_cua_mysql
+DB_NAME=steam_store
+```
+
+`PORT=3000` là cổng HTTP của backend; `DB_PORT=3306` là cổng MySQL. Đây là hai cổng khác nhau. Không commit file `.env` hoặc gửi mật khẩu database lên chat.
+
+Sau khi lưu `.env`, tạo database và các bảng:
+
+```powershell
 npm install
-cp .env.example .env        # sửa DB_PASSWORD, JWT_SECRET
-npm run db:schema          # tạo CSDL (MySQL 8.0.16+)
-npm run db:extra           # bảng BANNER, SYSTEM_PARAMETER
-npm run db:sample          # dữ liệu mẫu (tùy chọn)
-# đặt BOOTSTRAP_ADMIN_USERNAME/EMAIL/DISPLAY_NAME/PASSWORD trong môi trường
-npm run db:bootstrap-admin # tạo Admin đầu tiên hoặc kích hoạt A001 mẫu đã bị vô hiệu hóa
+npm run db:schema
+npm run db:extra
+npm run db:sample
+```
+
+`db:sample` là tùy chọn nếu cần dữ liệu mẫu. **Cẩn thận:** `sql/steam_store_schema.sql` xóa và tạo lại các bảng trong `steam_store`; chỉ chạy trên database mới hoặc sau khi đã sao lưu dữ liệu cần giữ. Các lệnh `db:*` dùng MySQL CLI (`mysql`) và cần MySQL `bin` có trong `PATH`. Có thể thay bằng Workbench: kết nối `localhost:3306` với user MySQL của bạn, mở file SQL tương ứng trong thư mục `sql/`, rồi Execute.
+
+Khởi động backend:
+
+```powershell
 npm run dev
 ```
 
-Kiểm tra: `GET http://localhost:3000/health`. Các API có dạng `/api/<service>/<tenHamTrongSequence>`, ví dụ `POST /api/auth/guiThongTinDangKy`.
+Mở Swagger UI tại **http://localhost:3000/api-docs**. OpenAPI JSON ở `http://localhost:3000/api-docs/openapi.json`; kiểm tra backend bằng `/health` và MySQL bằng `/health/database`. Swagger chỉ được bật khi `NODE_ENV` không phải `production`.
 
-`db:bootstrap-admin` không nhận mật khẩu qua tham số dòng lệnh, không có mật khẩu mặc định và chỉ chạy khi bảng `ADMIN` trống hoặc chứa đúng tài khoản mẫu A001 đang bị vô hiệu hóa. Không ghi các biến `BOOTSTRAP_ADMIN_*` vào SQL hay commit chúng. Nếu bỏ qua dữ liệu mẫu, có thể chạy lệnh bootstrap ngay sau `db:extra`; nếu đã nạp sample, script sẽ đặt thông tin đăng nhập mới cho A001. Lệnh này chỉ khởi tạo dữ liệu Admin; `AuthService`/`StaffService` hiện vẫn là khung chưa triển khai nên đăng nhập và các API tương ứng chưa hoạt động cho đến khi các service đó được cài đặt.
+Các API có yêu cầu đăng nhập cần Bearer JWT trong Swagger nút **Authorize**.
+
+### Chạy tự động bằng npm
+
+```bash
+npm install
+cp .env.example .env
+npm run db:schema
+npm run db:extra
+npm run db:sample
+npm run dev
+```
+
+Khối lệnh trên dùng cú pháp `cp` của Bash; với PowerShell dùng các lệnh Windows trong phần trước. Đặt `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_DISPLAY_NAME`, `BOOTSTRAP_ADMIN_PASSWORD` trong môi trường rồi chạy `npm run db:bootstrap-admin` nếu cần tạo Admin đầu tiên.
+
+Các API có dạng `/api/<service>/<tenHamTrongSequence>`, ví dụ `POST /api/auth/guiThongTinDangKy`. Xem danh sách và thử request tại Swagger UI.
+
+`db:bootstrap-admin` không nhận mật khẩu qua tham số dòng lệnh, không có mật khẩu mặc định và chỉ chạy khi bảng `ADMIN` trống hoặc chứa đúng tài khoản mẫu A001 đang bị vô hiệu hóa. Không ghi các biến `BOOTSTRAP_ADMIN_*` vào SQL hay commit chúng. Nếu bỏ qua dữ liệu mẫu, có thể chạy lệnh bootstrap ngay sau `db:extra`; nếu đã nạp sample, script sẽ đặt thông tin đăng nhập mới cho A001.
+
+Để tạo hai tài khoản phát triển tạm thời (Admin và Staff/Manager) với mật khẩu ngẫu nhiên, sau khi đã tạo schema, chạy `npm run db:bootstrap-demo`. Lệnh chỉ dùng ngoài production, chỉ tạo nếu username/email demo chưa tồn tại và in thông tin đăng nhập một lần ra terminal. Lưu lại mật khẩu; chạy lại sẽ không ghi đè các tài khoản trước đó.
+
+Đăng ký Customer yêu cầu `username`, `email`, `displayName`, `password` và OTP 4 chữ số. Trong môi trường không phải production, OTP `0000` mô phỏng thất bại; OTP 4 chữ số khác mô phỏng xác minh thành công. Đây chỉ là luồng thử nghiệm, không gửi email/SMS; production bị chặn cho đến khi tích hợp nhà cung cấp OTP thật.
+
+Đăng nhập nhận `account` (username hoặc email) và `password`, trả JWT cùng vai trò để dùng qua Swagger **Authorize**. Mật khẩu lưu dưới dạng bcrypt hash.
 
 ## Quy ước
 
