@@ -1,22 +1,51 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
+const AccountDAO = require('../dao/AccountDAO');
 const { UnauthorizedException, ForbiddenException } = require('../exceptions');
 
+const accountDAO = new AccountDAO();
+
 /** AuthMiddleware: đọc JWT trong header Authorization: Bearer <token>. */
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return next(new UnauthorizedException());
+
+  let claims;
   try {
-    req.user = jwt.verify(token, env.jwtSecret); // { accountId, roles: ['Customer', ...] }
-    next();
+    claims = jwt.verify(token, env.jwtSecret);
   } catch (e) {
-    next(new UnauthorizedException());
+    return next(new UnauthorizedException());
+  }
+
+  if (!claims.accountId) return next(new UnauthorizedException());
+
+  try {
+    const identity = await accountDAO.layDanhTinhVaQuyen({ accountId: claims.accountId });
+    if (!identity || identity.Status !== 'Active') {
+      return next(new UnauthorizedException());
+    }
+
+    const roles = [];
+    if (Number(identity.IsCustomer) === 1) roles.push('Customer');
+    if (Number(identity.IsDeveloper) === 1) roles.push('Developer');
+    if (Number(identity.IsManager) === 1) roles.push('Manager');
+    if (Number(identity.IsAdmin) === 1) roles.push('Admin');
+
+    req.user = {
+      accountId: identity.AccountID,
+      username: identity.Username,
+      roles,
+      permissions: identity.PermissionCodes ? identity.PermissionCodes.split(',') : [],
+    };
+    return next();
+  } catch (error) {
+    return next(error);
   }
 }
 
-/** Phân quyền theo vai trò: authorize('Manager', 'Admin'). */
-function authorize(...roles) {
+/** Phân quyền theo vai trò: requireRole('Manager', 'Admin'). */
+function requireRole(...roles) {
   return (req, res, next) => {
     const have = (req.user && req.user.roles) || [];
     const isGuest = roles.includes('Guest') && !req.user;
@@ -25,4 +54,18 @@ function authorize(...roles) {
   };
 }
 
-module.exports = { authenticate, authorize };
+/** Kiểm tra quyền theo mã; Admin luôn được phép, Manager phải có quyền được gán trong ROLE_PERMISSION. */
+function requirePermission(permissionCode) {
+  return (req, res, next) => {
+    if (!req.user) return next(new UnauthorizedException());
+    if (req.user.roles.includes('Admin') || (req.user.permissions || []).includes(permissionCode)) return next();
+    return next(new ForbiddenException(`Thiếu quyền ${permissionCode}`));
+  };
+}
+
+module.exports = {
+  authenticate,
+  requireRole,
+  requirePermission,
+  authorize: requireRole,
+};

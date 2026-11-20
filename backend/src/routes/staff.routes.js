@@ -10,7 +10,7 @@ const { staffService } = require('../services');
 const router = express.Router();
 
 /** UC61. Tạo tài khoản nhân sự mới (#4)  | quyền: Admin */
-router.post('/guiYeuCauTaoTaiKhoan', authenticate, authorize('Admin'), asyncHandler(async (req, res) => ok(res, await staffService.guiYeuCauTaoTaiKhoan(requestContext(req)))));
+router.post('/guiYeuCauTaoTaiKhoan', authenticate, authorize('Admin'), asyncHandler(async (req, res) => ok(res, await staffService.guiYeuCauTaoTaiKhoan(requestContext(req)), 201, 'Staff account created')));
 
 /** UC62. Cập nhật thông tin nhân sự (#2)  | quyền: Admin */
 router.post('/layChiTietNhanSu', authenticate, authorize('Admin'), asyncHandler(async (req, res) => ok(res, await staffService.layChiTietNhanSu(requestContext(req)))));

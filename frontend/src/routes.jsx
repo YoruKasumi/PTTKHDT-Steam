@@ -1,3 +1,4 @@
+import { Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ScreenPlaceholder from './pages/ScreenPlaceholder';
 import Cart from './pages/cart/Cart';
@@ -10,11 +11,37 @@ import DeveloperKeys from './pages/developer/DeveloperKeys';
 import DeveloperRevenue from './pages/developer/DeveloperRevenue';
 import AdminAccounts from './pages/admin/AdminAccounts';
 import AdminKeyApprovals from './pages/admin/AdminKeyApprovals';
+import AdminRoles from './pages/admin/AdminRoles';
+import AdminStaff from './pages/admin/AdminStaff';
+import AdminReviews from './pages/admin/AdminReviews';
+import AdminGenresBanners from './pages/admin/AdminGenresBanners';
+import AdminSystemConfig from './pages/admin/AdminSystemConfig';
+import AdminAuditLogs from './pages/admin/AdminAuditLogs';
 import Wishlist from './pages/Wishlist';
 import Library from './pages/Library';
 import GameDetail from './pages/GameDetail';
 import Orders from './pages/Orders';
 import WalletTransactions from './pages/wallet/WalletTransactions';
+
+function getRouteAccess(path) {
+  if (path === '/developer/register') return { allowedRoles: ['Customer', 'Developer', 'Admin'] };
+  if (path.startsWith('/developer/')) return { allowedRoles: ['Developer', 'Admin'] };
+  if (path === '/admin/accounts') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['account.moderate'] };
+  if (path === '/admin/reviews') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['review.moderate'] };
+  if (path === '/admin/genres-banners') {
+    return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['genres.manage', 'banners.manage'] };
+  }
+  if (path === '/admin/games') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['game.approve'] };
+  if (path === '/admin/withdrawals') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['withdrawal.approve'] };
+  if (path.startsWith('/admin/')) return { allowedRoles: ['Admin'] };
+  if (path.startsWith('/moderation/')) {
+    return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['review.moderate', 'community.moderate'] };
+  }
+  if (path.startsWith('/finance/')) {
+    return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['finance.read'] };
+  }
+  return {};
+}
 
 // Danh mục route và metadata Figma; các màn hình đã dựng được ánh xạ ở routes bên dưới.
 export const pendingScreens = [
@@ -39,6 +66,9 @@ export const pendingScreens = [
   { path: "/developer/keys", title: "Sinh mã Key", node: "94:1262", uc: "UC28 PromotionService" },
   { path: "/developer/profile", title: "Hồ sơ Developer", node: "163:477", uc: "UC23, UC37 DeveloperService" },
   { path: "/admin/accounts", title: "Kiểm soát tài khoản", node: "127:2", uc: "UC42, 44, 45 AccountService" },
+  { path: "/admin/reviews", title: "Kiểm duyệt đánh giá", uc: "UC43 ModerationService" },
+  { path: "/admin/genres-banners", title: "Thể loại và banner", uc: "UC48-49 GenreService, BannerService" },
+  { path: "/admin/audit-logs", title: "Nhật ký quản trị", uc: "UC60 AuditLogService" },
   { path: "/admin/games", title: "Kiểm duyệt phát hành game", node: "146:2", uc: "UC38-41 ModerationService" },
   { path: "/admin/keys", title: "Phê duyệt kích hoạt Key", node: "146:44", uc: "chưa có trong sequence" },
   { path: "/admin/withdrawals", title: "Duyệt rút doanh thu", node: "146:66", uc: "UC57 WithdrawalService" },
@@ -49,6 +79,7 @@ export const pendingScreens = [
 
 export const routes = [
   { path: '/', element: <Home /> },
+  { path: '/admin', element: <Navigate to="/admin/accounts" replace />, allowedRoles: ['Admin'] },
   ...pendingScreens
     .filter((screen) => !['/login', '/register', '/forgot-password'].includes(screen.path))
     .map((screen) => ({
@@ -68,7 +99,14 @@ export const routes = [
         '/developer/keys': <DeveloperKeys />,
         '/developer/revenue': <DeveloperRevenue />,
         '/admin/accounts': <AdminAccounts />,
+          '/admin/rbac': <AdminRoles />,
+          '/admin/staff': <AdminStaff />,
+          '/admin/reviews': <AdminReviews />,
+          '/admin/genres-banners': <AdminGenresBanners />,
+          '/admin/system-config': <AdminSystemConfig />,
+          '/admin/audit-logs': <AdminAuditLogs />,
         '/admin/keys': <AdminKeyApprovals />,
       }[screen.path] ?? <ScreenPlaceholder screen={screen} />,
+      ...getRouteAccess(screen.path),
     })),
 ];

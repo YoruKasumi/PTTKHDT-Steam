@@ -1,16 +1,36 @@
 import { NavLink } from 'react-router-dom';
 
 const links = [
-  { to: '/admin/accounts', label: 'Tài khoản' },
-  { to: '/admin/games', label: 'Kiểm duyệt game' },
-  { to: '/admin/keys', label: 'Duyệt mã Key' },
-  { to: '/admin/withdrawals', label: 'Lệnh rút tiền' },
-  { to: '/admin/system-config', label: 'Cấu hình' },
-  { to: '/admin/rbac', label: 'Phân quyền' },
-  { to: '/admin/staff', label: 'Nhân sự' },
+  { to: '/admin/accounts', label: 'Tài khoản', permission: 'account.moderate', adminOnly: false },
+  { to: '/admin/staff', label: 'Nhân sự', adminOnly: true },
+  { to: '/admin/rbac', label: 'Phân quyền', adminOnly: true },
+  { to: '/admin/reviews', label: 'Đánh giá', permission: 'review.moderate', adminOnly: false },
+  { to: '/admin/genres-banners', label: 'Thể loại & banner', permission: ['genres.manage', 'banners.manage'], adminOnly: false },
+  { to: '/admin/audit-logs', label: 'Nhật ký', adminOnly: true },
+  { to: '/admin/games', label: 'Kiểm duyệt game', permission: 'game.approve', adminOnly: false },
+  { to: '/admin/keys', label: 'Duyệt mã Key', adminOnly: true },
+  { to: '/admin/withdrawals', label: 'Lệnh rút tiền', permission: 'withdrawal.approve', adminOnly: false },
+  { to: '/admin/system-config', label: 'Cấu hình', adminOnly: true },
 ];
 
 export default function AdminShell({ title, description, children }) {
+  const rawUser = localStorage.getItem('user') || sessionStorage.getItem('user');
+  let user = {};
+  try {
+    user = rawUser ? JSON.parse(rawUser) : {};
+  } catch {
+    user = {};
+  }
+  const roles = user.roles || [];
+  const permissions = user.permissions || [];
+  const isAdmin = roles.includes('Admin');
+  const visibleLinks = links.filter((link) => (
+    (isAdmin || (!link.adminOnly && (link.permission === undefined
+      || (Array.isArray(link.permission)
+        ? link.permission.some((permission) => permissions.includes(permission))
+        : permissions.includes(link.permission)))))
+  ));
+
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 pb-20 pt-10 md:px-8">
       <header className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-slate-900 via-card to-page p-6 shadow-xl">
@@ -20,7 +40,7 @@ export default function AdminShell({ title, description, children }) {
       </header>
 
       <nav aria-label="Điều hướng quản trị" className="my-5 flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-card p-2">
-        {links.map((link) => (
+        {visibleLinks.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}

@@ -5,6 +5,9 @@ const router = express.Router();
 
 const modules = [
   { prefix: '/auth', tag: 'Authentication', router: require('./auth.routes') },
+  { prefix: '/admin', tag: 'Administration', router: require('./admin.routes') },
+  { prefix: '/genres', tag: 'Genres', router: require('./genres.public.routes') },
+  { prefix: '/banners', tag: 'Banners', router: require('./banners.public.routes') },
   { prefix: '/profile', tag: 'Profile', router: require('./profile.routes') },
   { prefix: '/catalog', tag: 'Catalog', router: require('./catalog.routes') },
   { prefix: '/cart', tag: 'Cart', router: require('./cart.routes') },

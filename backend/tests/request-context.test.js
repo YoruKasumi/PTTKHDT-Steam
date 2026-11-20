@@ -11,7 +11,11 @@ test('authenticated identity and uploaded files cannot be overridden by request 
     user: authenticatedUser,
     query: { user: { accountId: 'query-account' } },
     params: { accountId: 'route-account' },
-    body: { user: { accountId: 'body-account' }, files: ['forged-file'] },
+    body: {
+      accountId: 'body-account',
+      user: { accountId: 'body-account' },
+      files: ['forged-file'],
+    },
     files,
   });
 

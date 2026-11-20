@@ -1,6 +1,7 @@
 -- =====================================================================
 -- STEAM STORE - Lược đồ MySQL 8.0.16+  (cần 8.0.16 trở lên để CHECK có hiệu lực)
 -- Dựa trên MoTaThietKeDuLieu (bản gốc 28 bảng); bản này có 29 bảng (thêm LICENSE_DEVICE) và 39 khóa ngoại.
+-- BANNER và SYSTEM_PARAMETER được tạo bởi extra_tables.sql.
 -- Các chỗ sửa / bổ sung được đánh dấu [SỬA] và [THÊM].
 -- Chạy:  mysql -u root -p < steam_store_schema.sql
 -- =====================================================================
@@ -9,7 +10,7 @@ CREATE DATABASE IF NOT EXISTS steam_store
 USE steam_store;
 
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS GAMEREVIEW, AUDITLOG, NOTIFICATION, WITHDRAWALREQUEST, `TRANSACTION`, WALLET,
+DROP TABLE IF EXISTS SYSTEM_PARAMETER, BANNER, GAMEREVIEW, AUDITLOG, NOTIFICATION, WITHDRAWALREQUEST, `TRANSACTION`, WALLET,
   REFUNDREQUEST, REVIEW, WISHLISTITEM, LICENSE_DEVICE, LICENSE, ORDERITEM, ORDERS, COUPON, CARTITEM, CART,
   SALECAMPAIGN, ACTIVATIONKEY, GAMEVERSION, GAME_GENRE, GENRE, GAME, MANAGER, ROLE_PERMISSION, `ROLE`,
   ADMIN, DEVELOPER, CUSTOMER, ACCOUNT;
@@ -416,36 +417,3 @@ LEFT JOIN SALECAMPAIGN s
 GROUP BY g.GameID, g.Price;
 
 -- Dữ liệu mẫu (thể loại, tài khoản, game, đơn hàng...) nằm trong steam_store_sample_data.sql.
-CREATE TABLE IF NOT EXISTS BANNER (
-  BannerID   CHAR(36)     NOT NULL DEFAULT (UUID()),
-  ImageUrl   VARCHAR(255) NOT NULL,                  -- khóa đối tượng trên kho lưu trữ
-  LinkUrl    VARCHAR(255) NULL,
-  Title      VARCHAR(150) NULL,
-  StartDate  DATETIME     NOT NULL,
-  EndDate    DATETIME     NOT NULL,
-  SortOrder  INT          NOT NULL DEFAULT 0,
-  IsActive   TINYINT(1)   NOT NULL DEFAULT 1,
-  CreatedBy  CHAR(36)     NOT NULL,
-  CreatedAt  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (BannerID),
-  CONSTRAINT fk_banner_creator FOREIGN KEY (CreatedBy) REFERENCES ACCOUNT(AccountID),
-  CONSTRAINT ck_banner_dates CHECK (EndDate > StartDate)
-) ENGINE=InnoDB;
-
--- UC58. Cấu hình tham số hệ thống (SystemConfigService)
-CREATE TABLE IF NOT EXISTS SYSTEM_PARAMETER (
-  ParamKey    VARCHAR(80)  NOT NULL,
-  ParamValue  VARCHAR(500) NOT NULL,
-  Description VARCHAR(255) NULL,
-  UpdatedBy   CHAR(36)     NULL,
-  UpdatedAt   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (ParamKey),
-  CONSTRAINT fk_param_updater FOREIGN KEY (UpdatedBy) REFERENCES ACCOUNT(AccountID)
-) ENGINE=InnoDB;
-
-INSERT IGNORE INTO SYSTEM_PARAMETER (ParamKey, ParamValue, Description) VALUES
-  ('REFUND_WINDOW_HOURS', '24', 'Thời hạn hoàn tiền (giờ)'),
-  ('MAX_KEYS_PER_BATCH', '200', 'Số key tối đa mỗi lần sinh'),
-  ('MAX_UNUSED_KEYS_PER_GAME', '2000', 'Số key chưa kích hoạt tối đa mỗi game'),
-  ('DEVELOPER_FEE_VND', '100000', 'Phí Steam Direct (VND)'),
-  ('MIN_DEPOSIT_VND', '10000', 'Số tiền nạp tối thiểu');

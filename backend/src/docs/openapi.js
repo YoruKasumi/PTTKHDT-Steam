@@ -25,9 +25,13 @@ function createRouteOperation(route, method, tag) {
           },
         },
       },
+      201: { description: 'Tài nguyên được tạo thành công.' },
       400: { description: 'Request không hợp lệ.' },
       401: { description: 'Thiếu hoặc sai Bearer token.' },
       403: { description: 'Không đủ quyền truy cập.' },
+      404: { description: 'Không tìm thấy tài nguyên.' },
+      409: { description: 'Xung đột dữ liệu hoặc ràng buộc nghiệp vụ.' },
+      422: { description: 'Dữ liệu không đạt kiểm tra nghiệp vụ.' },
       500: { description: 'Lỗi nội bộ.' },
       501: { description: 'Nghiệp vụ chưa được cài đặt.' },
     },
@@ -77,7 +81,7 @@ function createOpenApiSpec(port = process.env.PORT || 3000) {
   for (const { prefix, tag, router } of apiRoutes.apiModules) {
     for (const layer of router.stack) {
       if (!layer.route) continue;
-      const path = toOpenApiPath(`/api${prefix}${layer.route.path}`);
+      const path = toOpenApiPath(`/api${prefix}${layer.route.path}`).replace(/\/$/, '') || '/';
       paths[path] ||= {};
 
       for (const method of Object.keys(layer.route.methods)) {
@@ -94,7 +98,7 @@ function createOpenApiSpec(port = process.env.PORT || 3000) {
       description: 'OpenAPI document được tạo từ các route Express hiện tại.',
     },
     servers: [{ url: `http://localhost:${port}` }],
-    tags: [...apiRoutes.apiModules.map(({ tag }) => ({ name: tag })), { name: 'Health' }],
+    tags: [...new Set(apiRoutes.apiModules.map(({ tag }) => tag)), 'Health'].map((name) => ({ name })),
     paths,
     components: {
       securitySchemes: {
@@ -109,10 +113,21 @@ function createOpenApiSpec(port = process.env.PORT || 3000) {
         SuccessResponse: {
           type: 'object',
           properties: {
-            ok: { type: 'boolean', example: true },
-            data: { type: 'object', additionalProperties: true },
+            success: { type: 'boolean', example: true },
+            message: { type: 'string' },
+            data: {},
           },
-          required: ['ok', 'data'],
+          required: ['success', 'message', 'data'],
+        },
+        ErrorResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            code: { type: 'string' },
+            message: { type: 'string' },
+            details: {},
+          },
+          required: ['success', 'code', 'message'],
         },
       },
     },
