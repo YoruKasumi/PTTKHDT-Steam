@@ -5,7 +5,6 @@ const {
   ConflictException,
   NghiepVuException,
   NotFoundException,
-  NotImplementedException,
   ValidationException,
 } = require('../exceptions');
 const OrderDAO = require('../dao/OrderDAO');
@@ -65,8 +64,7 @@ function allocateDiscount(items, coupon) {
 }
 
 /**
- * OrderService - tầng Business Logic.
- * Tên phương thức lấy đúng từ sơ đồ sequence; nội dung bên dưới chỉ là khung cần cài đặt.
+ * OrderService - tầng Business Logic cho Đơn hàng & Hoàn tiền.
  */
 class OrderService extends BaseService {
   constructor() {
@@ -91,14 +89,6 @@ class OrderService extends BaseService {
   /**
    * UC15. Thanh toán - sequence #4: UI → OrderService
    * Vai trò gọi: Customer
-   * Luồng theo sơ đồ:
-   *   #5 → OrderDAO.truyVanMaGiamGia()
-   *   #6 ← traVeThongTinGiamGia()
-   *   #8 → WalletService.kiemTraSoDuKhaDung
-   *   #9 → WalletDAO.truyVanSoDu()
-   *   #10 ← traVeSoDu()
-   *   #11 ← traVeKetQuaSoDu()
-   *   #12 ← thongBaoSoDuKhongDu()
    * @param {object} params
    */
   async kiemTraMaGiamGia(params = {}) {
@@ -221,6 +211,7 @@ class OrderService extends BaseService {
           orderDate: row.OrderDate,
           totalAmount: Number(row.TotalAmount),
           status: row.Status,
+          hoursSincePurchase: row.HoursSincePurchase !== undefined && row.HoursSincePurchase !== null ? Number(row.HoursSincePurchase) : null,
           items: [],
         };
         orders.set(row.OrderID, order);
@@ -342,23 +333,108 @@ class OrderService extends BaseService {
 
   /**
    * UC21. Yêu cầu hoàn tiền - sequence #2: UI → OrderService
+   * POST /api/orders/:orderId/refund
    * Vai trò gọi: Customer
-   * Luồng theo sơ đồ:
-   *   #3 → OrderDAO.kiemTraTokenBanQuyen()
-   *   #4 ← traVeThongTinBanQuyen()
-   *   #5 → OrderDAO.kiemTraThoiGianThanhToanDuoi24h()
-   *   #6 ← traVeKetQuaKiemTraThoiGian()
-   *   #7 → OrderDAO.thuHoiBanQuyenGame()
-   *   #8 ← xacNhanThuHoiThanhCong()
-   *   #9 → WalletService.congTienHoanTraVaoVi
-   *   #10 → WalletDAO.capNhatSoDuVi()
-   *   #11 ← xacNhanHoanTien()
-   *   #12 ← thongBaoHoanTienThanhCong()
-   *   #14 ← thongBaoHoanTienThatBai()
+   * Ràng buộc:
+   *   1. Kiểm tra đơn thuộc khách, đang Completed, và LICENSE đang Active.
+   *   2. Tính HoursSincePurchase = TIMESTAMPDIFF(HOUR, OrderDate, NOW()):
+   *      - Nếu > 24 giờ: VẪN INSERT bản ghi REFUNDREQUEST với Status = 'Rejected' rồi ném NghiepVuException (422).
+   *      - Nếu <= 24 giờ: trong 1 Database Transaction:
+   *          a. Ghi REFUNDREQUEST (Status = 'Approved', HoursSincePurchase)
+   *          b. Cập nhật ORDERS.Status = 'Refunded'
+   *          c. Cập nhật LICENSE.Status = 'Revoked' + RevokedAt = NOW()
+   *          d. Cập nhật LICENSE_DEVICE.Status = 'Revoked'
+   *          e. Cộng lại TotalAmount vào WALLET.Balance
+   *          f. Ghi TRANSACTION (Type = 'Refund', gắn OrderID) — nếu đơn 0đ KHÔNG tạo dòng TRANSACTION.
    * @param {object} params
    */
   async guiYeuCauHoanTien(params = {}) {
-    throw new NotImplementedException('OrderService.guiYeuCauHoanTien');
+    const customerId = this.customerId(params);
+    const orderId = typeof params.orderId === 'string'
+      ? params.orderId.trim()
+      : typeof params.id === 'string' ? params.id.trim() : '';
+    if (!orderId) throw new ValidationException('orderId là bắt buộc');
+    const reason = typeof params.reason === 'string' && params.reason.trim()
+      ? params.reason.trim()
+      : 'Yêu cầu hoàn tiền từ khách hàng';
+
+    return this.transaction(async (conn) => {
+      // 1. Kiểm tra đơn thuộc khách
+      const order = await this.orderDAO.layDonHangDeHoanTien({ orderId, customerId }, conn);
+      if (!order) {
+        throw new NotFoundException('Không tìm thấy đơn hàng của bạn');
+      }
+      if (order.Status !== 'Completed') {
+        throw new NghiepVuException('Đơn hàng không ở trạng thái có thể hoàn tiền', 422, 'ERR_INVALID_ORDER_STATUS');
+      }
+
+      // 2. Lấy danh sách game trong đơn hàng
+      const items = await this.orderDAO.layItemsDonHang({ orderId }, conn);
+      if (!items.length) {
+        throw new NghiepVuException('Đơn hàng không có sản phẩm hợp lệ', 422);
+      }
+      const gameIds = items.map((i) => i.GameID);
+
+      // 3. Kiểm tra LICENSE đang Active
+      const activeLicenses = await this.orderDAO.kiemTraTokenBanQuyen({ customerId, gameIds }, conn);
+      if (activeLicenses.length < gameIds.length) {
+        throw new NghiepVuException('Bản quyền trò chơi của đơn hàng không còn hiệu lực để hoàn tiền', 422, 'ERR_LICENSE_NOT_ACTIVE');
+      }
+
+      // 4. Tính HoursSincePurchase
+      const hours = Number(order.HoursSincePurchase);
+
+      // Nếu > 24 giờ: VẪN INSERT bản ghi REFUNDREQUEST với Status = 'Rejected' rồi ném NghiepVuException (422)
+      if (hours > 24) {
+        await this.orderDAO.ghiYeuCauHoanTien({
+          orderId,
+          reason,
+          status: 'Rejected',
+          hoursSincePurchase: hours,
+        }, conn);
+        throw new NghiepVuException(
+          'Đã quá thời hạn 24 giờ kể từ thời điểm thanh toán. Yêu cầu hoàn tiền bị từ chối.',
+          422,
+          'ERR_REFUND_EXPIRED',
+          { hoursSincePurchase: hours, orderId },
+        );
+      }
+
+      // Nếu <= 24 giờ:
+      // a. Ghi REFUNDREQUEST (Status = 'Approved')
+      await this.orderDAO.ghiYeuCauHoanTien({
+        orderId,
+        reason,
+        status: 'Approved',
+        hoursSincePurchase: hours,
+      }, conn);
+
+      // b. Cập nhật ORDERS.Status = 'Refunded'
+      await this.orderDAO.capNhatDonDaHoan({ orderId }, conn);
+
+      // c. Cập nhật LICENSE.Status = 'Revoked' + RevokedAt = NOW() và LICENSE_DEVICE.Status = 'Revoked'
+      const licenseIds = activeLicenses.map((l) => l.LicenseID);
+      await this.orderDAO.thuHoiBanQuyenGame({ licenseIds }, conn);
+
+      // d. Cộng lại TotalAmount vào WALLET.Balance & ghi TRANSACTION Type='Refund'
+      const totalRefund = Number(order.TotalAmount);
+      if (this.walletService) {
+        await this.walletService.congTienHoanTraVaoVi({
+          accountId: customerId,
+          amount: totalRefund,
+          orderId,
+        }, conn);
+      }
+
+      return {
+        orderId,
+        status: 'Refunded',
+        totalAmount: totalRefund,
+        refundedAmount: totalRefund,
+        hoursSincePurchase: hours,
+        message: 'Hoàn tiền thành công. Số tiền đã được hoàn trả về ví của bạn.',
+      };
+    });
   }
 }
 
