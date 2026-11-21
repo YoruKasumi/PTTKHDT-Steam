@@ -16,11 +16,18 @@ export const adminApi = {
     const operation = { Active: 'unban', Suspended: 'suspend', Banned: 'ban' }[status];
     return http.patch(`/admin/accounts/${accountId}/${operation}`, { reason });
   },
+  changeAccountStatus: (accountId, status, reason) => {
+    const operation = { Active: 'unban', Suspended: 'suspend', Banned: 'ban' }[status];
+    return http.patch(`/admin/accounts/${accountId}/${operation}`, { reason });
+  },
 
   listStaff: () => http.get('/admin/staff'),
   createStaff: (body) => http.post('/admin/staff', body),
   updateStaff: (accountId, body) => http.put(`/admin/staff/${accountId}`, body),
   setStaffStatus: (accountId, status) => (
+    http.patch(`/admin/staff/${accountId}/status`, { status })
+  ),
+  changeStaffStatus: (accountId, status) => (
     http.patch(`/admin/staff/${accountId}/status`, { status })
   ),
 
@@ -47,4 +54,5 @@ export const adminApi = {
   getSystemConfig: () => http.get('/admin/system-config'),
   updateSystemConfig: (parameters) => http.put('/admin/system-config', { parameters }),
   listAuditLogs: (params) => http.get('/admin/audit-logs', { params }),
+  getAuditLogDetail: (logId) => http.get(`/admin/audit-logs/${encodeURIComponent(logId)}`),
 };

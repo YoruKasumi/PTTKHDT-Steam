@@ -87,3 +87,10 @@ test('banner schedule requires a valid date range and a boolean active flag', ()
     isActive: true,
   }), { status: 422 });
 });
+
+test('audit log filter validates date format and range', () => {
+  const service = new (require('../src/services/AuditLogService'))();
+  assert.throws(() => service.validateFilters({ fromDate: 'invalid-date' }), { status: 422 });
+  assert.throws(() => service.validateFilters({ fromDate: '2026-12-01', toDate: '2026-01-01' }), { status: 422 });
+  assert.equal(service.validateFilters({ fromDate: '2026-01-01', toDate: '2026-01-02' }).fromDate, '2026-01-01');
+});
