@@ -1,144 +1,329 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShop } from '../context/ShopContext';
-import { findGame } from '../data/games';
+import { libraryApi } from '../api/library';
+import { getDeviceFingerprint, getDeviceName } from '../utils/deviceFingerprint';
+import { formatVnd } from '../utils/format';
 
-const libraryInfo = {
-  'counter-strike-2': {
-    status: 'Sẵn sàng chơi',
-    description: 'Huyền thoại bắn súng góc nhìn thứ nhất với đồ họa Source 2 sống động và hệ thống sub-tick tiên tiến.',
-    version: 'VALVE OFFICIAL • Phiên bản 1.39.8.2',
-    hours: '148.5 Giờ',
-    lastPlayed: 'Hôm qua',
-    achievements: '18 / 25',
-    cloud: '3.4 MB',
-    friends: '3 người',
-  },
-  'sky-children-of-light': {
-    status: 'Đã cài đặt',
-    description: 'Khám phá thế giới kỳ diệu, kết nối với bạn bè và cùng nhau trải nghiệm những chuyến phiêu lưu nhẹ nhàng.',
-    version: 'ĐÃ CÀI ĐẶT • Phiên bản mới nhất',
-    hours: '32.0 Giờ',
-    lastPlayed: '3 ngày trước',
-    achievements: '12 / 20',
-    cloud: '1.8 MB',
-    friends: '1 người',
-  },
-  repo: {
-    status: 'Cần cập nhật (1.2 GB)',
-    description: 'Trải nghiệm lén lút đi lấy đồ ở những nơi nguy hiểm, đối mặt thử thách cùng các sinh vật và màn chơi ngẫu nhiên.',
-    version: 'CÓ BẢN CẬP NHẬT • v0.2.1',
-    hours: '18.5 Giờ',
-    lastPlayed: 'Hôm qua',
-    achievements: '7 / 15',
-    cloud: '860 KB',
-    friends: '2 người',
-  },
-};
+// ─── Helper: format byte → MB/KB ─────────────────────────────────────────────
+function formatSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${bytes} B`;
+}
 
+// ─── Stat card ───────────────────────────────────────────────────────────────
 function LibraryStat({ label, value, note }) {
   return (
     <section className="rounded-xl border border-indigo-950 bg-neutral-900 p-4">
       <p className="m-0 text-xs font-bold text-zinc-400">{label}</p>
       <p className="mb-0 mt-3 text-lg font-bold">{value}</p>
-      <p className="mb-0 mt-2 text-xs text-violet-400">{note}</p>
+      {note ? <p className="mb-0 mt-2 text-xs text-violet-400">{note}</p> : null}
     </section>
   );
 }
 
-export default function Library() {
-  const { owned } = useShop();
-  const [selectedId, setSelectedId] = useState(owned[0] || '');
-  const [search, setSearch] = useState('');
-  const [filterInstalled, setFilterInstalled] = useState(false);
-  const [notice, setNotice] = useState('');
-  const games = useMemo(
-    () => owned.map((id) => findGame(id)).filter(Boolean),
-    [owned],
+// ─── Device row ──────────────────────────────────────────────────────────────
+function DeviceRow({ device, gameId, onRevoke }) {
+  const [loading, setLoading] = useState(false);
+  const revoke = async () => {
+    if (!confirm(`Thu hồi thiết bị "${device.deviceName || device.deviceId.slice(0, 8)}"?`)) return;
+    setLoading(true);
+    try {
+      await libraryApi.revokeDevice(gameId, device.deviceId);
+      onRevoke(device.deviceId);
+    } catch (err) {
+      alert(err.message || 'Lỗi khi thu hồi thiết bị.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-page px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="m-0 truncate text-sm font-semibold">{device.deviceName || 'Không rõ thiết bị'}</p>
+        <p className="m-0 mt-0.5 font-mono text-xs text-zinc-500">
+          ID: {device.deviceFingerprint} · Lần cuối: {device.lastSeen ? new Date(device.lastSeen).toLocaleString('vi-VN') : '—'}
+        </p>
+      </div>
+      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${device.status === 'Active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+        {device.status === 'Active' ? '● Đang hoạt động' : '○ Đã thu hồi'}
+      </span>
+      {device.status === 'Active' && (
+        <button
+          type="button"
+          onClick={revoke}
+          disabled={loading}
+          className="shrink-0 rounded-lg border border-red-500/40 px-3 py-1 text-xs font-bold text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+        >
+          {loading ? '...' : 'Thu hồi'}
+        </button>
+      )}
+    </li>
   );
-  const visibleGames = games.filter((game) => {
-    const info = libraryInfo[game.id] || {};
-    return game.title.toLowerCase().includes(search.trim().toLowerCase())
-      && (!filterInstalled || info.status === 'Đã cài đặt' || info.status === 'Sẵn sàng chơi');
-  });
-  const selectedGame = visibleGames.find((game) => game.id === selectedId) || visibleGames[0] || null;
-  const details = selectedGame ? libraryInfo[selectedGame.id] || {} : {};
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
+export default function Library() {
+  const { user } = useShop();
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState('');
+  const [search, setSearch] = useState('');
+  const [notice, setNotice] = useState('');
+  const [launching, setLaunching] = useState(false);
+
+  // Devices panel
+  const [showDevices, setShowDevices] = useState(false);
+  const [devices, setDevices] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+
+  // Tải danh sách game từ API
+  useEffect(() => {
+    if (!user?.roles?.includes('Customer')) return;
+    setLoading(true);
+    libraryApi.list()
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setGames(list);
+        if (list.length > 0) setSelectedId(list[0].gameId);
+      })
+      .catch((err) => setNotice(`Lỗi tải thư viện: ${err.message}`))
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  const visibleGames = useMemo(() => (
+    games.filter((g) => g.title?.toLowerCase().includes(search.trim().toLowerCase()))
+  ), [games, search]);
+
+  const selectedGame = useMemo(
+    () => visibleGames.find((g) => g.gameId === selectedId) || visibleGames[0] || null,
+    [visibleGames, selectedId],
+  );
+
+  // ─── Launch game ───────────────────────────────────────────────────────────
+  const handlePlay = useCallback(async () => {
+    if (!selectedGame) return;
+    setLaunching(true);
+    setNotice('');
+    try {
+      const fingerprint = await getDeviceFingerprint();
+      const deviceName = getDeviceName();
+      const result = await libraryApi.launch(selectedGame.gameId, fingerprint, deviceName);
+      // Mở tab mới với playUrl
+      window.open(result.playUrl, '_blank', 'noopener,noreferrer');
+      setNotice(`Đang mở ${selectedGame.title}... Nếu tab không mở tự động, hãy kiểm tra popup blocker.`);
+    } catch (err) {
+      if (err.code === 'DEVICE_LIMIT_EXCEEDED') {
+        setNotice(`⚠ ${err.message} Hãy thu hồi thiết bị cũ trong mục Quản lý thiết bị.`);
+      } else {
+        setNotice(`Lỗi khởi chạy: ${err.message}`);
+      }
+    } finally {
+      setLaunching(false);
+    }
+  }, [selectedGame]);
+
+  // ─── Load devices ──────────────────────────────────────────────────────────
+  const loadDevices = useCallback(async () => {
+    if (!selectedGame) return;
+    setDevicesLoading(true);
+    try {
+      const data = await libraryApi.listDevices(selectedGame.gameId);
+      setDevices(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setNotice(`Lỗi tải thiết bị: ${err.message}`);
+    } finally {
+      setDevicesLoading(false);
+    }
+  }, [selectedGame]);
+
+  const toggleDevices = useCallback(() => {
+    if (!showDevices) loadDevices();
+    setShowDevices((v) => !v);
+  }, [showDevices, loadDevices]);
+
+  const handleRevokeDevice = useCallback((deviceId) => {
+    setDevices((current) => current.map((d) => d.deviceId === deviceId ? { ...d, status: 'Revoked' } : d));
+    setNotice('Đã thu hồi thiết bị. Slot thiết bị đã được giải phóng.');
+  }, []);
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+  if (!user?.roles?.includes('Customer')) {
+    return (
+      <div className="flex min-h-72 items-center justify-center p-10 text-center text-muted">
+        Vui lòng <Link to="/login" className="ml-1 text-accent-light">đăng nhập</Link> để xem thư viện game.
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-4 pb-20 pt-10 lg:grid-cols-[320px_minmax(0,1fr)] md:px-8">
+      {/* ── Sidebar danh sách game ── */}
       <aside className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="m-0 text-2xl font-extrabold">Thư viện</h1>
           <span className="text-sm text-muted">{games.length} trò chơi</span>
         </div>
+
         <label className="sr-only" htmlFor="library-search">Tìm game trong thư viện</label>
         <input
           id="library-search"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Tìm trong thư viện..."
           className="w-full rounded-lg border border-line bg-card px-4 py-3 text-sm outline-none focus:border-accent"
         />
-        <button
-          type="button"
-          aria-pressed={filterInstalled}
-          onClick={() => setFilterInstalled((value) => !value)}
-          className={`flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold ${filterInstalled ? 'border-accent bg-accent/20 text-accent-light' : 'border-line bg-card text-muted'}`}
-        >
-          ⚙ Lọc {filterInstalled ? '· Đã cài đặt' : ''}
-        </button>
-        <ul className="m-0 list-none space-y-2 p-0">
-          {visibleGames.map((game) => {
-            const info = libraryInfo[game.id] || {};
-            const selected = game.id === selectedGame?.id;
-            return (
-              <li key={game.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(game.id)}
-                  aria-pressed={selected}
-                  className={`w-full rounded-lg border px-4 py-3 text-left ${selected ? 'border-indigo-500/70 bg-indigo-500/25' : 'border-line bg-card hover:border-accent/50'}`}
-                >
-                  <span className="block font-bold">{game.title}</span>
-                  <span className={`mt-1 block text-xs ${info.status?.startsWith('Cần') ? 'text-violet-400' : 'text-green-500'}`}>● {info.status || 'Đã cài đặt'}</span>
-                </button>
+
+        {loading ? (
+          <p className="text-sm text-muted">Đang tải thư viện...</p>
+        ) : (
+          <ul className="m-0 list-none space-y-2 p-0">
+            {visibleGames.map((game) => {
+              const selected = game.gameId === selectedGame?.gameId;
+              return (
+                <li key={game.gameId}>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedId(game.gameId); setShowDevices(false); setNotice(''); }}
+                    aria-pressed={selected}
+                    className={`w-full rounded-lg border px-4 py-3 text-left ${selected ? 'border-indigo-500/70 bg-indigo-500/25' : 'border-line bg-card hover:border-accent/50'}`}
+                  >
+                    <span className="block font-bold">{game.title}</span>
+                    <span className="mt-1 block text-xs text-green-500">
+                      ● {game.licenseStatus === 'Active' ? 'Đã sở hữu' : 'Bản quyền thu hồi'}
+                      {game.versionNumber ? ` · v${game.versionNumber}` : ''}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+            {!visibleGames.length && !loading && (
+              <li className="rounded-lg border border-line bg-card p-4 text-sm text-muted">
+                {games.length === 0
+                  ? <>Thư viện chưa có trò chơi. <Link to="/search" className="text-accent-light">Khám phá cửa hàng</Link></>
+                  : 'Không tìm thấy game khớp.'}
               </li>
-            );
-          })}
-          {!visibleGames.length ? <li className="rounded-lg border border-line bg-card p-4 text-sm text-muted">Không tìm thấy game trong thư viện.</li> : null}
-        </ul>
+            )}
+          </ul>
+        )}
       </aside>
 
+      {/* ── Nội dung chi tiết game ── */}
       {selectedGame ? (
-        <section className="min-w-0">
-          <div className="relative min-h-[300px] overflow-hidden rounded-2xl border border-indigo-500/30 bg-neutral-900 p-6 md:p-8">
-            <div className="absolute inset-0 opacity-50" style={{ background: `linear-gradient(110deg, ${selectedGame.poster}, transparent 75%)` }} />
-            <div className="relative flex min-h-[250px] flex-col justify-between">
-              <span className="w-fit rounded bg-indigo-500/30 px-3 py-1 text-xs font-bold text-violet-300">{details.version}</span>
+        <section className="min-w-0 space-y-5">
+          {/* Hero card */}
+          <div className="relative min-h-[280px] overflow-hidden rounded-2xl border border-indigo-500/30 bg-neutral-900 p-6 md:p-8">
+            <div className="absolute inset-0 opacity-40" style={{ background: 'linear-gradient(110deg, #312e81, transparent 75%)' }} />
+            <div className="relative flex min-h-[230px] flex-col justify-between">
               <div>
-                <h2 className="mb-3 mt-10 text-3xl font-extrabold md:text-4xl">{selectedGame.title}</h2>
-                <p className="max-w-3xl text-sm leading-6 text-zinc-300">{details.description}</p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <button type="button" onClick={() => setNotice(`${selectedGame.title}: launcher thật sẽ được tích hợp sau.`)} className="rounded-lg bg-indigo-500 px-5 py-3 font-bold">▶ CHƠI NGAY</button>
-                  <button type="button" onClick={() => setNotice(`Đã mở tùy chọn quản lý cho ${selectedGame.title}.`)} className="rounded-lg border border-indigo-950 bg-gray-900 px-5 py-3 text-sm font-semibold text-zinc-300">⚙ Quản lý &amp; Cài đặt</button>
-                  <Link to={`/games/${selectedGame.id}`} className="rounded-lg border border-white/10 px-5 py-3 text-sm font-semibold text-white hover:border-accent">Chi tiết game</Link>
+                <span className="inline-block rounded bg-indigo-500/30 px-3 py-1 text-xs font-bold text-violet-300">
+                  {selectedGame.versionNumber ? `v${selectedGame.versionNumber}` : 'Chưa có build'}
+                </span>
+                {selectedGame.changeLog && (
+                  <span className="ml-2 inline-block rounded bg-emerald-500/20 px-2 py-1 text-xs text-emerald-400">
+                    {selectedGame.changeLog.slice(0, 60)}{selectedGame.changeLog.length > 60 ? '…' : ''}
+                  </span>
+                )}
+              </div>
+              <div>
+                <h2 className="mb-3 mt-6 text-3xl font-extrabold md:text-4xl">{selectedGame.title}</h2>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handlePlay}
+                    disabled={launching || !selectedGame.versionNumber}
+                    className="rounded-lg bg-indigo-500 px-6 py-3 font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {launching ? '⏳ Đang khởi chạy...' : '▶ CHƠI NGAY'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleDevices}
+                    className="rounded-lg border border-indigo-950 bg-gray-900 px-5 py-3 text-sm font-semibold text-zinc-300"
+                  >
+                    {showDevices ? '✕ Đóng thiết bị' : '⚙ Quản lý thiết bị'}
+                  </button>
+                  <Link
+                    to={`/games/${selectedGame.gameId}`}
+                    className="rounded-lg border border-white/10 px-5 py-3 text-sm font-semibold text-white hover:border-accent"
+                  >
+                    Chi tiết game
+                  </Link>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <LibraryStat label="THỜI GIAN CHƠI" value={details.hours || '0 Giờ'} note={`Lần cuối: ${details.lastPlayed || 'Chưa chơi'}`} />
-            <LibraryStat label="THÀNH TỰU" value={details.achievements || '0 / 0'} note="Tiến trình đồng bộ" />
-            <LibraryStat label="LƯU TRỮ CLOUD" value="Đã đồng bộ" note={details.cloud || '0 KB'} />
-            <LibraryStat label="BẠN BÈ ĐANG CHƠI" value={details.friends || '0 người'} note="Trong server công cộng" />
+          {/* Thống kê */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <LibraryStat
+              label="PHIÊN BẢN HIỆN HÀNH"
+              value={selectedGame.versionNumber ? `v${selectedGame.versionNumber}` : '—'}
+              note={selectedGame.versionDate ? `Cập nhật: ${new Date(selectedGame.versionDate).toLocaleDateString('vi-VN')}` : ''}
+            />
+            <LibraryStat
+              label="DUNG LƯỢNG BUILD"
+              value={formatSize(selectedGame.fileSize)}
+              note="Kích thước gói .zip"
+            />
+            <LibraryStat
+              label="NGÀY MUA"
+              value={selectedGame.purchaseDate ? new Date(selectedGame.purchaseDate).toLocaleDateString('vi-VN') : '—'}
+              note={`Nguồn: ${selectedGame.source === 'Key' ? 'Mã kích hoạt' : 'Mua trực tiếp'}`}
+            />
+            <LibraryStat
+              label="TRẠNG THÁI BẢN QUYỀN"
+              value={selectedGame.licenseStatus === 'Active' ? '✅ Hợp lệ' : '❌ Thu hồi'}
+              note={selectedGame.gameStatus === 'Approved' ? 'Game đang phát hành' : selectedGame.gameStatus}
+            />
           </div>
-          {notice ? <p role="status" className="mt-4 rounded-lg border border-indigo-500/40 bg-card p-3 text-sm text-accent-light">{notice}</p> : null}
+
+          {/* Thông báo */}
+          {notice && (
+            <p role="status" className="rounded-lg border border-indigo-500/40 bg-card p-3 text-sm text-accent-light">
+              {notice}
+            </p>
+          )}
+
+          {/* Quản lý thiết bị */}
+          {showDevices && (
+            <div className="rounded-2xl border border-white/10 bg-card p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="m-0 text-base font-bold">Thiết bị đang kích hoạt</h3>
+                <span className="text-xs text-muted">Tối đa 3 thiết bị Active</span>
+              </div>
+              {devicesLoading ? (
+                <p className="text-sm text-muted">Đang tải...</p>
+              ) : devices.length === 0 ? (
+                <p className="text-sm text-muted">Chưa có thiết bị nào được đăng ký.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {devices.map((device) => (
+                    <DeviceRow
+                      key={device.deviceId}
+                      device={device}
+                      gameId={selectedGame.gameId}
+                      onRevoke={handleRevokeDevice}
+                    />
+                  ))}
+                </ul>
+              )}
+              <p className="mt-3 text-xs text-zinc-500">
+                Thu hồi thiết bị cũ để giải phóng slot cho thiết bị mới.
+                SHA-256 đầy đủ của fingerprint được ẩn để bảo mật.
+              </p>
+            </div>
+          )}
         </section>
       ) : (
-        <section className="flex min-h-72 items-center justify-center rounded-2xl border border-indigo-950 bg-card p-6 text-center text-muted">
-          Thư viện chưa có trò chơi. <Link to="/search" className="ml-1 text-accent-light">Khám phá cửa hàng</Link>
-        </section>
+        !loading && (
+          <section className="flex min-h-72 items-center justify-center rounded-2xl border border-indigo-950 bg-card p-6 text-center text-muted">
+            Thư viện chưa có trò chơi. <Link to="/search" className="ml-1 text-accent-light">Khám phá cửa hàng</Link>
+          </section>
+        )
       )}
     </div>
   );

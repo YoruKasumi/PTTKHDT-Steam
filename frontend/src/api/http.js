@@ -11,7 +11,13 @@ http.interceptors.request.use((config) => {
 // Backend trả { success, message, data } hoặc { success: false, code, message, details? }.
 http.interceptors.response.use(
   (res) => res.data.data,
-  (err) => Promise.reject(new Error(err.response?.data?.message || err.message)),
+  (err) => {
+    const apiError = new Error(err.response?.data?.message || err.message);
+    apiError.code = err.response?.data?.code;
+    apiError.details = err.response?.data?.details;
+    apiError.status = err.response?.status;
+    return Promise.reject(apiError);
+  },
 );
 
 export default http;

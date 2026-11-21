@@ -1,8 +1,11 @@
 import { Link, NavLink } from 'react-router-dom';
 import { useState } from 'react';
+import { useShop } from '../context/ShopContext';
+import { formatVnd } from '../utils/format';
 
 const links = [
   { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
+  { to: '/cart', icon: 'icon-cart.svg', label: 'Giỏ hàng' },
   { to: '/library', icon: 'icon-library.svg', label: 'Thư viện' },
   { to: '/wishlist', icon: 'icon-heart.svg', label: 'Danh sách mong muốn' },
   { to: '/search', icon: 'icon-filter.svg', label: 'Bộ lọc tìm kiếm' },
@@ -13,6 +16,7 @@ const btn = ({ isActive }) =>
 
 /** Thanh điều hướng đen phía trên (Figma: node 1:319). */
 export default function TopBar() {
+  const { cart, balance, user, shopError } = useShop();
   const [openMenu, setOpenMenu] = useState('');
   const [allRead, setAllRead] = useState(false);
 
@@ -22,12 +26,21 @@ export default function TopBar() {
     <div className="flex h-[51px] items-center justify-between bg-topbar px-3 sm:px-[50px]">
       <nav className="flex gap-2.5 sm:gap-[30px]">
         {links.map((l) => (
-          <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.label} title={l.label}>
+          <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.to === '/cart' ? `${l.label} (${cart.length})` : l.label} title={l.label}>
             <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
+            {l.to === '/cart' && cart.length ? (
+              <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-white">{cart.length}</span>
+            ) : null}
           </NavLink>
         ))}
       </nav>
       <div className="flex gap-2.5 sm:gap-[30px]">
+        {user?.roles?.includes('Customer') ? (
+          <Link to="/wallet" className="flex items-center rounded-md px-2 text-xs font-bold text-emerald-300 hover:bg-white/5 sm:text-sm" aria-label={`Số dư ví ${formatVnd(balance)}`}>
+            {formatVnd(balance)}
+          </Link>
+        ) : null}
+        {shopError ? <span role="alert" title={shopError} className="self-center text-xs text-red-300">Lỗi đồng bộ giỏ hàng/ví</span> : null}
         <div className="relative">
           <button type="button" className={btn({ isActive: openMenu === 'notifications' })} aria-label="Thông báo" title="Thông báo" aria-expanded={openMenu === 'notifications'} onClick={() => toggleMenu('notifications')}>
             <img className="h-[30px] w-auto" src="/assets/icon-bell.svg" alt="" />

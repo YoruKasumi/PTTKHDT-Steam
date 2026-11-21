@@ -15,6 +15,7 @@ const modules = [
   { prefix: '/wishlist', tag: 'Wishlist', router: require('./wishlist.routes') },
   { prefix: '/wallet', tag: 'Wallet', router: require('./wallet.routes') },
   { prefix: '/order', tag: 'Orders', router: require('./order.routes') },
+  { prefix: '/orders', tag: 'Orders', router: require('./orders.routes') },
   { prefix: '/library', tag: 'Library', router: require('./library.routes') },
   { prefix: '/notification', tag: 'Notifications', router: require('./notification.routes') },
   { prefix: '/developer', tag: 'Developer', router: require('./developer.routes') },

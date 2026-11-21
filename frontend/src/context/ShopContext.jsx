@@ -1,64 +1,165 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { ownedIds, wishlistIds } from '../data/games';
+import { cartApi } from '../api/cart';
+import { libraryApi } from '../api/library';
+import { orderApi } from '../api/order';
+import { wishlistApi } from '../api/wishlist';
 
 const ShopContext = createContext(null);
 
-const load = (key, fallback) => {
-  try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; }
-};
-
-export const INITIAL_BALANCE = 1250000;
-
-/**
- * Giỏ hàng, wishlist, thư viện và ví phía GUI (lưu localStorage) cho đến khi backend cài xong
- * CartService / WishlistService / OrderService / WalletService. Hàm khớp sơ đồ UC9, UC10, UC11, UC15:
- * thêm vào giỏ kiểm tra "đã có trong giỏ" và "đã sở hữu"; thanh toán kiểm tra số dư rồi cấp bản quyền.
- */
 export function ShopProvider({ children }) {
-  const [cart, setCart] = useState(() => load('cart', []));
-  const [wishlist, setWishlist] = useState(() => load('wishlist', wishlistIds));
-  const [owned, setOwned] = useState(() => load('owned', ownedIds));
-  const [balance, setBalance] = useState(() => load('balance', INITIAL_BALANCE));
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user')) || null;
+    } catch {
+      return null;
+    }
+  });
+  const [authToken, setAuthToken] = useState(() => (
+    localStorage.getItem('token') || sessionStorage.getItem('token') || ''
+  ));
+  const [cart, setCart] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  const [owned, setOwned] = useState([]);
+  const [balance, setBalance] = useState(0);
+  const [shopError, setShopError] = useState('');
 
-  useEffect(() => localStorage.setItem('cart', JSON.stringify(cart)), [cart]);
-  useEffect(() => localStorage.setItem('wishlist', JSON.stringify(wishlist)), [wishlist]);
-  useEffect(() => localStorage.setItem('owned', JSON.stringify(owned)), [owned]);
-  useEffect(() => localStorage.setItem('balance', JSON.stringify(balance)), [balance]);
-
-  const addToCart = useCallback((id) => {
-    if (owned.includes(id)) return { ok: false, message: 'Bạn đã sở hữu game này' };
-    if (cart.includes(id)) return { ok: false, message: 'Game đã có trong giỏ hàng' };
-    setCart((c) => [...c, id]);
-    return { ok: true, message: 'Đã thêm vào giỏ hàng' };
-  }, [cart, owned]);
-
-  const addManyToCart = useCallback((ids) => {
-    const requested = [...new Set(ids)];
-    const eligible = requested.filter((id) => !owned.includes(id) && !cart.includes(id));
-    setCart((current) => [...new Set([...current, ...eligible])]);
+  const loadShopState = useCallback(async () => {
+    const [cartResult, wishlistResult, libraryResult, preview] = await Promise.all([
+      cartApi.list(),
+      wishlistApi.list(),
+      libraryApi.list(),
+      orderApi.preview(),
+    ]);
     return {
-      added: eligible.length,
-      skipped: requested.length - eligible.length,
+      cart: cartResult.items.map((item) => item.gameId),
+      wishlist: wishlistResult.map((item) => item.gameId),
+      owned: libraryResult.map((item) => item.gameId),
+      balance: Number(preview.balance),
     };
-  }, [cart, owned]);
+  }, []);
 
-  const removeFromCart = useCallback((id) => setCart((c) => c.filter((x) => x !== id)), []);
-  const toggleWishlist = useCallback((id) => setWishlist((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id])), []);
+  const applyShopState = useCallback((next) => {
+    setCart(next.cart);
+    setWishlist(next.wishlist);
+    setOwned(next.owned);
+    setBalance(next.balance);
+  }, []);
 
-  /** Thanh toán bằng ví: total là số tiền cuối cùng sau giảm giá. Trả { ok, reason?, items? }. */
-  const checkout = useCallback((total) => {
-    if (!cart.length) return { ok: false, reason: 'empty' };
-    if (total > balance) return { ok: false, reason: 'balance' };
-    const items = [...cart];
-    setBalance((b) => b - total);
-    setOwned((o) => [...new Set([...o, ...items])]);
+  const refreshShop = useCallback(async () => {
+    const next = await loadShopState();
+    applyShopState(next);
+    setShopError('');
+  }, [applyShopState, loadShopState]);
+
+  useEffect(() => {
+    let active = true;
+    if (!authToken || !user?.roles?.includes('Customer')) {
+      setCart([]);
+      setWishlist([]);
+      setOwned([]);
+      setBalance(0);
+      setShopError('');
+      return () => { active = false; };
+    }
+
+    setShopError('');
+    loadShopState().then((next) => {
+      if (active) applyShopState(next);
+    }).catch((error) => {
+      if (active) setShopError(error.message);
+    });
+    return () => { active = false; };
+  }, [applyShopState, authToken, loadShopState, user?.accountId, user?.roles]);
+
+  const addToCart = useCallback(async (id) => {
+    try {
+      const result = await cartApi.add(id);
+      setCart((current) => [...new Set([...current, result.gameId])]);
+      setShopError('');
+      return { ok: true, message: 'Đã thêm vào giỏ hàng' };
+    } catch (error) {
+      if (error.status === 409) return { ok: false, message: error.message };
+      throw error;
+    }
+  }, []);
+
+  const addManyToCart = useCallback(async (ids) => {
+    let added = 0;
+    let skipped = 0;
+    for (const id of [...new Set(ids)]) {
+      const result = await addToCart(id);
+      if (result.ok) added += 1;
+      else skipped += 1;
+    }
+    return { added, skipped };
+  }, [addToCart]);
+
+  const removeFromCart = useCallback(async (id) => {
+    await cartApi.remove(id);
+    setCart((current) => current.filter((gameId) => gameId !== id));
+  }, []);
+
+  const toggleWishlist = useCallback(async (id) => {
+    if (wishlist.includes(id)) {
+      await wishlistApi.remove(id);
+      setWishlist((current) => current.filter((gameId) => gameId !== id));
+      return { added: false };
+    }
+    try {
+      await wishlistApi.add(id);
+      setWishlist((current) => [...new Set([...current, id])]);
+      return { added: true };
+    } catch (error) {
+      if (error.status === 409) return { added: false, message: error.message };
+      throw error;
+    }
+  }, [wishlist]);
+
+  const checkout = useCallback(async (couponCode) => {
+    const result = await orderApi.checkout(couponCode);
+    const purchasedIds = result.items.map((item) => item.gameId);
     setCart([]);
-    return { ok: true, items };
-  }, [cart, balance]);
+    setWishlist((current) => current.filter((id) => !purchasedIds.includes(id)));
+    setOwned((current) => [...new Set([...current, ...purchasedIds])]);
+    setBalance(Number(result.balance));
+    setShopError('');
+    return result;
+  }, []);
+
+  const login = useCallback((nextUser, token, remember = true) => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    const storage = remember ? localStorage : sessionStorage;
+    storage.setItem('token', token);
+    storage.setItem('user', JSON.stringify(nextUser));
+    setUser(nextUser);
+    setAuthToken(token);
+  }, []);
+
+  const updateUser = useCallback((nextUser) => {
+    setUser(nextUser);
+    const storage = localStorage.getItem('token') ? localStorage : sessionStorage;
+    storage.setItem('user', JSON.stringify(nextUser));
+  }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    setUser(null);
+    setAuthToken('');
+  }, []);
 
   const value = useMemo(
-    () => ({ cart, wishlist, owned, balance, addToCart, addManyToCart, removeFromCart, toggleWishlist, checkout }),
-    [cart, wishlist, owned, balance, addToCart, addManyToCart, removeFromCart, toggleWishlist, checkout],
+    () => ({
+      user, authToken, login, updateUser, logout,
+      cart, wishlist, owned, balance, shopError, refreshShop,
+      addToCart, addManyToCart, removeFromCart, toggleWishlist, checkout,
+    }),
+    [user, authToken, login, updateUser, logout, cart, wishlist, owned, balance, shopError, refreshShop, addToCart, addManyToCart, removeFromCart, toggleWishlist, checkout],
   );
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
 }

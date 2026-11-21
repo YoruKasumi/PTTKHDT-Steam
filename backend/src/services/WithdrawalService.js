@@ -1,86 +1,108 @@
 'use strict';
 const BaseService = require('./BaseService');
-const { NotImplementedException } = require('../exceptions');
 const WithdrawalDAO = require('../dao/WithdrawalDAO');
+const crypto = require('crypto');
+const { NghiepVuException, ValidationException, NotFoundException, ForbiddenException } = require('../exceptions');
 
 /**
- * WithdrawalService - tầng Business Logic.
- * Tên phương thức lấy đúng từ sơ đồ sequence; nội dung bên dưới chỉ là khung cần cài đặt.
+ * WithdrawalService - tầng Business Logic cho Rút doanh thu NPH và Duyệt chi.
+ * Triển khai:
+ * - UC33 (Chức năng 22): Rút doanh thu về ngân hàng (Developer)
+ * - UC57 (Chức năng 24): Phê duyệt rút doanh thu (Admin/Manager)
  */
 class WithdrawalService extends BaseService {
-  constructor() {
+  constructor(withdrawalDAO = new WithdrawalDAO()) {
     super();
-    this.withdrawalDAO = new WithdrawalDAO();
+    this.withdrawalDAO = withdrawalDAO;
   }
 
-  // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)
-
-  /**
-   * UC33. Rút doanh thu về ngân hàng - sequence #2: UI → WithdrawalService
-   * Vai trò gọi: Developer
-   * Luồng theo sơ đồ:
-   *   #3 → WithdrawalDAO.kiemTraSoTienKhaDung()
-   *   #4 ← traVeSoDuDoanhThu()
-   *   #5 ↻ this.kiemTraHanMucRutToiThieu()
-   *   #6 ← thongBaoThatBai()
-   *   #8 → WithdrawalDAO.taoLenhRutTienVaTamGiuSoDu()
-   *   #9 ← xacNhanTaoLenhRutThanhCong()
-   *   #10 ← thongBaoGuiYeuCauRutThanhCong()
-   * @param {object} params
-   */
   async guiYeuCauRutDoanhThu(params = {}) {
-    throw new NotImplementedException('WithdrawalService.guiYeuCauRutDoanhThu');
+    const developerId = params.user?.accountId || params.developerId;
+    const amount = this.kiemTraHanMucRutToiThieu(params);
+    const bankInfo = params.bankInfo;
+
+    return this.transaction(async (conn) => {
+      const fin = await this.withdrawalDAO.kiemTraSoTienKhaDung({ developerId }, conn);
+      if (amount > fin.availableRevenue) {
+        throw new NghiepVuException(
+          `Số tiền yêu cầu rút (${amount.toLocaleString()} VND) vượt quá doanh thu khả dụng hiện tại (${fin.availableRevenue.toLocaleString()} VND)`,
+          400,
+          'ERR_EXCEEDS_AVAILABLE_REVENUE'
+        );
+      }
+
+      const requestId = crypto.randomUUID();
+      const ticket = await this.withdrawalDAO.taoLenhRutTienVaTamGiuSoDu({
+        requestId,
+        developerId,
+        amount,
+        bankInfo: bankInfo || 'Tài khoản theo hồ sơ NPH'
+      }, conn);
+
+      return {
+        success: true,
+        message: 'Gửi yêu cầu rút doanh thu thành công, lệnh đang chờ bộ phận tài chính xét duyệt',
+        data: ticket
+      };
+    });
   }
 
-  /**
-   * UC57. Phê duyệt rút doanh thu - sequence #2: UI → WithdrawalService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #3 → WithdrawalDAO.truyVanChiTietLenhRutVaThongTinNganHang()
-   *   #4 ← traVeChiTietLenhRut()
-   * @param {object} params
-   */
+
   async layChiTietLenhRutTien(params = {}) {
-    throw new NotImplementedException('WithdrawalService.layChiTietLenhRutTien');
+    const { requestId } = params;
+    if (!requestId) throw new ValidationException('Thiếu mã yêu cầu rút tiền');
+    const detail = await this.withdrawalDAO.truyVanChiTietLenhRutVaThongTinNganHang({ requestId });
+    if (!detail) throw new NotFoundException('Không tìm thấy yêu cầu rút tiền');
+    return detail;
   }
 
-  /**
-   * UC57. Phê duyệt rút doanh thu - sequence #7: UI → WithdrawalService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #8 → WithdrawalDAO.hoanLaiSoDuTamGiuVaoViNPH()
-   *   #9 ← xacNhanHoanLaiThanhCong()
-   *   #10 ← thongBaoTuChoiThanhCong()
-   * @param {object} params
-   */
+
   async guiYeuCauTuChoi(params = {}) {
-    throw new NotImplementedException('WithdrawalService.guiYeuCauTuChoi');
+    const { requestId, reason } = params;
+    if (!requestId) throw new ValidationException('Thiếu requestId');
+    if (!reason || reason.trim().length === 0) {
+      throw new ValidationException('Vui lòng ghi chú lý do từ chối duyệt chi', 'ERR_MISSING_REJECT_NOTE');
+    }
+
+    const updated = await this.withdrawalDAO.hoanLaiSoDuTamGiuVaoViNPH({ requestId });
+    if (!updated) {
+      throw new NghiepVuException('Không thể từ chối: lệnh không tồn tại hoặc đã được xử lý trước đó', 400);
+    }
+
+    return {
+      success: true,
+      message: `Đã từ chối lệnh rút tiền ${requestId}`,
+      requestId,
+      reason
+    };
   }
 
-  /**
-   * UC57. Phê duyệt rút doanh thu - sequence #13: UI → WithdrawalService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #14 → BankClient.yeuCauChuyenKhoanNganHang()
-   *   #15 ← traVeKetQuaGiaoDich()
-   *   #16 → WithdrawalDAO.capNhatTrangThaiRutTienThanhCong()
-   *   #17 ← xacNhanCapNhatThanhCong()
-   *   #18 ← thongBaoPheDuyetThanhCong()
-   *   #20 ← thongBaoChuyenKhoanThatBai()
-   * @param {object} params
-   */
+
   async guiYeuCauChuyenKhoan(params = {}) {
-    throw new NotImplementedException('WithdrawalService.guiYeuCauChuyenKhoan');
+    const { requestId } = params;
+    if (!requestId) throw new ValidationException('Thiếu requestId');
+
+    const updated = await this.withdrawalDAO.capNhatTrangThaiRutTienThanhCong({ requestId });
+    if (!updated) {
+      throw new NghiepVuException('Không thể duyệt: lệnh không tồn tại hoặc đã được xử lý trước đó', 400);
+    }
+
+    return {
+      success: true,
+      message: `Đã phê duyệt chi chuyển khoản thành công cho lệnh rút ${requestId}`,
+      requestId,
+      status: 'Approved'
+    };
   }
 
-  // ---------------------------------------------------------------- Phương thức nội bộ (self-call trong sơ đồ)
 
-  /**
-   * UC33. Rút doanh thu về ngân hàng - sequence #5: nội bộ
-   * @param {object} params
-   */
-  async kiemTraHanMucRutToiThieu(params = {}) {
-    throw new NotImplementedException('WithdrawalService.kiemTraHanMucRutToiThieu');
+  kiemTraHanMucRutToiThieu(params = {}) {
+    const amount = Number(params.amount);
+    const MIN_PAYOUT = 1000000; // 1.000.000 VND theo tham số hệ thống
+    if (isNaN(amount) || amount < MIN_PAYOUT) {
+      throw new ValidationException(`Số tiền rút tối thiểu là ${MIN_PAYOUT.toLocaleString()} VND`, 'ERR_BELOW_MIN_PAYOUT');
+    }
+    return amount;
   }
 }
 

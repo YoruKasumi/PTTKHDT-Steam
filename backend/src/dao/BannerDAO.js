@@ -2,11 +2,6 @@
 const BaseDAO = require('./BaseDAO');
 
 class BannerDAO extends BaseDAO {
-  /**
-   * UC49. Cấu hình banner trang chủ (#8)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async luuCauHinhBannerVaLichHienThi(params = {}, conn = null) {
     await this.query(
       `INSERT INTO BANNER (BannerID, ImageUrl, LinkUrl, Title, StartDate, EndDate, SortOrder, IsActive, CreatedBy)
