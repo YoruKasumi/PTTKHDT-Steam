@@ -79,8 +79,7 @@ export default function NewProjectModal({ onClose, onCreate }) {
       // Field name phải khớp uploadZip('buildFile') trong game.routes.js
       formData.append('buildFile', file);
 
-      const response = await gameApi.createProject(formData);
-      const data = response.data?.data ?? response.data;
+      const data = await gameApi.createProject(formData);
 
       setResult(data);
 

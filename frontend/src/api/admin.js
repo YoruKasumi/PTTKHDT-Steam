@@ -16,6 +16,10 @@ export const adminApi = {
     const operation = { Active: 'unban', Suspended: 'suspend', Banned: 'ban' }[status];
     return http.patch(`/admin/accounts/${accountId}/${operation}`, { reason });
   },
+  changeAccountStatus: (accountId, status, reason) => {
+    const operation = { Active: 'unban', Suspended: 'suspend', Banned: 'ban' }[status];
+    return http.patch(`/admin/accounts/${accountId}/${operation}`, { reason });
+  },
 
   listStaff: () => http.get('/admin/staff'),
   createStaff: (body) => http.post('/admin/staff', body),
@@ -23,11 +27,19 @@ export const adminApi = {
   setStaffStatus: (accountId, status) => (
     http.patch(`/admin/staff/${accountId}/status`, { status })
   ),
+  changeStaffStatus: (accountId, status) => (
+    http.patch(`/admin/staff/${accountId}/status`, { status })
+  ),
 
   listReviews: () => http.get('/moderation/reviews'),
   moderateReview: (reviewId, status, reason) => (
     http.patch(`/moderation/reviews/${reviewId}/status`, { status, reason })
   ),
+
+  listPendingGames: () => http.get('/moderation/games'),
+  getGameDetail: (gameId) => http.get(`/moderation/games/${encodeURIComponent(gameId)}`),
+  reviewGame: (gameId, decision, reason) =>
+    http.post(`/moderation/games/${encodeURIComponent(gameId)}/review`, { decision, reason }),
 
   listGenres: () => http.get('/genres'),
   createGenre: (body) => http.post('/admin/genres', body),
@@ -42,4 +54,5 @@ export const adminApi = {
   getSystemConfig: () => http.get('/admin/system-config'),
   updateSystemConfig: (parameters) => http.put('/admin/system-config', { parameters }),
   listAuditLogs: (params) => http.get('/admin/audit-logs', { params }),
+  getAuditLogDetail: (logId) => http.get(`/admin/audit-logs/${encodeURIComponent(logId)}`),
 };

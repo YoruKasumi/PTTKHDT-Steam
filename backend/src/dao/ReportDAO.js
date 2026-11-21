@@ -7,11 +7,11 @@ class ReportDAO extends BaseDAO {
     const queryParams = [params.developerId];
 
     if (params.fromDate) {
-      filterDate += ' AND o.CreatedAt >= ?';
+      filterDate += ' AND o.OrderDate >= ?';
       queryParams.push(params.fromDate);
     }
     if (params.toDate) {
-      filterDate += ' AND o.CreatedAt <= ?';
+      filterDate += ' AND o.OrderDate <= ?';
       queryParams.push(params.toDate);
     }
 
@@ -20,7 +20,7 @@ class ReportDAO extends BaseDAO {
         g.GameID,
         g.Title,
         g.Price,
-        COUNT(oi.OrderItemID) AS UnitsSold,
+        COUNT(oi.OrderID) AS UnitsSold,
         COALESCE(SUM(oi.PriceAfterDiscount), 0) AS GrossSales
       FROM GAME g
       LEFT JOIN ORDERITEM oi ON g.GameID = oi.GameID
@@ -69,7 +69,7 @@ class ReportDAO extends BaseDAO {
 
   async truyVanDuLieuTaiChinhRealTime(params = {}, conn = null) {
     const salesSql = `
-      SELECT COALESCE(SUM(FinalAmount), 0) AS TotalRevenue, COUNT(*) AS TotalCompletedOrders 
+      SELECT COALESCE(SUM(TotalAmount), 0) AS TotalRevenue, COUNT(*) AS TotalCompletedOrders 
       FROM ORDERS WHERE Status = 'Completed'
     `;
     const refundSql = `
@@ -89,13 +89,12 @@ class ReportDAO extends BaseDAO {
     };
   }
 
-
   async truyVanDonHangThanhCongTheoThoiGian(params = {}, conn = null) {
     const sql = `
-      SELECT DATE(CreatedAt) AS OrderDate, COUNT(*) AS OrderCount, SUM(FinalAmount) AS DailyRevenue
+      SELECT DATE(OrderDate) AS OrderDate, COUNT(*) AS OrderCount, SUM(TotalAmount) AS DailyRevenue
       FROM ORDERS
       WHERE Status = 'Completed'
-      GROUP BY DATE(CreatedAt)
+      GROUP BY DATE(OrderDate)
       ORDER BY OrderDate DESC
       LIMIT 30
     `;
@@ -128,10 +127,11 @@ class ReportDAO extends BaseDAO {
 
   async truyVanCacDonHangHoanTienThanhCong(params = {}, conn = null) {
     const sql = `
-      SELECT r.RequestID, r.OrderID, r.CustomerID, r.Reason, r.RequestedAt, r.ProcessedAt
+      SELECT r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate, r.RequestDate AS ProcessedAt
       FROM REFUNDREQUEST r
+      JOIN ORDERS o ON r.OrderID = o.OrderID
       WHERE r.Status = 'Approved'
-      ORDER BY r.ProcessedAt DESC
+      ORDER BY r.RequestDate DESC
     `;
     return this.query(sql, [], conn);
   }
