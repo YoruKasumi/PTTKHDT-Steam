@@ -45,7 +45,7 @@ export default function Register() {
     setLoading(true);
     try {
       // Thiết kế chưa có ô "tên đăng nhập": tạm dùng Gamertag cho cả username và displayName.
-      await authApi.guiThongTinDangKy({
+      await authApi.register({
         username: form.gamertag.trim(),
         displayName: form.gamertag.trim(),
         email: form.email.trim(),

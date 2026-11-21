@@ -11,9 +11,11 @@ const router = express.Router();
 
 /** UC1. Đăng ký tài khoản (#4)  | quyền: Guest */
 router.post('/guiThongTinDangKy', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangKy(requestContext(req)), 201, 'Account created')));
+router.post('/register', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangKy(requestContext(req)), 201, 'Account created')));
 
 /** UC2. Đăng nhập hệ thống (#2)  | quyền: Guest */
 router.post('/guiThongTinDangNhap', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangNhap(requestContext(req)))));
+router.post('/login', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangNhap(requestContext(req)))));
 
 /** UC3. Đăng xuất khỏi hệ thống (#2)  | quyền: Authenticated */
 router.post('/guiYeuCauDangXuat', authenticate, asyncHandler(async (req, res) => ok(res, await authService.guiYeuCauDangXuat(requestContext(req)))));

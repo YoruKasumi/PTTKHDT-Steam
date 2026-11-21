@@ -46,6 +46,14 @@ test('Swagger UI and generated OpenAPI document are available in development', a
   assert.equal(specResponse.status, 200);
   const spec = await specResponse.json();
   assert.equal(spec.openapi, '3.0.3');
+  assert.ok(spec.paths['/api/auth/register']);
+  assert.ok(spec.paths['/api/auth/login']);
+  assert.ok(spec.paths['/api/profile']);
+  assert.ok(spec.paths['/api/profile/password']);
+  assert.ok(spec.paths['/api/profile/notifications']);
+  assert.ok(spec.paths['/api/catalog/games']);
+  assert.ok(spec.paths['/api/catalog/games/{gameId}']);
+  assert.ok(spec.paths['/api/catalog/games/{gameId}/reviews']);
   assert.ok(spec.paths['/api/auth/guiThongTinDangNhap']);
   assert.ok(spec.paths['/api/admin/roles']);
   assert.ok(spec.paths['/api/admin/accounts/{accountId}/history']);
@@ -54,6 +62,39 @@ test('Swagger UI and generated OpenAPI document are available in development', a
   assert.ok(spec.paths['/api/banners/active']);
   assert.deepEqual(spec.paths['/api/cart/yeuCauXemGioHang'].get.security, [{ bearerAuth: [] }]);
   assert.ok(spec.paths['/health/database']);
+});
+
+test('REST auth aliases apply the same validation as the legacy endpoints', async () => {
+  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+  });
+  assert.equal(loginResponse.status, 400);
+  assert.equal((await loginResponse.json()).code, 'MISSING_CREDENTIALS');
+
+  const registerResponse = await fetch(`${baseUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      username: 'rest_otp_failure',
+      email: 'rest.otp.failure@example.test',
+      password: 'strong-password-123',
+      otp: '0000',
+    }),
+  });
+  assert.equal(registerResponse.status, 400);
+  assert.equal((await registerResponse.json()).code, 'OTP_INVALID');
+});
+
+test('review endpoint requires a Customer session', async () => {
+  const response = await fetch(`${baseUrl}/api/catalog/games/game-1/reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ rating: 5, content: 'Review' }),
+  });
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).code, 'UNAUTHORIZED');
 });
 
 test('unknown paths use the standard error response envelope', async () => {

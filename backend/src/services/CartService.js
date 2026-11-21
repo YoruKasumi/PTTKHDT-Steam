@@ -1,6 +1,10 @@
 'use strict';
 const BaseService = require('./BaseService');
-const { NotImplementedException } = require('../exceptions');
+const {
+  ConflictException,
+  NotFoundException,
+  ValidationException,
+} = require('../exceptions');
 const CartDAO = require('../dao/CartDAO');
 
 /**
@@ -29,7 +33,24 @@ class CartService extends BaseService {
    * @param {object} params
    */
   async yeuCauXemGioHang(params = {}) {
-    throw new NotImplementedException('CartService.yeuCauXemGioHang');
+    const customerId = this.customerId(params);
+    const rows = await this.cartDAO.layDanhSachSanPhamTrongGio({ customerId });
+    const items = rows.map((row) => ({
+      gameId: row.GameID,
+      title: row.Title,
+      coverImage: row.CoverImage,
+      genres: row.GenreNames ? row.GenreNames.split(',') : [],
+      gameStatus: row.GameStatus,
+      priceAtAdd: Number(row.PriceAtAdd),
+      basePrice: Number(row.BasePrice),
+      percentOff: Number(row.PercentOff),
+      currentPrice: Number(row.CurrentPrice),
+      isOwned: Boolean(row.IsOwned),
+    }));
+    return {
+      items,
+      subtotal: items.reduce((total, item) => total + item.currentPrice, 0),
+    };
   }
 
   /**
@@ -50,7 +71,40 @@ class CartService extends BaseService {
    * @param {object} params
    */
   async yeuCauThemSanPham(params = {}) {
-    throw new NotImplementedException('CartService.yeuCauThemSanPham');
+    const customerId = this.customerId(params);
+    const gameId = typeof params.gameId === 'string' ? params.gameId.trim() : '';
+    if (!gameId) throw new ValidationException('gameId là bắt buộc');
+
+    try {
+      return await this.transaction(async (conn) => {
+        const game = await this.cartDAO.layDonGiaTungSanPham({ gameId }, conn);
+        if (!game || game.GameStatus !== 'Approved') {
+          throw new NotFoundException('Không tìm thấy trò chơi đang được bán');
+        }
+        if (await this.cartDAO.kiemTraSanPhamTrongGio({ customerId, gameId }, conn)) {
+          throw new ConflictException('Trò chơi đã có trong giỏ hàng');
+        }
+        if (await this.cartDAO.kiemTraDaSoHuu({ customerId, gameId }, conn)) {
+          throw new ConflictException('Bạn đã sở hữu trò chơi này');
+        }
+
+        await this.cartDAO.themSanPhamVaoGioHang({
+          customerId,
+          gameId,
+          priceAtAdd: Number(game.CurrentPrice),
+        }, conn);
+        return {
+          gameId,
+          priceAtAdd: Number(game.CurrentPrice),
+          currentPrice: Number(game.CurrentPrice),
+        };
+      });
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new ConflictException('Trò chơi đã có trong giỏ hàng');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -67,7 +121,11 @@ class CartService extends BaseService {
    * @param {object} params
    */
   async yeuCauXoaSanPham(params = {}) {
-    throw new NotImplementedException('CartService.yeuCauXoaSanPham');
+    const customerId = this.customerId(params);
+    const gameId = typeof params.gameId === 'string' ? params.gameId.trim() : '';
+    if (!gameId) throw new ValidationException('gameId là bắt buộc');
+    const removed = await this.cartDAO.xoaSanPhamKhoiGioHang({ customerId, gameId });
+    return { gameId, removed };
   }
 
   // ---------------------------------------------------------------- Phương thức nội bộ (self-call trong sơ đồ)
@@ -77,7 +135,8 @@ class CartService extends BaseService {
    * @param {object} params
    */
   async tinhTongTienGioHang(params = {}) {
-    throw new NotImplementedException('CartService.tinhTongTienGioHang');
+    const result = await this.yeuCauXemGioHang(params);
+    return result.subtotal;
   }
 
   /**
@@ -85,7 +144,13 @@ class CartService extends BaseService {
    * @param {object} params
    */
   async tinhLaiTongTien(params = {}) {
-    throw new NotImplementedException('CartService.tinhLaiTongTien');
+    return this.tinhTongTienGioHang(params);
+  }
+
+  customerId(params = {}) {
+    const customerId = params.user && params.user.accountId;
+    if (!customerId) throw new ValidationException('Tài khoản khách hàng không hợp lệ');
+    return customerId;
   }
 }
 

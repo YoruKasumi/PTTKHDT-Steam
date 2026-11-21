@@ -57,5 +57,5 @@ Một số lifeline trong sơ đồ mang tên khác với service đã chốt. M
 
 ## 6. Bảng CSDL bổ sung
 
-- `BANNER` và `SYSTEM_PARAMETER` nằm trong `sql/steam_store_schema.sql`; `sql/extra_tables.sql` bổ sung các tham số mới cho database đã khởi tạo.
+- `BANNER` và `SYSTEM_PARAMETER` được tạo bởi `sql/extra_tables.sql` sau khi chạy `sql/steam_store_schema.sql`; script bổ sung cũng seed các tham số cấu hình còn thiếu cho database đã khởi tạo.
 - UC56 và UC61-63 làm việc với nhân sự nội bộ (MANAGER, ADMIN, ROLE) - dùng `StaffDAO` và `RoleDAO`.

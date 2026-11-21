@@ -22,6 +22,7 @@ import Library from './pages/Library';
 import GameDetail from './pages/GameDetail';
 import Orders from './pages/Orders';
 import WalletTransactions from './pages/wallet/WalletTransactions';
+import CatalogSearch from './pages/CatalogSearch';
 
 function getRouteAccess(path) {
   if (path === '/developer/register') return { allowedRoles: ['Customer', 'Developer', 'Admin'] };
@@ -86,6 +87,8 @@ export const routes = [
       path: screen.path,
       element: {
         '/cart': <Cart />,
+        '/search': <CatalogSearch />,
+        '/search/results': <CatalogSearch />,
         '/wallet': <Wallet />,
         '/wallet/transactions': <WalletTransactions />,
         '/settings': <Settings />,

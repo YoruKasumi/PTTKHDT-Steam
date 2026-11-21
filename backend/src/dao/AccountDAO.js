@@ -42,6 +42,16 @@ class AccountDAO extends BaseDAO {
       [account.AccountID],
       conn,
     );
+    await this.query(
+      'INSERT INTO WALLET (CustomerID, Balance, Currency) VALUES (?, 0, \'VND\')',
+      [account.AccountID],
+      conn,
+    );
+    await this.query(
+      'INSERT INTO CART (CustomerID) VALUES (?)',
+      [account.AccountID],
+      conn,
+    );
     return account.AccountID;
   }
 
@@ -58,6 +68,8 @@ class AccountDAO extends BaseDAO {
          account.PasswordHash,
          account.Email,
          account.DisplayName,
+         account.AvatarUrl,
+         account.NotifyEnabled,
          account.Status,
          (customer.AccountID IS NOT NULL) AS IsCustomer,
          (developer.AccountID IS NOT NULL) AS IsDeveloper,
@@ -115,7 +127,12 @@ class AccountDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatTenHienThi(params = {}, conn = null) {
-    throw new NotImplementedException('AccountDAO.capNhatTenHienThi');
+    const result = await this.query(
+      'UPDATE ACCOUNT SET DisplayName = ? WHERE AccountID = ?',
+      [params.displayName, params.accountId],
+      conn,
+    );
+    return result.affectedRows > 0;
   }
 
   /**
@@ -124,7 +141,12 @@ class AccountDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatDuongDanAnh(params = {}, conn = null) {
-    throw new NotImplementedException('AccountDAO.capNhatDuongDanAnh');
+    const result = await this.query(
+      'UPDATE ACCOUNT SET AvatarUrl = ? WHERE AccountID = ?',
+      [params.avatarUrl, params.accountId],
+      conn,
+    );
+    return result.affectedRows > 0;
   }
 
   /**
@@ -133,7 +155,12 @@ class AccountDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async layMatKhauHienTai(params = {}, conn = null) {
-    throw new NotImplementedException('AccountDAO.layMatKhauHienTai');
+    const row = await this.one(
+      'SELECT PasswordHash FROM ACCOUNT WHERE AccountID = ? LIMIT 1',
+      [params.accountId],
+      conn,
+    );
+    return row ? row.PasswordHash : null;
   }
 
   /**
@@ -142,7 +169,39 @@ class AccountDAO extends BaseDAO {
    * @param {object} [conn] kết nối transaction (nếu có)
    */
   async capNhatMatKhauMoi(params = {}, conn = null) {
-    throw new NotImplementedException('AccountDAO.capNhatMatKhauMoi');
+    const result = await this.query(
+      'UPDATE ACCOUNT SET PasswordHash = ? WHERE AccountID = ?',
+      [params.passwordHash, params.accountId],
+      conn,
+    );
+    return result.affectedRows > 0;
+  }
+
+  async layHoSoCaNhan(params = {}, conn = null) {
+    return this.one(
+      `SELECT AccountID, Username, Email, DisplayName, AvatarUrl, NotifyEnabled
+       FROM ACCOUNT WHERE AccountID = ? LIMIT 1`,
+      [params.accountId],
+      conn,
+    );
+  }
+
+  async capNhatHoSoCaNhan(params = {}, conn = null) {
+    const result = await this.query(
+      'UPDATE ACCOUNT SET DisplayName = ?, AvatarUrl = ? WHERE AccountID = ?',
+      [params.displayName, params.avatarUrl, params.accountId],
+      conn,
+    );
+    return result.affectedRows > 0;
+  }
+
+  async capNhatTrangThaiThongBao(params = {}, conn = null) {
+    const result = await this.query(
+      'UPDATE ACCOUNT SET NotifyEnabled = ? WHERE AccountID = ?',
+      [params.enabled, params.accountId],
+      conn,
+    );
+    return result.affectedRows > 0;
   }
 
   /**
