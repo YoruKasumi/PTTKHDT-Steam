@@ -1,6 +1,12 @@
 'use strict';
 const BaseService = require('./BaseService');
-const { NghiepVuException, NotImplementedException, UnauthorizedException } = require('../exceptions');
+const {
+  NghiepVuException,
+  NotFoundException,
+  NotImplementedException,
+  UnauthorizedException,
+  ValidationException,
+} = require('../exceptions');
 const AccountDAO = require('../dao/AccountDAO');
 const password = require('../utils/password');
 const token = require('../utils/token');
@@ -117,6 +123,8 @@ class AuthService extends BaseService {
       username: account.Username,
       email: account.Email,
       displayName: account.DisplayName,
+      avatarUrl: account.AvatarUrl,
+      notifyEnabled: Boolean(account.NotifyEnabled),
       roles,
       staffRole: account.StaffRole || null,
       permissions: account.PermissionCodes ? account.PermissionCodes.split(',') : [],
@@ -154,7 +162,26 @@ class AuthService extends BaseService {
    * @param {object} params
    */
   async guiYeuCauThayDoiMatKhau(params = {}) {
-    throw new NotImplementedException('AuthService.guiYeuCauThayDoiMatKhau');
+    const accountId = params.user?.accountId;
+    const currentPassword = typeof params.currentPassword === 'string' ? params.currentPassword : '';
+    const newPassword = typeof params.newPassword === 'string' ? params.newPassword : '';
+    if (!accountId) throw new UnauthorizedException();
+    if (!currentPassword || newPassword.length < 8 || Buffer.byteLength(newPassword, 'utf8') > 72) {
+      throw new ValidationException('Cần nhập mật khẩu hiện tại và mật khẩu mới từ 8 ký tự (tối đa 72 byte)');
+    }
+
+    const currentHash = await this.accountDAO.layMatKhauHienTai({ accountId });
+    if (!currentHash) throw new NotFoundException('Không tìm thấy tài khoản');
+    if (!(await password.compare(currentPassword, currentHash))) {
+      throw new ValidationException('Mật khẩu hiện tại không chính xác');
+    }
+    if (await password.compare(newPassword, currentHash)) {
+      throw new ValidationException('Mật khẩu mới phải khác mật khẩu hiện tại');
+    }
+
+    const passwordHash = await password.hash(newPassword);
+    await this.accountDAO.capNhatMatKhauMoi({ accountId, passwordHash });
+    return { updated: true };
   }
 
   /**

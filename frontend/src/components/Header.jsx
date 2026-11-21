@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useShop } from '../context/ShopContext';
 import { Link, useNavigate } from 'react-router-dom';
 
 /** Khối logo + ô tìm kiếm + giỏ hàng (Figma: node 1:304). */
 export default function Header() {
+  const { cart } = useShop();
   const [keyword, setKeyword] = useState('');
   const navigate = useNavigate();
 
@@ -32,8 +34,11 @@ export default function Header() {
           <img className="size-[30px]" src="/assets/icon-search.svg" alt="" />
         </button>
       </form>
-      <Link to="/cart" className="size-9 flex-none md:mr-6 md:size-[50px]" aria-label="Giỏ hàng">
+      <Link to="/cart" className="relative size-9 flex-none md:mr-6 md:size-[50px]" aria-label={`Giỏ hàng (${cart.length})`}>
         <img className="size-full" src="/assets/icon-cart.svg" alt="" />
+        {cart.length ? (
+          <span className="absolute -right-2 -top-2 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-white">{cart.length}</span>
+        ) : null}
       </Link>
     </header>
   );

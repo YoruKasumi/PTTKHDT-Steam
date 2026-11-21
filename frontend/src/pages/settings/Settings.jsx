@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { profileApi } from '../../api/profile';
+import { useShop } from '../../context/ShopContext';
 
 const sections = ['Cài đặt chung', 'Tải xuống & Lưu trữ', 'Giao diện & Gam màu', 'Âm thanh & Thông báo', 'Tài khoản & Bảo mật 2FA'];
 
@@ -32,17 +34,67 @@ function ToggleRow({ title, description, checked, onChange }) {
 }
 
 export default function Settings() {
+  const { user, updateUser } = useShop();
   const [activeSection, setActiveSection] = useState(sections[0]);
-  const [settings, setSettings] = useState(initialSettings);
+  const [settings, setSettings] = useState({
+    ...initialSettings,
+    saleNotifications: user?.notifyEnabled ?? initialSettings.saleNotifications,
+  });
   const [message, setMessage] = useState('');
+  const [profile, setProfile] = useState({
+    displayName: user?.displayName || '',
+    avatarUrl: user?.avatarUrl || '',
+  });
+  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' });
+  const [saving, setSaving] = useState(false);
   const update = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
+    setMessage('');
+    setSaving(true);
     try {
+      const preference = await profileApi.updateNotifications(settings.saleNotifications);
       localStorage.setItem('vortex-settings', JSON.stringify(settings));
-      setMessage('Đã lưu cài đặt trên trình duyệt này.');
+      updateUser({ ...user, notifyEnabled: preference.notifyEnabled });
+      setMessage('Đã lưu cài đặt và đồng bộ tùy chọn thông báo với tài khoản.');
     } catch (error) {
       setMessage(`Không thể lưu cài đặt: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveProfile = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    setSaving(true);
+    try {
+      const updated = await profileApi.update({
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl.trim() || null,
+      });
+      updateUser({ ...user, ...updated });
+      setProfile({ displayName: updated.displayName, avatarUrl: updated.avatarUrl || '' });
+      setMessage('Đã cập nhật hồ sơ.');
+    } catch (error) {
+      setMessage(`Không thể cập nhật hồ sơ: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changePassword = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    setSaving(true);
+    try {
+      await profileApi.changePassword(passwords);
+      setPasswords({ currentPassword: '', newPassword: '' });
+      setMessage('Đã đổi mật khẩu.');
+    } catch (error) {
+      setMessage(`Không thể đổi mật khẩu: ${error.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -137,12 +189,36 @@ export default function Settings() {
           ) : null}
 
           {activeSection === 'Tài khoản & Bảo mật 2FA' ? (
-            <ToggleRow
-              title="Xác thực hai yếu tố (2FA)"
-              description="Tăng cường bảo vệ tài khoản khi đăng nhập"
-              checked={settings.twoFactor}
-              onChange={(value) => update('twoFactor', value)}
-            />
+            <>
+              <form onSubmit={saveProfile} className="space-y-3 rounded-xl border border-line bg-page p-4">
+                <h2 className="m-0 font-bold">Hồ sơ cá nhân</h2>
+                <label className="block text-sm">Tên hiển thị
+                  <input required maxLength={50} value={profile.displayName} onChange={(event) => setProfile((current) => ({ ...current, displayName: event.target.value }))} className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2" />
+                </label>
+                <label className="block text-sm">URL ảnh đại diện (có thể để trống)
+                  <input maxLength={255} value={profile.avatarUrl} onChange={(event) => setProfile((current) => ({ ...current, avatarUrl: event.target.value }))} className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2" />
+                </label>
+                <button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-bold disabled:opacity-50">Lưu hồ sơ</button>
+              </form>
+
+              <form onSubmit={changePassword} className="space-y-3 rounded-xl border border-line bg-page p-4">
+                <h2 className="m-0 font-bold">Đổi mật khẩu</h2>
+                <label className="block text-sm">Mật khẩu hiện tại
+                  <input required type="password" autoComplete="current-password" value={passwords.currentPassword} onChange={(event) => setPasswords((current) => ({ ...current, currentPassword: event.target.value }))} className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2" />
+                </label>
+                <label className="block text-sm">Mật khẩu mới (ít nhất 8 ký tự)
+                  <input required minLength={8} type="password" autoComplete="new-password" value={passwords.newPassword} onChange={(event) => setPasswords((current) => ({ ...current, newPassword: event.target.value }))} className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2" />
+                </label>
+                <button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-bold disabled:opacity-50">Đổi mật khẩu</button>
+              </form>
+
+              <ToggleRow
+                title="Xác thực hai yếu tố (2FA)"
+                description="Cài đặt này chưa được hỗ trợ bởi API."
+                checked={settings.twoFactor}
+                onChange={(value) => update('twoFactor', value)}
+              />
+            </>
           ) : null}
 
           <label className="block rounded-xl border border-line bg-page p-4">
@@ -160,8 +236,8 @@ export default function Settings() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <p role="status" className="m-0 text-sm text-emerald-400">{message}</p>
-            <button type="button" onClick={saveSettings} className="rounded-lg bg-accent px-5 py-2.5 font-bold">
-              Lưu cài đặt
+            <button type="button" disabled={saving} onClick={saveSettings} className="rounded-lg bg-accent px-5 py-2.5 font-bold disabled:opacity-50">
+              {saving ? 'Đang lưu…' : 'Lưu cài đặt'}
             </button>
           </div>
         </section>

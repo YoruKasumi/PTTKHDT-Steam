@@ -33,4 +33,16 @@ router.post('/sapXepTheoGia', asyncHandler(async (req, res) => ok(res, await cat
 /** UC7. Xem chi tiết sản phẩm (#2)  | công khai */
 router.get('/yeuCauXemChiTietSanPham', asyncHandler(async (req, res) => ok(res, await catalogService.yeuCauXemChiTietSanPham(requestContext(req)))));
 
+router.get('/games', asyncHandler(async (req, res) => (
+  ok(res, await catalogService.listGames(requestContext(req)))
+)));
+
+router.get('/games/:gameId', asyncHandler(async (req, res) => (
+  ok(res, await catalogService.getGameDetails(requestContext(req)))
+)));
+
+router.post('/games/:gameId/reviews', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await catalogService.createReview(requestContext(req)), 201, 'Review created')
+)));
+
 module.exports = router;

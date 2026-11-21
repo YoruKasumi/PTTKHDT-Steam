@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 import Field from '../../components/auth/Field';
 import { authApi } from '../../api/auth';
+import { useShop } from '../../context/ShopContext';
 
 const promo = {
   badge: '⚡ MÙA GIẢI 2026',
@@ -16,6 +17,7 @@ const socials = ['Steam', 'Discord', 'Google', 'Apple ID'];
 /** Màn hình Đăng nhập (Figma: node 8:240). Sequence UC2: nhapThongTinDangNhap → guiThongTinDangNhap. */
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useShop();
   const [form, setForm] = useState({ account: '', password: '' });
   const [remember, setRemember] = useState(true);
   const [showPw, setShowPw] = useState(false);
@@ -40,14 +42,8 @@ export default function Login() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const data = await authApi.guiThongTinDangNhap({ account: form.account.trim(), password: form.password });
-      const storage = remember ? localStorage : sessionStorage;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      storage.setItem('token', data.token);
-      storage.setItem('user', JSON.stringify(data.user));
+      const data = await authApi.login({ account: form.account.trim(), password: form.password });
+      login(data.user, data.token, remember);
       navigate('/', { state: { loginSuccess: true } });
     } catch (err) {
       setMessage(err.message); // hiển thị thông báo lỗi (hienThiThongBaoDangNhapThatBai)

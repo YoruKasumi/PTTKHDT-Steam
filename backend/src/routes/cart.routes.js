@@ -9,6 +9,18 @@ const { cartService } = require('../services');
 
 const router = express.Router();
 
+router.get('/items', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await cartService.yeuCauXemGioHang(requestContext(req)))
+)));
+
+router.post('/items', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await cartService.yeuCauThemSanPham(requestContext(req)), 201, 'Đã thêm vào giỏ hàng')
+)));
+
+router.delete('/items/:gameId', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await cartService.yeuCauXoaSanPham(requestContext(req)))
+)));
+
 /** UC8. Xem giỏ hàng (#2)  | quyền: Customer */
 router.get('/yeuCauXemGioHang', authenticate, authorize('Customer'), asyncHandler(async (req, res) => ok(res, await cartService.yeuCauXemGioHang(requestContext(req)))));
 

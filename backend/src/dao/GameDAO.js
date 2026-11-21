@@ -3,46 +3,171 @@ const BaseDAO = require('./BaseDAO');
 const { NotImplementedException } = require('../exceptions');
 
 class GameDAO extends BaseDAO {
+  async listApprovedGames(params = {}, conn = null) {
+    const conditions = ["g.Status = 'Approved'"];
+    const values = [];
+    if (params.keyword) {
+      conditions.push('(g.Title LIKE ? OR g.Description LIKE ?)');
+      const keyword = `%${params.keyword}%`;
+      values.push(keyword, keyword);
+    }
+    if (params.genreId) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM GAME_GENRE AS filterGenre
+        WHERE filterGenre.GameID = g.GameID AND filterGenre.GenreID = ?
+      )`);
+      values.push(params.genreId);
+    }
+    if (params.minPrice !== undefined && params.minPrice !== null) {
+      conditions.push('price.CurrentPrice >= ?');
+      values.push(params.minPrice);
+    }
+    if (params.maxPrice !== undefined && params.maxPrice !== null) {
+      conditions.push('price.CurrentPrice <= ?');
+      values.push(params.maxPrice);
+    }
+    if (params.onSale) conditions.push('price.PercentOff > 0');
+
+    const orderBy = {
+      releaseDate: 'g.ReleaseDate DESC, g.GameID',
+      popularity: 'popularity.Popularity DESC, g.GameID',
+      price: `price.CurrentPrice ${params.direction === 'desc' ? 'DESC' : 'ASC'}, g.GameID`,
+    }[params.sort] || 'popularity.Popularity DESC, g.GameID';
+
+    return this.query(
+      `SELECT g.GameID, g.Title, g.Description, g.CoverImage, g.ReleaseDate,
+              developer.CompanyName,
+              price.BasePrice, price.PercentOff, price.CurrentPrice,
+              COALESCE(rating.AverageRating, 0) AS AverageRating,
+              COALESCE(rating.RatingCount, 0) AS RatingCount,
+              COALESCE(popularity.Popularity, 0) AS Popularity,
+              (SELECT GROUP_CONCAT(DISTINCT genre.GenreName ORDER BY genre.GenreName SEPARATOR ',')
+               FROM GAME_GENRE AS gameGenre
+               INNER JOIN GENRE AS genre ON genre.GenreID = gameGenre.GenreID
+               WHERE gameGenre.GameID = g.GameID) AS GenreNames
+       FROM GAME AS g
+       INNER JOIN DEVELOPER AS developer ON developer.AccountID = g.DeveloperID
+       INNER JOIN V_GAME_PRICE AS price ON price.GameID = g.GameID
+       LEFT JOIN (
+         SELECT GameID, AVG(Rating) AS AverageRating, COUNT(*) AS RatingCount
+         FROM REVIEW WHERE Status = 'Visible' GROUP BY GameID
+       ) AS rating ON rating.GameID = g.GameID
+       LEFT JOIN (
+         SELECT GameID, COUNT(*) AS Popularity
+         FROM LICENSE WHERE Status = 'Active' GROUP BY GameID
+       ) AS popularity ON popularity.GameID = g.GameID
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY ${orderBy}`,
+      values,
+      conn,
+    );
+  }
+
   async timKiemSanPhamTheoTuKhoa(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.timKiemSanPhamTheoTuKhoa');
+    return this.listApprovedGames(params, conn);
   }
   async truyVanSanPhamTheoTheLoai(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.truyVanSanPhamTheoTheLoai');
+    return this.listApprovedGames(params, conn);
   }
 
   async truyVanSanPhamTheoKhoangGia(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.truyVanSanPhamTheoKhoangGia');
+    return this.listApprovedGames(params, conn);
   }
 
   async truyVanSanPhamTheoTrangThaiSale(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.truyVanSanPhamTheoTrangThaiSale');
+    return this.listApprovedGames(params, conn);
   }
 
   async layDanhSachTheoNgayPhatHanh(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.layDanhSachTheoNgayPhatHanh');
+    return this.listApprovedGames({ ...params, sort: 'releaseDate' }, conn);
   }
   async layDanhSachTheoDoPhoBien(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.layDanhSachTheoDoPhoBien');
+    return this.listApprovedGames({ ...params, sort: 'popularity' }, conn);
   }
   async layDanhSachTheoGia(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.layDanhSachTheoGia');
+    return this.listApprovedGames({ ...params, sort: 'price' }, conn);
   }
 
   async layThongTinSanPham(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.layThongTinSanPham');
+    return this.one(
+      `SELECT g.GameID, g.Title, g.Description, g.CoverImage, g.TrailerUrl,
+              g.MinSpec, g.RecSpec, g.ReleaseDate, developer.CompanyName,
+              price.BasePrice, price.PercentOff, price.CurrentPrice,
+              currentVersion.VersionID, currentVersion.VersionNumber,
+              currentVersion.ChangeLog, currentVersion.UploadDate AS VersionDate,
+              (SELECT GROUP_CONCAT(DISTINCT genre.GenreName ORDER BY genre.GenreName SEPARATOR ',')
+               FROM GAME_GENRE AS gameGenre
+               INNER JOIN GENRE AS genre ON genre.GenreID = gameGenre.GenreID
+               WHERE gameGenre.GameID = g.GameID) AS GenreNames,
+              COALESCE(rating.AverageRating, 0) AS AverageRating,
+              COALESCE(rating.RatingCount, 0) AS RatingCount
+       FROM GAME AS g
+       INNER JOIN DEVELOPER AS developer ON developer.AccountID = g.DeveloperID
+       INNER JOIN V_GAME_PRICE AS price ON price.GameID = g.GameID
+       LEFT JOIN GAMEVERSION AS currentVersion
+         ON currentVersion.GameID = g.GameID AND currentVersion.IsCurrent = 1
+       LEFT JOIN (
+         SELECT GameID, AVG(Rating) AS AverageRating, COUNT(*) AS RatingCount
+         FROM REVIEW WHERE Status = 'Visible' GROUP BY GameID
+       ) AS rating ON rating.GameID = g.GameID
+       WHERE g.GameID = ? AND g.Status = 'Approved'
+       LIMIT 1`,
+      [params.gameId],
+      conn,
+    );
   }
 
   async layThongTinCoBan(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.layThongTinCoBan');
+    return this.layThongTinSanPham(params, conn);
   }
   async layCauHinhYeuCau(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.layCauHinhYeuCau');
+    const row = await this.one(
+      `SELECT MinSpec, RecSpec FROM GAME
+       WHERE GameID = ? AND Status = 'Approved' LIMIT 1`,
+      [params.gameId],
+      conn,
+    );
+    return row;
   }
   async layDanhSachDanhGia(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.layDanhSachDanhGia');
+    return this.query(
+      `SELECT review.ReviewID, review.CustomerID, review.Rating, review.Content,
+              review.ReviewDate, account.DisplayName
+       FROM REVIEW AS review
+       INNER JOIN ACCOUNT AS account ON account.AccountID = review.CustomerID
+       WHERE review.GameID = ? AND review.Status = 'Visible'
+       ORDER BY review.ReviewDate DESC`,
+      [params.gameId],
+      conn,
+    );
   }
   async kiemTraGameDaSoHuu(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.kiemTraGameDaSoHuu');
+    return this.one(
+      `SELECT LicenseID FROM LICENSE
+       WHERE CustomerID = ? AND GameID = ? AND Status = 'Active'
+       LIMIT 1`,
+      [params.customerId, params.gameId],
+      conn,
+    );
+  }
+
+  async taoDanhGia(params = {}, conn = null) {
+    await this.query(
+      `INSERT INTO REVIEW (CustomerID, GameID, Rating, Content)
+       VALUES (?, ?, ?, ?)`,
+      [params.customerId, params.gameId, params.rating, params.content],
+      conn,
+    );
+    return this.one(
+      `SELECT review.ReviewID, review.CustomerID, review.Rating, review.Content,
+              review.ReviewDate, account.DisplayName
+       FROM REVIEW AS review
+       INNER JOIN ACCOUNT AS account ON account.AccountID = review.CustomerID
+       WHERE review.CustomerID = ? AND review.GameID = ?
+       LIMIT 1`,
+      [params.customerId, params.gameId],
+      conn,
+    );
   }
 
   async luuBanQuyenGame(params = {}, conn = null) {
