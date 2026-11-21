@@ -77,6 +77,12 @@ module.exports = {
   orderService,
   libraryService,
   notificationService,
+  createNotification: (accountIdOrParams, type, content, conn) => {
+    if (typeof accountIdOrParams === 'object' && accountIdOrParams !== null) {
+      return notificationService.createNotification(accountIdOrParams, type);
+    }
+    return notificationService.createNotification({ accountId: accountIdOrParams, type, content }, conn);
+  },
   developerService,
   promotionService,
   reportService,

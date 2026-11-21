@@ -18,6 +18,7 @@ const modules = [
   { prefix: '/orders', tag: 'Orders', router: require('./orders.routes') },
   { prefix: '/library', tag: 'Library', router: require('./library.routes') },
   { prefix: '/notification', tag: 'Notifications', router: require('./notification.routes') },
+  { prefix: '/notifications', tag: 'Notifications', router: require('./notification.routes') },
   { prefix: '/developer', tag: 'Developer', router: require('./developer.routes') },
   { prefix: '/promotion', tag: 'Promotions', router: require('./promotion.routes') },
   { prefix: '/report', tag: 'Reports', router: require('./report.routes') },

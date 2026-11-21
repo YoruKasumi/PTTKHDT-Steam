@@ -47,6 +47,20 @@ router.get(
   asyncHandler(async (req, res) => ok(res, await libraryService.yeuCauXemThuVien({ user: req.user }))),
 );
 
+/** POST /api/library/redeem-key — Đổi activation key nhận bản quyền game */
+router.post(
+  '/redeem-key',
+  authenticate,
+  authorize('Customer'),
+  asyncHandler(async (req, res) => {
+    const result = await libraryService.redeemKey({
+      keyCode: req.body.keyCode || req.body.code,
+      user: req.user,
+    });
+    return ok(res, result, 201, result.message || 'Kích hoạt game thành công.');
+  }),
+);
+
 // Legacy route
 router.get(
   '/yeuCauXemThuVien',
