@@ -263,7 +263,8 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     service.orderDAO.kiemTraTokenBanQuyen = async () => [{ LicenseID: 'lic-1', GameID: 'game-1' }];
 
     const refundRequests = [];
-    service.orderDAO.ghiYeuCauHoanTien = async (p) => refundRequests.push(p);
+    service.refundDAO.layHanMucHoanTien = async () => 24;
+    service.refundDAO.ghiYeuCauHoanTien = async (p) => refundRequests.push(p);
 
     await assert.rejects(
       () =>
@@ -285,7 +286,49 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     assert.equal(refundRequests[0].hoursSincePurchase, 30);
   });
 
-  it('1.4.5 - OrderService.guiYeuCauHoanTien: Đơn <= 24h thu hồi bản quyền, ghi Approved và hoàn tiền ví', async () => {
+  it('1.4.5 - OrderService refund: đúng biên 23h59, 24h05 và cửa sổ 48 giờ', async () => {
+    const makeService = (seconds, windowHours) => {
+      const service = new OrderService();
+      service.transaction = async (cb) => cb({});
+      service.refundDAO.layHanMucHoanTien = async () => windowHours;
+      service.orderDAO.layDonHangDeHoanTien = async () => ({
+        OrderID: 'ord-boundary',
+        CustomerID: 'cus-1',
+        TotalAmount: '200000',
+        Status: 'Completed',
+        SecondsSincePurchase: seconds,
+      });
+      service.orderDAO.layItemsDonHang = async () => [{ GameID: 'game-1' }];
+      service.orderDAO.kiemTraTokenBanQuyen = async () => [{ LicenseID: 'lic-1', GameID: 'game-1' }];
+      service.refundDAO.ghiYeuCauHoanTien = async () => {};
+      service.refundDAO.capNhatDonDaHoan = async () => {};
+      service.refundDAO.thuHoiBanQuyenGame = async () => {};
+      service.walletService = { congTienHoanTraVaoVi: async () => {} };
+      return service;
+    };
+
+    const accepted = await makeService(23 * 3600 + 59 * 60, 24).guiYeuCauHoanTien({
+      user: { accountId: 'cus-1' },
+      orderId: 'ord-boundary',
+    });
+    assert.equal(accepted.status, 'Refunded');
+
+    await assert.rejects(
+      () => makeService(24 * 3600 + 5 * 60, 24).guiYeuCauHoanTien({
+        user: { accountId: 'cus-1' },
+        orderId: 'ord-boundary',
+      }),
+      (err) => err.code === 'ERR_REFUND_EXPIRED',
+    );
+
+    const window48 = await makeService(30 * 3600, 48).guiYeuCauHoanTien({
+      user: { accountId: 'cus-1' },
+      orderId: 'ord-boundary',
+    });
+    assert.equal(window48.status, 'Refunded');
+  });
+
+  it('1.4.6 - OrderService.guiYeuCauHoanTien: Đơn <= 24h thu hồi bản quyền, ghi Approved và hoàn tiền ví', async () => {
     const service = new OrderService();
     service.transaction = async (cb) => cb({});
 
@@ -300,9 +343,10 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     service.orderDAO.kiemTraTokenBanQuyen = async () => [{ LicenseID: 'lic-1', GameID: 'game-1' }];
 
     const auditTrail = [];
-    service.orderDAO.ghiYeuCauHoanTien = async (p) => auditTrail.push(['ghiRefund', p]);
-    service.orderDAO.capNhatDonDaHoan = async (p) => auditTrail.push(['setRefunded', p]);
-    service.orderDAO.thuHoiBanQuyenGame = async (p) => auditTrail.push(['thuHoiLicense', p]);
+    service.refundDAO.layHanMucHoanTien = async () => 24;
+    service.refundDAO.ghiYeuCauHoanTien = async (p) => auditTrail.push(['ghiRefund', p]);
+    service.refundDAO.capNhatDonDaHoan = async (p) => auditTrail.push(['setRefunded', p]);
+    service.refundDAO.thuHoiBanQuyenGame = async (p) => auditTrail.push(['thuHoiLicense', p]);
 
     service.walletService = {
       congTienHoanTraVaoVi: async (p) => auditTrail.push(['congTienVi', p]),

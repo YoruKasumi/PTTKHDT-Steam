@@ -175,6 +175,29 @@ describe('Luồng 1.5: Thư viện & Đổi Key (Redeem Key)', () => {
 });
 
 describe('Luồng 1.5: Quản lý thông báo người dùng (NotificationService)', () => {
+  it('1.5.6 - NotificationService bật/tắt thông báo cập nhật ACCOUNT', async () => {
+    const service = new NotificationService();
+    const calls = [];
+    service.accountDAO.capNhatTrangThaiThongBao = async (params) => calls.push(params);
+    service.accountDAO.layHoSoCaNhan = async ({ accountId }) => ({
+      AccountID: accountId,
+      NotifyEnabled: calls.at(-1)?.enabled ? 1 : 0,
+    });
+
+    assert.deepEqual(
+      await service.capNhatTrangThaiBat({ user: { accountId: 'acc-1' } }),
+      { notifyEnabled: true },
+    );
+    assert.deepEqual(
+      await service.capNhatTrangThaiTat({ user: { accountId: 'acc-1' } }),
+      { notifyEnabled: false },
+    );
+    assert.deepEqual(calls, [
+      { accountId: 'acc-1', enabled: true },
+      { accountId: 'acc-1', enabled: false },
+    ]);
+  });
+
   it('1.5.8 - NotificationService.layDanhSachThongBao: Trả về danh sách và unreadCount', async () => {
     const service = new NotificationService();
     service.notificationDAO.layDanhSachThongBao = async () => [

@@ -143,7 +143,9 @@ class AuthService extends BaseService {
    * @param {object} params
    */
   async guiYeuCauDangXuat(params = {}) {
-    throw new NotImplementedException('AuthService.guiYeuCauDangXuat');
+    // JWT hiện tại là stateless; đăng xuất được hoàn tất phía client.
+    // Endpoint vẫn xác nhận thành công sau khi authenticate middleware đã xác thực tài khoản.
+    return { loggedOut: true };
   }
 
   /**

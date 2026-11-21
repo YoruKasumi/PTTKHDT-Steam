@@ -10,6 +10,7 @@ const {
 const OrderDAO = require('../dao/OrderDAO');
 const CartDAO = require('../dao/CartDAO');
 const WalletDAO = require('../dao/WalletDAO');
+const RefundDAO = require('../dao/RefundDao');
 
 const MAX_MONEY = 9999999999999.99;
 
@@ -72,6 +73,7 @@ class OrderService extends BaseService {
     this.orderDAO = new OrderDAO();
     this.cartDAO = new CartDAO();
     this.walletDAO = new WalletDAO();
+    this.refundDAO = new RefundDAO();
     this.walletService = null; // được gắn trong services/index.js
   }
 
@@ -202,6 +204,7 @@ class OrderService extends BaseService {
   async yeuCauXemDonHang(params = {}) {
     const customerId = this.customerId(params);
     const rows = await this.orderDAO.layDanhSachDonHang({ customerId });
+    const refundWindowHours = await this.refundDAO.layHanMucHoanTien();
     const orders = new Map();
     for (const row of rows) {
       let order = orders.get(row.OrderID);
@@ -212,6 +215,7 @@ class OrderService extends BaseService {
           totalAmount: Number(row.TotalAmount),
           status: row.Status,
           hoursSincePurchase: row.HoursSincePurchase !== undefined && row.HoursSincePurchase !== null ? Number(row.HoursSincePurchase) : null,
+          refundWindowHours,
           items: [],
         };
         orders.set(row.OrderID, order);
@@ -381,28 +385,31 @@ class OrderService extends BaseService {
         throw new NghiepVuException('Bản quyền trò chơi của đơn hàng không còn hiệu lực để hoàn tiền', 422, 'ERR_LICENSE_NOT_ACTIVE');
       }
 
-      // 4. Tính HoursSincePurchase
-      const hours = Number(order.HoursSincePurchase);
+      // 4. Tính thời gian theo giây và đọc cửa sổ hoàn tiền từ SYSTEM_PARAMETER.
+      const seconds = Number.isFinite(Number(order.SecondsSincePurchase))
+        ? Number(order.SecondsSincePurchase)
+        : Number(order.HoursSincePurchase) * 3600;
+      const refundWindowHours = await this.refundDAO.layHanMucHoanTien(conn);
+      const hours = seconds / 3600;
 
-      // Nếu > 24 giờ: VẪN INSERT bản ghi REFUNDREQUEST với Status = 'Rejected' rồi ném NghiepVuException (422)
-      if (hours > 24) {
-        await this.orderDAO.ghiYeuCauHoanTien({
+      if (seconds > refundWindowHours * 3600) {
+        await this.refundDAO.ghiYeuCauHoanTien({
           orderId,
           reason,
           status: 'Rejected',
           hoursSincePurchase: hours,
         }, conn);
         throw new NghiepVuException(
-          'Đã quá thời hạn 24 giờ kể từ thời điểm thanh toán. Yêu cầu hoàn tiền bị từ chối.',
+          `Đã quá thời hạn ${refundWindowHours} giờ kể từ thời điểm thanh toán. Yêu cầu hoàn tiền bị từ chối.`,
           422,
           'ERR_REFUND_EXPIRED',
-          { hoursSincePurchase: hours, orderId },
+          { hoursSincePurchase: hours, refundWindowHours, orderId },
         );
       }
 
-      // Nếu <= 24 giờ:
+      // Nếu <= cửa sổ hoàn tiền:
       // a. Ghi REFUNDREQUEST (Status = 'Approved')
-      await this.orderDAO.ghiYeuCauHoanTien({
+      await this.refundDAO.ghiYeuCauHoanTien({
         orderId,
         reason,
         status: 'Approved',
@@ -410,11 +417,11 @@ class OrderService extends BaseService {
       }, conn);
 
       // b. Cập nhật ORDERS.Status = 'Refunded'
-      await this.orderDAO.capNhatDonDaHoan({ orderId }, conn);
+      await this.refundDAO.capNhatDonDaHoan({ orderId }, conn);
 
       // c. Cập nhật LICENSE.Status = 'Revoked' + RevokedAt = NOW() và LICENSE_DEVICE.Status = 'Revoked'
       const licenseIds = activeLicenses.map((l) => l.LicenseID);
-      await this.orderDAO.thuHoiBanQuyenGame({ licenseIds }, conn);
+      await this.refundDAO.thuHoiBanQuyenGame({ licenseIds }, conn);
 
       // d. Cộng lại TotalAmount vào WALLET.Balance & ghi TRANSACTION Type='Refund'
       const totalRefund = Number(order.TotalAmount);
@@ -432,6 +439,7 @@ class OrderService extends BaseService {
         totalAmount: totalRefund,
         refundedAmount: totalRefund,
         hoursSincePurchase: hours,
+        refundWindowHours,
         message: 'Hoàn tiền thành công. Số tiền đã được hoàn trả về ví của bạn.',
       };
     });

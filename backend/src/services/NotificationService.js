@@ -1,8 +1,9 @@
 'use strict';
 const { randomUUID } = require('node:crypto');
 const BaseService = require('./BaseService');
-const { NotImplementedException, ValidationException, NotFoundException } = require('../exceptions');
+const { ValidationException, NotFoundException } = require('../exceptions');
 const NotificationDAO = require('../dao/NotificationDAO');
+const AccountDAO = require('../dao/AccountDAO');
 
 /**
  * NotificationService - tầng Business Logic.
@@ -12,6 +13,7 @@ class NotificationService extends BaseService {
   constructor() {
     super();
     this.notificationDAO = new NotificationDAO();
+    this.accountDAO = new AccountDAO();
   }
 
   /**
@@ -115,7 +117,12 @@ class NotificationService extends BaseService {
    * @param {object} params
    */
   async capNhatTrangThaiBat(params = {}) {
-    throw new NotImplementedException('NotificationService.capNhatTrangThaiBat');
+    const accountId = params.user?.accountId;
+    if (!accountId) throw new ValidationException('Tài khoản không hợp lệ.');
+    await this.accountDAO.capNhatTrangThaiThongBao({ accountId, enabled: true });
+    const profile = await this.accountDAO.layHoSoCaNhan({ accountId });
+    if (!profile) throw new NotFoundException('Không tìm thấy tài khoản');
+    return { notifyEnabled: true };
   }
 
   /**
@@ -128,7 +135,12 @@ class NotificationService extends BaseService {
    * @param {object} params
    */
   async capNhatTrangThaiTat(params = {}) {
-    throw new NotImplementedException('NotificationService.capNhatTrangThaiTat');
+    const accountId = params.user?.accountId;
+    if (!accountId) throw new ValidationException('Tài khoản không hợp lệ.');
+    await this.accountDAO.capNhatTrangThaiThongBao({ accountId, enabled: false });
+    const profile = await this.accountDAO.layHoSoCaNhan({ accountId });
+    if (!profile) throw new NotFoundException('Không tìm thấy tài khoản');
+    return { notifyEnabled: false };
   }
 }
 

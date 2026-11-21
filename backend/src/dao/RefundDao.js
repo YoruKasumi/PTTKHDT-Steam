@@ -1,8 +1,9 @@
 'use strict';
+const BaseDAO = require('./BaseDAO');
 // DAO bổ sung cho UC21 (hoàn tiền). Mọi hàm nhận (params, conn) và LUÔN chạy trong transaction do Service mở,
 // nên không phụ thuộc BaseDAO. Tên hàm lấy theo sơ đồ sequence (kiemTraTokenBanQuyen, thuHoiBanQuyenGame...).
 
-class RefundDAO {
+class RefundDAO extends BaseDAO {
   /** Khóa đơn của khách; trả thêm số giây kể từ lúc mua (so sánh theo giây, không làm tròn giờ). */
   async layDonHangDeHoanTien({ orderId, customerId }, conn) {
     const [rows] = await conn.query(
@@ -27,8 +28,12 @@ class RefundDAO {
 
   async layHanMucHoanTien(conn) {
     try {
-      const [rows] = await conn.query(`SELECT ParamValue FROM SYSTEM_PARAMETER WHERE ParamKey = 'REFUND_WINDOW_HOURS'`);
-      const n = rows[0] ? Number(rows[0].ParamValue) : NaN;
+      const row = await this.one(
+        `SELECT ParamValue FROM SYSTEM_PARAMETER WHERE ParamKey = 'REFUND_WINDOW_HOURS' LIMIT 1`,
+        [],
+        conn,
+      );
+      const n = row ? Number(row.ParamValue) : NaN;
       return Number.isFinite(n) && n > 0 ? n : 24;
     } catch (_) { return 24; }
   }
@@ -41,10 +46,13 @@ class RefundDAO {
     return new Map(rows.map((r) => [r.OrderID, Number(r.Secs)]));
   }
 
-  async ghiYeuCauHoanTien({ orderId, reason, status, hours }, conn) {
+  async ghiYeuCauHoanTien({ orderId, reason, status, hours, hoursSincePurchase }, conn) {
+    const recordedHours = Number.isFinite(Number(hoursSincePurchase))
+      ? Number(hoursSincePurchase)
+      : Number(hours);
     await conn.query(
       'INSERT INTO REFUNDREQUEST (OrderID, Reason, Status, HoursSincePurchase) VALUES (?, ?, ?, ?)',
-      [orderId, reason, status, hours],
+      [orderId, reason, status, recordedHours],
     );
   }
 

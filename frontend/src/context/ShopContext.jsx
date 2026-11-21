@@ -3,6 +3,7 @@ import { cartApi } from '../api/cart';
 import { libraryApi } from '../api/library';
 import { orderApi } from '../api/order';
 import { wishlistApi } from '../api/wishlist';
+import { authApi } from '../api/auth';
 
 const ShopContext = createContext(null);
 
@@ -144,13 +145,19 @@ export function ShopProvider({ children }) {
     storage.setItem('user', JSON.stringify(nextUser));
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
-    setUser(null);
-    setAuthToken('');
+  const logout = useCallback(async () => {
+    try {
+      await authApi.guiYeuCauDangXuat();
+    } catch (_) {
+      // Đăng xuất local vẫn phải thành công khi backend không phản hồi.
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      setUser(null);
+      setAuthToken('');
+    }
   }, []);
 
   const value = useMemo(
