@@ -10,6 +10,7 @@ import DeveloperGames from './pages/developer/DeveloperGames';
 import DeveloperKeys from './pages/developer/DeveloperKeys';
 import DeveloperRevenue from './pages/developer/DeveloperRevenue';
 import AdminAccounts from './pages/admin/AdminAccounts';
+import AdminGames from './pages/admin/AdminGames';
 import AdminKeyApprovals from './pages/admin/AdminKeyApprovals';
 import AdminRoles from './pages/admin/AdminRoles';
 import AdminStaff from './pages/admin/AdminStaff';
@@ -59,7 +60,7 @@ export const pendingScreens = [
   { path: "/settings", title: "Cài đặt ứng dụng", node: "1:686", uc: "UC22 NotificationService" },
   { path: "/login", title: "Đăng nhập", node: "8:240", uc: "UC2 AuthService" },
   { path: "/register", title: "Đăng ký", node: "8:284", uc: "UC1 AuthService" },
-  { path: "/forgot-password", title: "Quên mật khẩu", node: "44:2", uc: "chưa có trong sequence" },
+  // /forgot-password bị ẩn: chức năng chưa thuộc sequence, chưa có endpoint BE và chưa quyết định SMTP/email.
   { path: "/developer/register", title: "Đăng ký Developer và kích hoạt Key", node: "141:2", uc: "UC23 DeveloperService" },
   { path: "/developer/revenue", title: "Doanh thu và rút tiền", node: "93:769", uc: "UC30, UC33 ReportService, WithdrawalService" },
   { path: "/developer/games", title: "Dự án game", node: "91:331", uc: "UC25-26, UC34-36 GameService" },
@@ -108,6 +109,7 @@ export const routes = [
           '/admin/genres-banners': <AdminGenresBanners />,
           '/admin/system-config': <AdminSystemConfig />,
           '/admin/audit-logs': <AdminAuditLogs />,
+          '/admin/games': <AdminGames />,
         '/admin/keys': <AdminKeyApprovals />,
       }[screen.path] ?? <ScreenPlaceholder screen={screen} />,
       ...getRouteAccess(screen.path),

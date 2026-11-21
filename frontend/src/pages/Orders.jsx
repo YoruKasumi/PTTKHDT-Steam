@@ -51,7 +51,8 @@ function RefundModal({ order, onClose, onSuccess }) {
 
   const orderTime = new Date(order.orderDate).getTime();
   const diffHours = (Date.now() - orderTime) / (1000 * 60 * 60);
-  const isExpired = diffHours > 24;
+  const refundWindowHours = Number(order.refundWindowHours) > 0 ? Number(order.refundWindowHours) : 24;
+  const isExpired = diffHours > refundWindowHours;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -128,13 +129,13 @@ function RefundModal({ order, onClose, onSuccess }) {
         <div className="mt-4">
           {isExpired ? (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-300">
-              <strong className="block text-sm font-bold text-red-400">⚠️ CẢNH BÁO QUÁ HẠN 24 GIỜ</strong>
-              Đơn hàng này đã mua cách đây <strong>{diffHours.toFixed(1)} giờ</strong> (vượt quá chính sách hoàn tiền 24 giờ). Hệ thống sẽ tự động <strong>TỪ CHỐI</strong> yêu cầu hoàn tiền này và lưu hồ sơ vi phạm thời hạn.
+              <strong className="block text-sm font-bold text-red-400">⚠️ CẢNH BÁO QUÁ HẠN {refundWindowHours} GIỜ</strong>
+              Đơn hàng này đã mua cách đây <strong>{diffHours.toFixed(1)} giờ</strong> (vượt quá chính sách hoàn tiền {refundWindowHours} giờ). Hệ thống sẽ tự động <strong>TỪ CHỐI</strong> yêu cầu hoàn tiền này và lưu hồ sơ vi phạm thời hạn.
             </div>
           ) : (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-300">
-              <strong className="block text-sm font-bold text-emerald-400">✓ ĐỦ ĐIỀU KIỆN HOÀN TIỀN 24 GIỜ</strong>
-              Thời gian còn lại trong khung hoàn tiền hợp lệ: <strong>{(24 - diffHours).toFixed(1)} giờ</strong>. Số tiền {formatVnd(order.totalAmount)} sẽ được cộng trực tiếp vào ví của bạn ngay sau khi hoàn tất.
+              <strong className="block text-sm font-bold text-emerald-400">✓ ĐỦ ĐIỀU KIỆN HOÀN TIỀN {refundWindowHours} GIỜ</strong>
+              Thời gian còn lại trong khung hoàn tiền hợp lệ: <strong>{(refundWindowHours - diffHours).toFixed(1)} giờ</strong>. Số tiền {formatVnd(order.totalAmount)} sẽ được cộng trực tiếp vào ví của bạn ngay sau khi hoàn tất.
             </div>
           )}
         </div>

@@ -6,7 +6,7 @@ export const gameApi = {
    * @param {FormData} formData
    */
   createProject: (formData) =>
-    http.post('/games/createProject', formData, {
+    http.post('/game/createProject', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
@@ -15,7 +15,7 @@ export const gameApi = {
    * @param {FormData} formData
    */
   uploadPatch: (formData) =>
-    http.post('/games/uploadPatch', formData, {
+    http.post('/game/uploadPatch', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
@@ -23,12 +23,12 @@ export const gameApi = {
    * Lấy danh sách phiên bản để rollback.
    * @param {string} gameId
    */
-  listVersions: (gameId) => http.get(`/games/${gameId}/versions`),
+  listVersions: (gameId) => http.get(`/game/${gameId}/versions`),
 
   /**
    * Thực hiện rollback.
    * @param {string} gameId
    * @param {string} versionId
    */
-  rollback: (gameId, versionId) => http.post(`/games/${gameId}/rollback`, { versionId }),
+  rollback: (gameId, versionId) => http.post(`/game/${gameId}/rollback`, { versionId }),
 };

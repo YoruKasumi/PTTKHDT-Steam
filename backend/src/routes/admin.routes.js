@@ -132,4 +132,8 @@ router.get('/audit-logs', ...adminOnly, asyncHandler(async (req, res) => (
   ok(res, await auditLogService.guiYeuCauLocNhatKy(requestContext(req)))
 )));
 
+router.get('/audit-logs/:logId', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await auditLogService.yeuCauChiTietBanGhiLog(requestContext(req)))
+)));
+
 module.exports = router;

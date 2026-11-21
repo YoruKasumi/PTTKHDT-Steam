@@ -8,7 +8,7 @@ const links = [
   { to: '/admin/genres-banners', label: 'Thể loại & banner', permission: ['genres.manage', 'banners.manage'], adminOnly: false },
   { to: '/admin/audit-logs', label: 'Nhật ký', adminOnly: true },
   { to: '/admin/games', label: 'Kiểm duyệt game', permission: 'game.approve', adminOnly: false },
-  { to: '/admin/keys', label: 'Duyệt mã Key', adminOnly: true },
+  { to: '/admin/keys', label: 'Cơ chế mã Key', adminOnly: true },
   { to: '/admin/withdrawals', label: 'Lệnh rút tiền', permission: 'withdrawal.approve', adminOnly: false },
   { to: '/admin/system-config', label: 'Cấu hình', adminOnly: true },
 ];

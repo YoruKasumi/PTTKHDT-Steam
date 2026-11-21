@@ -82,7 +82,7 @@ function UploadPatchModal({ game, onClose, onSuccess }) {
       formData.append('changeLog', changeLog.trim() || `Cập nhật v${versionNumber.trim()}`);
       formData.append('buildFile', file);
       const res = await gameApi.uploadPatch(formData);
-      onSuccess(res.data?.data ?? res.data);
+      onSuccess(res);
     } catch (err) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Lỗi upload patch.');
       setLoading(false);
@@ -156,7 +156,7 @@ function RollbackModal({ game, onClose, onSuccess }) {
   useEffect(() => {
     gameApi.listVersions(gameId)
       .then((res) => {
-        const list = res.data?.data ?? res.data ?? [];
+        const list = Array.isArray(res) ? res : (res?.items || []);
         setVersions(list);
         // Chọn mặc định phiên bản không current đầu tiên
         const nonCurrent = list.find((v) => !v.IsCurrent && !v.isCurrent);
@@ -171,7 +171,7 @@ function RollbackModal({ game, onClose, onSuccess }) {
     setRolling(true);
     try {
       const res = await gameApi.rollback(gameId, selectedId);
-      onSuccess(res.data?.data ?? res.data);
+      onSuccess(res);
     } catch (err) {
       setError(err?.response?.data?.message ?? 'Rollback thất bại.');
       setRolling(false);
@@ -280,10 +280,11 @@ export default function DeveloperGames() {
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
     try {
-      // Thử endpoint /api/games/myGames (nếu có), fallback về dữ liệu mock
-      const res = await http.get('/games/myGames').catch(() => null);
-      if (res?.data?.data) {
-        const list = res.data.data.map((g) => ({
+      // Thử endpoint /api/game/myGames (nếu có), fallback về dữ liệu mock
+      const res = await http.get('/game/myGames').catch(() => null);
+      if (res) {
+        const rawList = Array.isArray(res) ? res : (res.items || []);
+        const list = rawList.map((g) => ({
           id: g.GameID ?? g.gameId,
           title: g.Title ?? g.title,
           genres: g.Genres ?? g.genres ?? '—',
@@ -371,7 +372,7 @@ export default function DeveloperGames() {
       return;
     }
     try {
-      await http.post('/games/yeuCauThietLapGia', { gameId: priceGame.id, price }).catch(() => null);
+      await http.post('/game/yeuCauThietLapGia', { gameId: priceGame.id, newPrice: price }).catch(() => null);
     } catch (_) { /* server xử lý */ }
     setProjects((current) =>
       current.map((p) => (p.id === priceGame.id ? { ...p, price } : p)),

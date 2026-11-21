@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 import Field from '../../components/auth/Field';
 import { authApi } from '../../api/auth';
@@ -79,7 +79,6 @@ export default function Login() {
             placeholder="••••••••••••"
             autoComplete="current-password"
             error={errors.password}
-            right={<Link to="/forgot-password" className="text-[11px] font-medium text-accent-light">Quên mật khẩu?</Link>}
           />
           <button
             type="button"

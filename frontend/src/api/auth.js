@@ -4,7 +4,5 @@ import http from './http';
 export const authApi = {
   register: (body) => http.post('/auth/register', body),
   login: (body) => http.post('/auth/login', body),
-  guiThongTinDangKy: (body) => http.post('/auth/guiThongTinDangKy', body),
-  guiThongTinDangNhap: (body) => http.post('/auth/guiThongTinDangNhap', body),
   guiYeuCauDangXuat: () => http.post('/auth/guiYeuCauDangXuat'),
 };

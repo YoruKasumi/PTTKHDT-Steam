@@ -20,6 +20,7 @@ export default function AdminAccounts() {
   const [roleFilter, setRoleFilter] = useState('');
   const [pendingAction, setPendingAction] = useState(null);
   const [history, setHistory] = useState(null);
+  const [historyTab, setHistoryTab] = useState('orders');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -160,10 +161,176 @@ export default function AdminAccounts() {
       )}
 
       {history && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4" onClick={(event) => { if (event.target === event.currentTarget) setHistory(null); }}>
-          <section role="dialog" aria-modal="true" className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-2xl border border-line bg-card p-6">
-            <div className="flex items-center justify-between"><h2 className="m-0 text-xl font-bold">Lịch sử tài khoản</h2><button onClick={() => setHistory(null)} aria-label="Đóng">✕</button></div>
-            <pre className="mt-4 overflow-auto rounded-lg bg-page p-4 text-xs text-muted">{JSON.stringify(history, null, 2)}</pre>
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4"
+          onClick={(event) => { if (event.target === event.currentTarget) setHistory(null); }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-line bg-card p-6 shadow-2xl"
+          >
+            <div className="flex items-start justify-between border-b border-white/10 pb-4">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="m-0 text-xl font-bold">{history.account?.username || 'Chi tiết tài khoản'}</h2>
+                  <StatusBadge status={history.account?.status} />
+                  {(history.roles || []).map((r) => (
+                    <span key={r} className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-semibold text-muted">
+                      {r}
+                    </span>
+                  ))}
+                </div>
+                <p className="m-0 mt-1 text-xs text-muted">
+                  Email: <span className="text-white">{history.account?.email}</span> · Mã TK: <span className="text-white">{history.account?.accountId}</span> · Ngày tạo: {history.account?.createdAt ? new Date(history.account.createdAt).toLocaleString('vi-VN') : '—'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistory(null)}
+                aria-label="Đóng"
+                className="rounded-lg p-1 text-muted hover:bg-white/10 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick summary stats */}
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border border-white/10 bg-page p-3">
+                <p className="m-0 text-xs text-muted">Số dư ví</p>
+                <p className="m-0 mt-1 text-base font-bold text-emerald-400">
+                  {history.wallet ? `${Number(history.wallet.balance).toLocaleString('vi-VN')} ₫` : 'Không có ví'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-page p-3">
+                <p className="m-0 text-xs text-muted">Đơn hàng</p>
+                <p className="m-0 mt-1 text-base font-bold text-white">{history.orders?.length || 0}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-page p-3">
+                <p className="m-0 text-xs text-muted">Game sở hữu</p>
+                <p className="m-0 mt-1 text-base font-bold text-white">{history.licenses?.length || 0}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-page p-3">
+                <p className="m-0 text-xs text-muted">Nhật ký & Vi phạm</p>
+                <p className="m-0 mt-1 text-base font-bold text-rose-400">{history.violations?.length || 0}</p>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="mt-4 flex gap-2 border-b border-white/10 pb-2">
+              <button
+                type="button"
+                onClick={() => setHistoryTab('orders')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${historyTab === 'orders' ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+              >
+                Đơn hàng ({history.orders?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryTab('licenses')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${historyTab === 'licenses' ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+              >
+                Bản quyền game ({history.licenses?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryTab('violations')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${historyTab === 'violations' ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+              >
+                Nhật ký & Vi phạm ({history.violations?.length || 0})
+              </button>
+            </div>
+
+            {/* Tab contents */}
+            <div className="mt-3 flex-1 overflow-auto">
+              {historyTab === 'orders' && (
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead className="bg-page text-muted">
+                    <tr>
+                      <th className="px-3 py-2">Mã đơn</th>
+                      <th className="px-3 py-2">Thời gian</th>
+                      <th className="px-3 py-2">Tổng tiền</th>
+                      <th className="px-3 py-2">Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(history.orders || []).map((order) => (
+                      <tr key={order.orderId} className="border-b border-white/5">
+                        <td className="px-3 py-2.5 font-mono text-muted">{order.orderId}</td>
+                        <td className="px-3 py-2.5">{order.orderDate ? new Date(order.orderDate).toLocaleString('vi-VN') : '—'}</td>
+                        <td className="px-3 py-2.5 font-bold">{Number(order.totalAmount).toLocaleString('vi-VN')} ₫</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold ${
+                            order.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                            order.status === 'Refunded' ? 'bg-rose-500/20 text-rose-400' :
+                            'bg-white/10 text-muted'
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!history.orders || history.orders.length === 0) && (
+                      <tr><td colSpan="4" className="px-3 py-6 text-center text-muted">Chưa có đơn hàng nào.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {historyTab === 'licenses' && (
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead className="bg-page text-muted">
+                    <tr>
+                      <th className="px-3 py-2">Tên game</th>
+                      <th className="px-3 py-2">Nguồn</th>
+                      <th className="px-3 py-2">Ngày mua / Nhận</th>
+                      <th className="px-3 py-2">Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(history.licenses || []).map((lic) => (
+                      <tr key={lic.licenseId} className="border-b border-white/5">
+                        <td className="px-3 py-2.5 font-bold text-white">{lic.gameTitle || lic.gameId}</td>
+                        <td className="px-3 py-2.5">{lic.source || '—'}</td>
+                        <td className="px-3 py-2.5">{lic.purchaseDate ? new Date(lic.purchaseDate).toLocaleString('vi-VN') : '—'}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-bold ${
+                            lic.status === 'Active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                          }`}>
+                            {lic.status}
+                          </span>
+                          {lic.revokedAt && (
+                            <span className="ml-1 text-[10px] text-muted">(Thu hồi: {new Date(lic.revokedAt).toLocaleString('vi-VN')})</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {(!history.licenses || history.licenses.length === 0) && (
+                      <tr><td colSpan="4" className="px-3 py-6 text-center text-muted">Chưa có bản quyền game nào.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {historyTab === 'violations' && (
+                <div className="space-y-2">
+                  {(history.violations || []).map((v) => (
+                    <div key={v.logId} className="rounded-lg border border-white/10 bg-page p-3 text-xs">
+                      <div className="flex items-center justify-between text-muted">
+                        <span className="font-mono font-bold text-rose-400">{v.action}</span>
+                        <span>{v.logAt ? new Date(v.logAt).toLocaleString('vi-VN') : '—'}</span>
+                      </div>
+                      <p className="m-0 mt-1 text-white">Đối tượng: <span className="font-mono text-muted">{v.target}</span></p>
+                      {v.detail && <p className="m-0 mt-1 text-muted">Chi tiết: {v.detail}</p>}
+                    </div>
+                  ))}
+                  {(!history.violations || history.violations.length === 0) && (
+                    <p className="py-6 text-center text-xs text-muted">Không có bản ghi nhật ký / vi phạm nào.</p>
+                  )}
+                </div>
+              )}
+            </div>
           </section>
         </div>
       )}

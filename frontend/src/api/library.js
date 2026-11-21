@@ -7,7 +7,7 @@ export const libraryApi = {
     http.post(`/library/${encodeURIComponent(gameId)}/launch`, body), // { deviceFingerprint, deviceName }
   verifyLaunch: (body) => http.post('/library/verify-launch', body),
   listDevices: (gameId) =>
-    http.get(`/library/${encodeURIComponent(gameId)}/devices`),      // ĐỀ XUẤT, cần BE bổ sung
+    http.get(`/library/${encodeURIComponent(gameId)}/devices`),
   removeDevice: (gameId, deviceId) =>
     http.delete(`/library/${encodeURIComponent(gameId)}/devices/${encodeURIComponent(deviceId)}`),
 };
