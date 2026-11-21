@@ -5,10 +5,6 @@ const AuditLogService = require('./AuditLogService');
 const { randomUUID } = require('node:crypto');
 const { NotFoundException, ValidationException } = require('../exceptions');
 
-/**
- * BannerService - tầng Business Logic.
- * Tên phương thức lấy đúng từ sơ đồ sequence; nội dung bên dưới chỉ là khung cần cài đặt.
- */
 class BannerService extends BaseService {
   constructor() {
     super();
@@ -16,20 +12,6 @@ class BannerService extends BaseService {
     this.auditLogService = new AuditLogService();
   }
 
-  // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)
-
-  /**
-   * UC49. Cấu hình banner trang chủ - sequence #4: UI → BannerService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #5 ↻ this.kiemTraKichThuocVaDinhDang()
-   *   #6 → StorageClient.luuTepAnhBanner()
-   *   #7 ← traVeDuongDanAnh()
-   *   #8 → BannerDAO.luuCauHinhBannerVaLichHienThi()
-   *   #9 ← xacNhanLuuThanhCong()
-   *   #10 ← thongBaoCauHinhThanhCong()
-   * @param {object} params
-   */
   async guiThongTinBannerMoi(params = {}) {
     const data = this.validateBanner(params);
     const bannerId = randomUUID();
@@ -37,10 +19,10 @@ class BannerService extends BaseService {
       const banner = await this.bannerDAO.luuCauHinhBannerVaLichHienThi({
         ...data,
         bannerId,
-        createdBy: params.user.accountId,
+        createdBy: params.user?.accountId || params.accountId,
       }, conn);
       await this.auditLogService.recordLog({
-        accountId: params.user.accountId,
+        accountId: params.user?.accountId || params.accountId,
         action: 'BANNER_CREATE',
         target: `BANNER:${bannerId}`,
         detail: JSON.stringify(data),
@@ -64,7 +46,7 @@ class BannerService extends BaseService {
       if (!current) throw new NotFoundException('Không tìm thấy banner');
       await this.bannerDAO.capNhatBanner({ ...data, bannerId: params.bannerId }, conn);
       await this.auditLogService.recordLog({
-        accountId: params.user.accountId,
+        accountId: params.user?.accountId || params.accountId,
         action: 'BANNER_UPDATE',
         target: `BANNER:${params.bannerId}`,
         detail: JSON.stringify(data),
@@ -79,7 +61,7 @@ class BannerService extends BaseService {
       if (!banner) throw new NotFoundException('Không tìm thấy banner');
       await this.bannerDAO.xoaBanner({ bannerId: params.bannerId }, conn);
       await this.auditLogService.recordLog({
-        accountId: params.user.accountId,
+        accountId: params.user?.accountId || params.accountId,
         action: 'BANNER_DELETE',
         target: `BANNER:${params.bannerId}`,
         detail: JSON.stringify({ title: banner.Title }),
@@ -124,12 +106,6 @@ class BannerService extends BaseService {
     };
   }
 
-  // ---------------------------------------------------------------- Phương thức nội bộ (self-call trong sơ đồ)
-
-  /**
-   * UC49. Cấu hình banner trang chủ - sequence #5: nội bộ
-   * @param {object} params
-   */
   async kiemTraKichThuocVaDinhDang(params = {}) {
     return this.validateBanner(params);
   }
