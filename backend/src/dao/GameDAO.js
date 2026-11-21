@@ -3,101 +3,51 @@ const BaseDAO = require('./BaseDAO');
 const { NotImplementedException } = require('../exceptions');
 
 class GameDAO extends BaseDAO {
-  /**
-   * UC6. Tìm kiếm sản phẩm (#3)
-   */
   async timKiemSanPhamTheoTuKhoa(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.timKiemSanPhamTheoTuKhoa');
   }
-
-  /**
-   * UC6. Tìm kiếm sản phẩm (#9)
-   */
   async truyVanSanPhamTheoTheLoai(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.truyVanSanPhamTheoTheLoai');
   }
 
-  /**
-   * UC6. Tìm kiếm sản phẩm (#12)
-   */
   async truyVanSanPhamTheoKhoangGia(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.truyVanSanPhamTheoKhoangGia');
   }
 
-  /**
-   * UC6. Tìm kiếm sản phẩm (#15)
-   */
   async truyVanSanPhamTheoTrangThaiSale(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.truyVanSanPhamTheoTrangThaiSale');
   }
 
-  /**
-   * UC6. Tìm kiếm sản phẩm (#21)
-   */
   async layDanhSachTheoNgayPhatHanh(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.layDanhSachTheoNgayPhatHanh');
   }
-
-  /**
-   * UC6. Tìm kiếm sản phẩm (#24)
-   */
   async layDanhSachTheoDoPhoBien(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.layDanhSachTheoDoPhoBien');
   }
-
-  /**
-   * UC6. Tìm kiếm sản phẩm (#27)
-   */
   async layDanhSachTheoGia(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.layDanhSachTheoGia');
   }
 
-  /**
-   * UC7. Xem chi tiết sản phẩm (#3)
-   */
   async layThongTinSanPham(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.layThongTinSanPham');
   }
 
-  /**
-   * UC7. Xem chi tiết sản phẩm (#5)
-   */
   async layThongTinCoBan(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.layThongTinCoBan');
   }
-
-  /**
-   * UC7. Xem chi tiết sản phẩm (#8)
-   */
   async layCauHinhYeuCau(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.layCauHinhYeuCau');
   }
-
-  /**
-   * UC7. Xem chi tiết sản phẩm (#11)
-   */
   async layDanhSachDanhGia(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.layDanhSachDanhGia');
   }
-
-  /**
-   * UC9. Thêm game vào giỏ hàng (#8)
-   */
   async kiemTraGameDaSoHuu(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.kiemTraGameDaSoHuu');
   }
 
-  /**
-   * UC15. Thanh toán (#20)
-   */
   async luuBanQuyenGame(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.luuBanQuyenGame');
   }
-
-  /**
-   * UC24. Cập nhật Patch & Changelog (#3) — Truy vấn thông tin game + phiên bản hiện hành.
-   * @param {{ gameId: string, developerId: string }} params
-   */
   async truyVanThongTinGame(params = {}, conn = null) {
     return this.one(
       `SELECT g.GameID, g.DeveloperID, g.Title, g.Status,
@@ -111,10 +61,6 @@ class GameDAO extends BaseDAO {
     );
   }
 
-  /**
-   * UC24. Upload patch — Đặt IsCurrent = 0 cho tất cả version của game (phải gọi trước INSERT).
-   * @param {{ gameId: string }} params
-   */
   async resetCurrentVersion(params = {}, conn = null) {
     return this.query(
       'UPDATE GAMEVERSION SET IsCurrent = 0 WHERE GameID = ?',
@@ -122,11 +68,6 @@ class GameDAO extends BaseDAO {
       conn,
     );
   }
-
-  /**
-   * UC24. Cập nhật Patch & Changelog (#12) — INSERT bản vá mới (IsCurrent = 1).
-   * @param {{ gameId, versionNumber, buildFile, fileSize, sha256, changeLog }} params
-   */
   async capNhatPhienBanMoi(params = {}, conn = null) {
     await this.query(
       `INSERT INTO GAMEVERSION (GameID, VersionNumber, BuildFile, FileSize, Sha256, ChangeLog, IsCurrent)
@@ -135,11 +76,6 @@ class GameDAO extends BaseDAO {
       conn,
     );
   }
-
-  /**
-   * UC25. Khởi tạo dự án game mới (#5) — Kiểm tra title trùng.
-   * @param {{ title: string }} params
-   */
   async kiemTraTenGameTrungLap(params = {}, conn = null) {
     return this.one(
       'SELECT GameID FROM GAME WHERE Title = ? LIMIT 1',
@@ -148,12 +84,7 @@ class GameDAO extends BaseDAO {
     );
   }
 
-  /**
-   * UC25. Khởi tạo dự án game mới (#13) — INSERT game + version đầu tiên + genres (transaction).
-   * @param {{ gameId, developerId, title, description, price, coverImage, trailerUrl, minSpec, recSpec, genreIds, buildFile, fileSize, sha256, versionNumber, changeLog }} params
-   */
   async taoBanGhiDuAnMoi(params = {}, conn = null) {
-    // INSERT GAME
     await this.query(
       `INSERT INTO GAME (GameID, DeveloperID, Title, Description, Price, CoverImage, TrailerUrl, MinSpec, RecSpec, Status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')`,
@@ -165,7 +96,6 @@ class GameDAO extends BaseDAO {
       conn,
     );
 
-    // INSERT GAMEVERSION (IsCurrent = 1 — không cần reset vì game mới)
     await this.query(
       `INSERT INTO GAMEVERSION (GameID, VersionNumber, BuildFile, FileSize, Sha256, ChangeLog, IsCurrent)
        VALUES (?, ?, ?, ?, ?, ?, 1)`,
@@ -173,7 +103,6 @@ class GameDAO extends BaseDAO {
       conn,
     );
 
-    // INSERT GAME_GENRE
     if (Array.isArray(params.genreIds) && params.genreIds.length > 0) {
       for (const genreId of params.genreIds) {
         await this.query(
@@ -189,7 +118,23 @@ class GameDAO extends BaseDAO {
    * UC26. Thiết lập giá bán VND (#6)
    */
   async capNhatGiaBanVND(params = {}, conn = null) {
-    throw new NotImplementedException('GameDAO.capNhatGiaBanVND');
+    const result = await this.query(
+      'UPDATE GAME SET Price = ? WHERE GameID = ? AND DeveloperID = ?',
+      [params.newPrice, params.gameId, params.developerId],
+      conn,
+    );
+    return result.affectedRows > 0;
+  }
+
+  /**
+   * Kiểm tra xem game có đang trong chiến dịch Sale đang diễn ra không
+   */
+  async kiemTraSaleDangChay(params = {}, conn = null) {
+    return this.one(
+      'SELECT CampaignID, PercentOff, StartDate, EndDate FROM SALECAMPAIGN WHERE GameID = ? AND NOW() BETWEEN StartDate AND EndDate LIMIT 1',
+      [params.gameId],
+      conn,
+    );
   }
 
   /**

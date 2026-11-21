@@ -1,42 +1,71 @@
 'use strict';
 const BaseDAO = require('./BaseDAO');
-const { NotImplementedException } = require('../exceptions');
 
 class PromotionDAO extends BaseDAO {
-  /**
-   * UC27. Lên chiến dịch Sale (#7)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async luuLichTrinhChienDichSale(params = {}, conn = null) {
-    throw new NotImplementedException('PromotionDAO.luuLichTrinhChienDichSale');
+    const sql = `
+      INSERT INTO SALECAMPAIGN (CampaignID, GameID, PercentOff, StartDate, EndDate)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    await this.query(sql, [
+      params.campaignId,
+      params.gameId,
+      params.percentOff,
+      params.startDate,
+      params.endDate
+    ], conn);
+    return this.one('SELECT * FROM SALECAMPAIGN WHERE CampaignID = ?', [params.campaignId], conn);
   }
-
-  /**
-   * UC28. Tự sinh mã kích hoạt (Key) (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
+  async kiemTraTrungLapSale(params = {}, conn = null) {
+    const sql = `
+      SELECT CampaignID, PercentOff, StartDate, EndDate 
+      FROM SALECAMPAIGN 
+      WHERE GameID = ? 
+        AND (
+          (? BETWEEN StartDate AND EndDate) OR
+          (? BETWEEN StartDate AND EndDate) OR
+          (StartDate BETWEEN ? AND ?)
+        )
+      LIMIT 1
+    `;
+    return this.one(sql, [
+      params.gameId,
+      params.startDate,
+      params.endDate,
+      params.startDate,
+      params.endDate
+    ], conn);
+  }
   async kiemTraGameCoThuPhi(params = {}, conn = null) {
-    throw new NotImplementedException('PromotionDAO.kiemTraGameCoThuPhi');
+    const sql = `
+      SELECT GameID, DeveloperID, Title, Price, Status 
+      FROM GAME 
+      WHERE GameID = ? AND DeveloperID = ?
+      LIMIT 1
+    `;
+    return this.one(sql, [params.gameId, params.developerId], conn);
   }
-
-  /**
-   * UC28. Tự sinh mã kích hoạt (Key) (#6)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async kiemTraTongKeyChuaKichHoatDuoi2000(params = {}, conn = null) {
-    throw new NotImplementedException('PromotionDAO.kiemTraTongKeyChuaKichHoatDuoi2000');
+    const sql = `
+      SELECT COUNT(*) AS TotalUnused 
+      FROM ACTIVATIONKEY 
+      WHERE GameID = ? AND Status = 'Unused'
+    `;
+    const row = await this.one(sql, [params.gameId], conn);
+    return Number(row?.TotalUnused || 0);
   }
 
-  /**
-   * UC28. Tự sinh mã kích hoạt (Key) (#11)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async luuDanhSachMaKeyMoi(params = {}, conn = null) {
-    throw new NotImplementedException('PromotionDAO.luuDanhSachMaKeyMoi');
+    const keys = Array.isArray(params) ? params : (params.keys || []);
+    if (keys.length === 0) return 0;
+
+    const sql = `
+      INSERT INTO ACTIVATIONKEY (KeyID, KeyCode, GameID, Status)
+      VALUES ?
+    `;
+    const values = keys.map(k => [k.keyId, k.keyCode, k.gameId, 'Unused']);
+    const result = await this.query(sql, [values], conn);
+    return result.affectedRows;
   }
 }
 

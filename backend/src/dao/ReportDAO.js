@@ -1,96 +1,143 @@
 'use strict';
 const BaseDAO = require('./BaseDAO');
-const { NotImplementedException } = require('../exceptions');
 
 class ReportDAO extends BaseDAO {
-  /**
-   * UC30. Báo cáo doanh thu real-time (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanGiaoDichThanhCong(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanGiaoDichThanhCong');
+    let filterDate = '';
+    const queryParams = [params.developerId];
+
+    if (params.fromDate) {
+      filterDate += ' AND o.CreatedAt >= ?';
+      queryParams.push(params.fromDate);
+    }
+    if (params.toDate) {
+      filterDate += ' AND o.CreatedAt <= ?';
+      queryParams.push(params.toDate);
+    }
+
+    const sql = `
+      SELECT 
+        g.GameID,
+        g.Title,
+        g.Price,
+        COUNT(oi.OrderItemID) AS UnitsSold,
+        COALESCE(SUM(oi.PriceAfterDiscount), 0) AS GrossSales
+      FROM GAME g
+      LEFT JOIN ORDERITEM oi ON g.GameID = oi.GameID
+      LEFT JOIN ORDERS o ON oi.OrderID = o.OrderID AND o.Status = 'Completed' ${filterDate}
+      WHERE g.DeveloperID = ?
+      GROUP BY g.GameID, g.Title, g.Price
+    `;
+    return this.query(sql, queryParams, conn);
   }
 
-  /**
-   * UC31. Kết xuất bảng kê đối soát (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
+  async truyVanTongTienHoanTra(params = {}, conn = null) {
+    const sql = `
+      SELECT COALESCE(SUM(oi.PriceAfterDiscount), 0) AS TotalRefunds
+      FROM ORDERITEM oi
+      JOIN GAME g ON oi.GameID = g.GameID
+      JOIN ORDERS o ON oi.OrderID = o.OrderID
+      JOIN REFUNDREQUEST r ON o.OrderID = r.OrderID
+      WHERE g.DeveloperID = ? AND r.Status = 'Approved'
+    `;
+    const row = await this.one(sql, [params.developerId], conn);
+    return Number(row?.TotalRefunds || 0);
+  }
+
   async truyVanDuLieuDoiSoatKyNay(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanDuLieuDoiSoatKyNay');
+    return this.truyVanGiaoDichThanhCong(params, conn);
   }
 
-  /**
-   * UC32. Thống kê Wishlist & Refund (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanLuotWishlistVaRefund(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanLuotWishlistVaRefund');
+    const sql = `
+      SELECT 
+        g.GameID,
+        g.Title,
+        (SELECT COUNT(*) FROM WISHLISTITEM w WHERE w.GameID = g.GameID) AS WishlistCount,
+        (
+          SELECT COUNT(r.RequestID) 
+          FROM REFUNDREQUEST r 
+          JOIN ORDERS o ON r.OrderID = o.OrderID 
+          JOIN ORDERITEM oi ON o.OrderID = oi.OrderID 
+          WHERE oi.GameID = g.GameID AND r.Status = 'Approved'
+        ) AS RefundCount
+      FROM GAME g
+      WHERE g.DeveloperID = ?
+    `;
+    return this.query(sql, [params.developerId], conn);
   }
 
-  /**
-   * UC50. Dashboard tài chính tổng quan (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanDuLieuTaiChinhRealTime(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanDuLieuTaiChinhRealTime');
+    const salesSql = `
+      SELECT COALESCE(SUM(FinalAmount), 0) AS TotalRevenue, COUNT(*) AS TotalCompletedOrders 
+      FROM ORDERS WHERE Status = 'Completed'
+    `;
+    const refundSql = `
+      SELECT COALESCE(SUM(oi.PriceAfterDiscount), 0) AS TotalRefundAmount 
+      FROM ORDERITEM oi 
+      JOIN ORDERS o ON oi.OrderID = o.OrderID 
+      JOIN REFUNDREQUEST r ON o.OrderID = r.OrderID 
+      WHERE r.Status = 'Approved'
+    `;
+    const sales = await this.one(salesSql, [], conn);
+    const refunds = await this.one(refundSql, [], conn);
+
+    return {
+      totalRevenue: Number(sales?.TotalRevenue || 0),
+      totalCompletedOrders: Number(sales?.TotalCompletedOrders || 0),
+      totalRefundAmount: Number(refunds?.TotalRefundAmount || 0)
+    };
   }
 
-  /**
-   * UC51. Thống kê doanh số toàn sàn (#5)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
+
   async truyVanDonHangThanhCongTheoThoiGian(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanDonHangThanhCongTheoThoiGian');
+    const sql = `
+      SELECT DATE(CreatedAt) AS OrderDate, COUNT(*) AS OrderCount, SUM(FinalAmount) AS DailyRevenue
+      FROM ORDERS
+      WHERE Status = 'Completed'
+      GROUP BY DATE(CreatedAt)
+      ORDER BY OrderDate DESC
+      LIMIT 30
+    `;
+    return this.query(sql, [], conn);
   }
 
-  /**
-   * UC52. Thống kê hoa hồng nền tảng (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanDoanhThuDonHangVaTyLeChietKhau(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanDoanhThuDonHangVaTyLeChietKhau');
+    const data = await this.truyVanDuLieuTaiChinhRealTime(params, conn);
+    const netSales = data.totalRevenue - data.totalRefundAmount;
+    return {
+      netSales,
+      commissionRate: 0.3,
+      platformCommission: netSales * 0.3
+    };
   }
 
-  /**
-   * UC53. Xuất báo cáo tài chính định kỳ (#5)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanDuLieuTaiChinhTheoKy(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanDuLieuTaiChinhTheoKy');
+    return this.truyVanDuLieuTaiChinhRealTime(params, conn);
   }
 
-  /**
-   * UC54. Theo dõi dòng tiền chờ rút (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanSoDuDoanhThuCacNhaPhatHanh(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanSoDuDoanhThuCacNhaPhatHanh');
+    const sql = `
+      SELECT DeveloperID, SUM(Amount) AS PendingWithdrawal 
+      FROM WITHDRAWALREQUEST 
+      WHERE Status = 'Pending' 
+      GROUP BY DeveloperID
+    `;
+    return this.query(sql, [], conn);
   }
 
-  /**
-   * UC55. Thống kê giá trị hoàn tiền (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanCacDonHangHoanTienThanhCong(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanCacDonHangHoanTienThanhCong');
+    const sql = `
+      SELECT r.RequestID, r.OrderID, r.CustomerID, r.Reason, r.RequestedAt, r.ProcessedAt
+      FROM REFUNDREQUEST r
+      WHERE r.Status = 'Approved'
+      ORDER BY r.ProcessedAt DESC
+    `;
+    return this.query(sql, [], conn);
   }
 
-  /**
-   * UC56. Theo dõi biến động số dư ví (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
-   */
   async truyVanNhatKyGiaoDichViToanSan(params = {}, conn = null) {
-    throw new NotImplementedException('ReportDAO.truyVanNhatKyGiaoDichViToanSan');
+    return this.query('SELECT WalletID, CustomerID, Balance, Currency FROM WALLET ORDER BY Balance DESC LIMIT 50', [], conn);
   }
 }
 
