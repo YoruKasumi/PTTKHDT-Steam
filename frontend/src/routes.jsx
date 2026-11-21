@@ -10,6 +10,7 @@ import DeveloperGames from './pages/developer/DeveloperGames';
 import DeveloperKeys from './pages/developer/DeveloperKeys';
 import DeveloperRevenue from './pages/developer/DeveloperRevenue';
 import AdminAccounts from './pages/admin/AdminAccounts';
+import AdminGames from './pages/admin/AdminGames';
 import AdminKeyApprovals from './pages/admin/AdminKeyApprovals';
 import AdminRoles from './pages/admin/AdminRoles';
 import AdminStaff from './pages/admin/AdminStaff';
@@ -108,6 +109,7 @@ export const routes = [
           '/admin/genres-banners': <AdminGenresBanners />,
           '/admin/system-config': <AdminSystemConfig />,
           '/admin/audit-logs': <AdminAuditLogs />,
+          '/admin/games': <AdminGames />,
         '/admin/keys': <AdminKeyApprovals />,
       }[screen.path] ?? <ScreenPlaceholder screen={screen} />,
       ...getRouteAccess(screen.path),

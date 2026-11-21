@@ -29,6 +29,11 @@ export const adminApi = {
     http.patch(`/moderation/reviews/${reviewId}/status`, { status, reason })
   ),
 
+  listPendingGames: () => http.get('/moderation/games'),
+  getGameDetail: (gameId) => http.get(`/moderation/games/${encodeURIComponent(gameId)}`),
+  reviewGame: (gameId, decision, reason) =>
+    http.post(`/moderation/games/${encodeURIComponent(gameId)}/review`, { decision, reason }),
+
   listGenres: () => http.get('/genres'),
   createGenre: (body) => http.post('/admin/genres', body),
   updateGenre: (genreId, body) => http.put(`/admin/genres/${genreId}`, body),
