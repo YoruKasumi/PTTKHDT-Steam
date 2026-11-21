@@ -148,6 +148,40 @@ describe('Luồng 1.5: Thư viện & Đổi Key (Redeem Key)', () => {
     assert.match(result.message, /kích hoạt thành công/i);
   });
 
+  it('1.5.6b - LibraryService.redeemKey: Người dùng từng sở hữu nhưng bản quyền đã bị thu hồi (Revoked) thì VẪN được kích hoạt mã mới thành công', async () => {
+    const service = new LibraryService();
+    let licenseCreated = false;
+
+    service.transaction = async (cb) => cb({});
+    service.licenseDAO.timKeyKichHoat = async () => ({
+      KeyID: 'key-revoked-rebuy',
+      KeyCode: 'NEW-VALID-KEY',
+      GameID: 'game-100',
+      Status: 'Unused',
+    });
+    // kiemTraGameDaSoHuu chỉ query Status = 'Active', nên khi license cũ bị Revoked nó trả về null
+    service.licenseDAO.kiemTraGameDaSoHuu = async () => null;
+    service.licenseDAO.capNhatKeyDaSuDung = async () => true;
+    service.licenseDAO.taoBanQuyenTuKey = async (payload) => {
+      assert.equal(payload.customerId, 'cus-1');
+      assert.equal(payload.gameId, 'game-100');
+      licenseCreated = true;
+      return true;
+    };
+    service.licenseDAO.layThongTinGameDonGian = async () => ({
+      GameID: 'game-100',
+      Title: 'Hollow Knight',
+    });
+
+    const result = await service.redeemKey({
+      keyCode: 'NEW-VALID-KEY',
+      user: { accountId: 'cus-1' },
+    });
+
+    assert.equal(licenseCreated, true);
+    assert.equal(result.success, true);
+  });
+
   it('1.5.7 - LibraryService.yeuCauXemThuVien: Trả về Sha256 trong thông tin game', async () => {
     const service = new LibraryService();
     service.licenseDAO.layDanhSachGameDaSoHuu = async () => [
