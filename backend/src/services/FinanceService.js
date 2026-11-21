@@ -1,174 +1,167 @@
 'use strict';
 const BaseService = require('./BaseService');
-const { NotImplementedException } = require('../exceptions');
 const ReportDAO = require('../dao/ReportDAO');
 
-/**
- * FinanceService - tầng Business Logic.
- * Tên phương thức lấy đúng từ sơ đồ sequence; nội dung bên dưới chỉ là khung cần cài đặt.
- */
 class FinanceService extends BaseService {
-  constructor() {
+  constructor(reportDAO = new ReportDAO()) {
     super();
-    this.reportDAO = new ReportDAO();
+    this.reportDAO = reportDAO;
   }
 
-  // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)
-
-  /**
-   * UC50. Dashboard tài chính tổng quan - sequence #2: UI → FinanceService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #3 → ReportDAO.truyVanDuLieuTaiChinhRealTime()
-   *   #4 ← traVeDuLieuTaiChinh()
-   *   #5 ↻ this.tinhToanCacChiSoTaiChinh()
-   *   #6 ← traVeDuLieuDashboard()
-   * @param {object} params
-   */
   async yeuCauLayDuLieuTongQuan(params = {}) {
-    throw new NotImplementedException('FinanceService.yeuCauLayDuLieuTongQuan');
+    const rawData = await this.reportDAO.truyVanDuLieuTaiChinhRealTime(params);
+    const metrics = this.tinhToanCacChiSoTaiChinh(rawData);
+    return {
+      success: true,
+      data: metrics
+    };
   }
 
-  /**
-   * UC51. Thống kê doanh số toàn sàn - sequence #4: UI → FinanceService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #5 → ReportDAO.truyVanDonHangThanhCongTheoThoiGian()
-   *   #6 ← traVeDanhSachDonHang()
-   *   #7 ↻ this.tongHopTongDoanhSo()
-   *   #8 ← traVeKetQuaThongKeDoanhSo()
-   * @param {object} params
-   */
   async guiYeuCauThongKeDoanhSo(params = {}) {
-    throw new NotImplementedException('FinanceService.guiYeuCauThongKeDoanhSo');
+    const dailyOrders = await this.reportDAO.truyVanDonHangThanhCongTheoThoiGian(params);
+    const summary = this.tongHopTongDoanhSo(dailyOrders);
+    return {
+      success: true,
+      data: {
+        summary,
+        timeline: dailyOrders
+      }
+    };
   }
 
-  /**
-   * UC52. Thống kê hoa hồng nền tảng - sequence #2: UI → FinanceService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #3 → ReportDAO.truyVanDoanhThuDonHangVaTyLeChietKhau()
-   *   #4 ← traVeDuLieuDoanhThuVaChietKhau()
-   *   #5 ↻ this.tinhTongHoaHongNenTangThuVe()
-   *   #6 ← traVeSoLieuHoaHong()
-   * @param {object} params
-   */
   async yeuCauThongKeHoaHong(params = {}) {
-    throw new NotImplementedException('FinanceService.yeuCauThongKeHoaHong');
+    const rawData = await this.reportDAO.truyVanDoanhThuDonHangVaTyLeChietKhau(params);
+    const commissionData = this.tinhTongHoaHongNenTangThuVe(rawData);
+    return {
+      success: true,
+      data: commissionData
+    };
   }
 
-  /**
-   * UC53. Xuất báo cáo tài chính định kỳ - sequence #4: UI → FinanceService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #5 → ReportDAO.truyVanDuLieuTaiChinhTheoKy()
-   *   #6 ← traVeDuLieuTaiChinhKy()
-   *   #7 ↻ this.ketXuatTepBaoCaoTaiChinh()
-   *   #8 ← traVeTepBaoCao()
-   * @param {object} params
-   */
   async yeuCauXuatBaoCaoTaiChinh(params = {}) {
-    throw new NotImplementedException('FinanceService.yeuCauXuatBaoCaoTaiChinh');
+    const periodData = await this.reportDAO.truyVanDuLieuTaiChinhTheoKy(params);
+    const reportFile = this.ketXuatTepBaoCaoTaiChinh(periodData);
+    return {
+      success: true,
+      report: reportFile
+    };
   }
 
-  /**
-   * UC54. Theo dõi dòng tiền chờ rút - sequence #2: UI → FinanceService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #3 → ReportDAO.truyVanSoDuDoanhThuCacNhaPhatHanh()
-   *   #4 ← traVeSoDuDoanhThuCacNhaPhatHanh()
-   *   #5 ↻ this.phanLoaiSoDuKhaDungVaTamGiu()
-   *   #6 ← traVeDanhSachDongTienChoRut()
-   * @param {object} params
-   */
   async yeuCauDuLieuDongTienChoRut(params = {}) {
-    throw new NotImplementedException('FinanceService.yeuCauDuLieuDongTienChoRut');
+    const pendingRows = await this.reportDAO.truyVanSoDuDoanhThuCacNhaPhatHanh(params);
+    const classified = this.phanLoaiSoDuKhaDungVaTamGiu(pendingRows);
+    return {
+      success: true,
+      data: classified
+    };
   }
 
-  /**
-   * UC55. Thống kê giá trị hoàn tiền - sequence #2: UI → FinanceService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #3 → ReportDAO.truyVanCacDonHangHoanTienThanhCong()
-   *   #4 ← traVeDanhSachDonHangHoanTien()
-   *   #5 ↻ this.tinhTongGiaTriVaTyLeHoanTien()
-   *   #6 ← traVeKetQuaThongKeHoanTien()
-   * @param {object} params
-   */
   async yeuCauThongKeHoanTien(params = {}) {
-    throw new NotImplementedException('FinanceService.yeuCauThongKeHoanTien');
+    const refundOrders = await this.reportDAO.truyVanCacDonHangHoanTienThanhCong(params);
+    const refundStats = this.tinhTongGiaTriVaTyLeHoanTien(refundOrders);
+    return {
+      success: true,
+      data: refundStats
+    };
   }
 
-  /**
-   * UC56. Theo dõi biến động số dư ví - sequence #2: UI → FinanceService
-   * Vai trò gọi: Admin, Manager
-   * Luồng theo sơ đồ:
-   *   #3 → ReportDAO.truyVanNhatKyGiaoDichViToanSan()
-   *   #4 ← traVeNhatKyGiaoDichVi()
-   *   #5 ↻ this.kiemTraDoiSoatCanBangSoDu()
-   *   #6 ← traVeDuLieuNhatKyBienDong()
-   * @param {object} params
-   */
   async yeuCauNhatKyBienDongSoDu(params = {}) {
-    throw new NotImplementedException('FinanceService.yeuCauNhatKyBienDongSoDu');
+    const walletLogs = await this.reportDAO.truyVanNhatKyGiaoDichViToanSan(params);
+    const audited = this.kiemTraDoiSoatCanBangSoDu(walletLogs);
+    return {
+      success: true,
+      data: audited
+    };
   }
 
-  // ---------------------------------------------------------------- Phương thức nội bộ (self-call trong sơ đồ)
+  tinhToanCacChiSoTaiChinh(params = {}) {
+    const totalGrossRevenue = Number(params.totalRevenue || 0);
+    const totalRefunds = Number(params.totalRefundAmount || 0);
+    const netSales = Math.max(0, totalGrossRevenue - totalRefunds);
+    const platformCommission = netSales * 0.3;
+    const developerPayoutPool = netSales * 0.7;
 
-  /**
-   * UC50. Dashboard tài chính tổng quan - sequence #5: nội bộ
-   * @param {object} params
-   */
-  async tinhToanCacChiSoTaiChinh(params = {}) {
-    throw new NotImplementedException('FinanceService.tinhToanCacChiSoTaiChinh');
+    return {
+      totalCompletedOrders: Number(params.totalCompletedOrders || 0),
+      totalGrossRevenue,
+      totalRefunds,
+      netSales,
+      platformFeeRate: '30%',
+      platformCommission,
+      developerPayoutPool
+    };
   }
 
-  /**
-   * UC51. Thống kê doanh số toàn sàn - sequence #7: nội bộ
-   * @param {object} params
-   */
-  async tongHopTongDoanhSo(params = {}) {
-    throw new NotImplementedException('FinanceService.tongHopTongDoanhSo');
+  tongHopTongDoanhSo(dailyOrders = []) {
+    let totalOrders = 0;
+    let totalAmount = 0;
+
+    for (const row of dailyOrders) {
+      totalOrders += Number(row.OrderCount || 0);
+      totalAmount += Number(row.DailyRevenue || 0);
+    }
+
+    return {
+      daysTracked: dailyOrders.length,
+      totalOrders,
+      totalAmount
+    };
   }
 
-  /**
-   * UC52. Thống kê hoa hồng nền tảng - sequence #5: nội bộ
-   * @param {object} params
-   */
-  async tinhTongHoaHongNenTangThuVe(params = {}) {
-    throw new NotImplementedException('FinanceService.tinhTongHoaHongNenTangThuVe');
+  tinhTongHoaHongNenTangThuVe(params = {}) {
+    return {
+      netSales: params.netSales || 0,
+      commissionRate: '30%',
+      platformCommission: params.platformCommission || 0
+    };
   }
 
-  /**
-   * UC53. Xuất báo cáo tài chính định kỳ - sequence #7: nội bộ
-   * @param {object} params
-   */
-  async ketXuatTepBaoCaoTaiChinh(params = {}) {
-    throw new NotImplementedException('FinanceService.ketXuatTepBaoCaoTaiChinh');
+  ketXuatTepBaoCaoTaiChinh(params = {}) {
+    return {
+      reportId: 'FIN_REP_' + Date.now(),
+      generatedAt: new Date().toISOString(),
+      period: 'Monthly',
+      currency: 'VND',
+      figures: this.tinhToanCacChiSoTaiChinh(params)
+    };
   }
 
-  /**
-   * UC54. Theo dõi dòng tiền chờ rút - sequence #5: nội bộ
-   * @param {object} params
-   */
-  async phanLoaiSoDuKhaDungVaTamGiu(params = {}) {
-    throw new NotImplementedException('FinanceService.phanLoaiSoDuKhaDungVaTamGiu');
+  phanLoaiSoDuKhaDungVaTamGiu(pendingRows = []) {
+    let totalPendingAmount = 0;
+    const items = pendingRows.map(r => {
+      const amt = Number(r.PendingWithdrawal || 0);
+      totalPendingAmount += amt;
+      return {
+        developerId: r.DeveloperID,
+        pendingAmount: amt
+      };
+    });
+
+    return {
+      totalPendingDevelopers: items.length,
+      totalPendingAmount,
+      developers: items
+    };
   }
 
-  /**
-   * UC55. Thống kê giá trị hoàn tiền - sequence #5: nội bộ
-   * @param {object} params
-   */
-  async tinhTongGiaTriVaTyLeHoanTien(params = {}) {
-    throw new NotImplementedException('FinanceService.tinhTongGiaTriVaTyLeHoanTien');
+  tinhTongGiaTriVaTyLeHoanTien(refundOrders = []) {
+    return {
+      totalRefundedOrders: refundOrders.length,
+      recentRefunds: refundOrders.slice(0, 20)
+    };
   }
 
-  /**
-   * UC56. Theo dõi biến động số dư ví - sequence #5: nội bộ
-   * @param {object} params
-   */
-  async kiemTraDoiSoatCanBangSoDu(params = {}) {
-    throw new NotImplementedException('FinanceService.kiemTraDoiSoatCanBangSoDu');
+  kiemTraDoiSoatCanBangSoDu(walletLogs = []) {
+    let totalCirculatingBalance = 0;
+    for (const w of walletLogs) {
+      totalCirculatingBalance += Number(w.Balance || 0);
+    }
+
+    return {
+      totalWalletsCount: walletLogs.length,
+      totalCirculatingBalance,
+      topWallets: walletLogs.slice(0, 10)
+    };
   }
 }
 
