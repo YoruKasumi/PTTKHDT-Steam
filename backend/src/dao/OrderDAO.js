@@ -1,6 +1,5 @@
 'use strict';
 const BaseDAO = require('./BaseDAO');
-const { NotImplementedException } = require('../exceptions');
 
 class OrderDAO extends BaseDAO {
   /**
@@ -110,6 +109,7 @@ class OrderDAO extends BaseDAO {
   async layDanhSachDonHang(params = {}, conn = null) {
     return this.query(
       `SELECT orders.OrderID, orders.OrderDate, orders.TotalAmount, orders.Status,
+              TIMESTAMPDIFF(HOUR, orders.OrderDate, NOW()) AS HoursSincePurchase,
               item.GameID, game.Title, game.CoverImage,
               item.UnitPrice, item.PriceAfterDiscount
        FROM ORDERS AS orders
@@ -124,29 +124,118 @@ class OrderDAO extends BaseDAO {
 
   /**
    * UC21. Yêu cầu hoàn tiền (#3)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * Kiểm tra thông tin đơn hàng và bản quyền Active của các game trong đơn.
+   * @param {{ orderId: string, customerId: string }} params
+   * @param {object} [conn]
+   */
+  async layDonHangDeHoanTien(params = {}, conn = null) {
+    return this.one(
+      `SELECT OrderID, CustomerID, TotalAmount, Status, OrderDate,
+              TIMESTAMPDIFF(HOUR, OrderDate, NOW()) AS HoursSincePurchase,
+              TIMESTAMPDIFF(SECOND, OrderDate, NOW()) AS SecondsSincePurchase
+       FROM ORDERS
+       WHERE OrderID = ? AND CustomerID = ?
+       FOR UPDATE`,
+      [params.orderId, params.customerId],
+      conn,
+    );
+  }
+
+  /**
+   * Lấy danh sách GameID trong đơn hàng.
+   * @param {{ orderId: string }} params
+   * @param {object} [conn]
+   */
+  async layItemsDonHang(params = {}, conn = null) {
+    return this.query(
+      `SELECT GameID, PriceAfterDiscount FROM ORDERITEM WHERE OrderID = ?`,
+      [params.orderId],
+      conn,
+    );
+  }
+
+  /**
+   * UC21. Yêu cầu hoàn tiền (#3)
+   * Lấy danh sách License Active của các game trong đơn hàng.
+   * @param {{ customerId: string, gameIds: string[] }} params
+   * @param {object} [conn]
    */
   async kiemTraTokenBanQuyen(params = {}, conn = null) {
-    throw new NotImplementedException('OrderDAO.kiemTraTokenBanQuyen');
+    if (!Array.isArray(params.gameIds) || params.gameIds.length === 0) return [];
+    const placeholders = params.gameIds.map(() => '?').join(', ');
+    return this.query(
+      `SELECT LicenseID, GameID, Status
+       FROM LICENSE
+       WHERE CustomerID = ? AND Status = 'Active' AND Source = 'Purchase' AND GameID IN (${placeholders})
+       FOR UPDATE`,
+      [params.customerId, ...params.gameIds],
+      conn,
+    );
   }
 
   /**
    * UC21. Yêu cầu hoàn tiền (#5)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * @param {{ orderId: string }} params
+   * @param {object} [conn]
    */
   async kiemTraThoiGianThanhToanDuoi24h(params = {}, conn = null) {
-    throw new NotImplementedException('OrderDAO.kiemTraThoiGianThanhToanDuoi24h');
+    const row = await this.one(
+      `SELECT (TIMESTAMPDIFF(HOUR, OrderDate, NOW()) <= 24) AS IsWithin24h,
+              TIMESTAMPDIFF(HOUR, OrderDate, NOW()) AS HoursSincePurchase
+       FROM ORDERS
+       WHERE OrderID = ?`,
+      [params.orderId],
+      conn,
+    );
+    return row ? Boolean(row.IsWithin24h) : false;
+  }
+
+  /**
+   * Ghi nhận yêu cầu hoàn tiền vào bảng REFUNDREQUEST.
+   * @param {{ orderId: string, reason: string, status: 'Pending'|'Approved'|'Rejected', hoursSincePurchase: number }} params
+   * @param {object} [conn]
+   */
+  async ghiYeuCauHoanTien(params = {}, conn = null) {
+    await this.query(
+      `INSERT INTO REFUNDREQUEST (OrderID, Reason, Status, HoursSincePurchase)
+       VALUES (?, ?, ?, ?)`,
+      [params.orderId, params.reason, params.status, params.hoursSincePurchase],
+      conn,
+    );
   }
 
   /**
    * UC21. Yêu cầu hoàn tiền (#7)
-   * @param {object} params
-   * @param {object} [conn] kết nối transaction (nếu có)
+   * Thu hồi bản quyền game (LICENSE) và thiết bị liên kết (LICENSE_DEVICE).
+   * @param {{ licenseIds: string[] }} params
+   * @param {object} [conn]
    */
   async thuHoiBanQuyenGame(params = {}, conn = null) {
-    throw new NotImplementedException('OrderDAO.thuHoiBanQuyenGame');
+    if (!Array.isArray(params.licenseIds) || params.licenseIds.length === 0) return;
+    const placeholders = params.licenseIds.map(() => '?').join(', ');
+    await this.query(
+      `UPDATE LICENSE SET Status = 'Revoked', RevokedAt = NOW() WHERE LicenseID IN (${placeholders})`,
+      params.licenseIds,
+      conn,
+    );
+    await this.query(
+      `UPDATE LICENSE_DEVICE SET Status = 'Revoked' WHERE LicenseID IN (${placeholders})`,
+      params.licenseIds,
+      conn,
+    );
+  }
+
+  /**
+   * Cập nhật trạng thái đơn hàng sang Refunded.
+   * @param {{ orderId: string }} params
+   * @param {object} [conn]
+   */
+  async capNhatDonDaHoan(params = {}, conn = null) {
+    await this.query(
+      `UPDATE ORDERS SET Status = 'Refunded' WHERE OrderID = ?`,
+      [params.orderId],
+      conn,
+    );
   }
 }
 

@@ -1,6 +1,5 @@
 'use strict';
 const BaseDAO = require('./BaseDAO');
-const { NotImplementedException } = require('../exceptions');
 
 class LicenseDAO extends BaseDAO {
   /**
@@ -11,7 +10,8 @@ class LicenseDAO extends BaseDAO {
     return this.query(
       `SELECT l.LicenseID, l.GameID, l.Source, l.PurchaseDate, l.Status AS LicenseStatus,
               g.Title, g.CoverImage, g.Status AS GameStatus,
-              gv.VersionID, gv.VersionNumber, gv.ChangeLog, gv.UploadDate AS VersionDate, gv.FileSize
+              gv.VersionID, gv.VersionNumber, gv.ChangeLog, gv.UploadDate AS VersionDate,
+              gv.FileSize, gv.Sha256
        FROM LICENSE l
        INNER JOIN GAME g ON g.GameID = l.GameID
        LEFT JOIN GAMEVERSION gv ON gv.GameID = l.GameID AND gv.IsCurrent = 1
@@ -26,7 +26,13 @@ class LicenseDAO extends BaseDAO {
    * UC16. Xem thư viện cá nhân (#5)
    */
   async kiemTraCapNhatGame(params = {}, conn = null) {
-    throw new NotImplementedException('LicenseDAO.kiemTraCapNhatGame');
+    return this.one(
+      `SELECT gv.VersionID, gv.VersionNumber, gv.Sha256, gv.FileSize
+       FROM GAMEVERSION gv
+       WHERE gv.GameID = ? AND gv.IsCurrent = 1`,
+      [params.gameId],
+      conn,
+    );
   }
 
   /**
@@ -47,18 +53,73 @@ class LicenseDAO extends BaseDAO {
   }
 
   /**
-   * UC17. Khởi chạy game (#7) — Kiểm tra & ghi nhận thiết bị.
-   * Trả về { action: 'found'|'new'|'revoked', deviceRow }
+   * Tìm mã kích hoạt (ACTIVATIONKEY) theo KeyCode và khóa dòng trong transaction.
+   * @param {{ keyCode: string }} params
    */
-  async taiBanVaCapNhat(params = {}, conn = null) {
-    throw new NotImplementedException('LicenseDAO.taiBanVaCapNhat');
+  async timKeyKichHoat(params = {}, conn = null) {
+    return this.one(
+      `SELECT KeyID, KeyCode, GameID, Status
+       FROM ACTIVATIONKEY
+       WHERE KeyCode = ?
+       FOR UPDATE`,
+      [params.keyCode],
+      conn,
+    );
   }
 
   /**
-   * UC18. Tải game (#7)
+   * Cập nhật mã kích hoạt sang trạng thái Used.
+   * @param {{ keyId: string, customerId: string }} params
    */
-  async layGoiCaiDat(params = {}, conn = null) {
-    throw new NotImplementedException('LicenseDAO.layGoiCaiDat');
+  async capNhatKeyDaSuDung(params = {}, conn = null) {
+    const result = await this.query(
+      `UPDATE ACTIVATIONKEY
+       SET Status = 'Used', ActivatedDate = NOW(), RedeemedBy = ?
+       WHERE KeyID = ? AND Status = 'Unused'`,
+      [params.customerId, params.keyId],
+      conn,
+    );
+    return result.affectedRows === 1;
+  }
+
+  /**
+   * Tạo bản quyền từ việc đổi Key.
+   * @param {{ licenseId: string, customerId: string, gameId: string, accessTokenHash: string }} params
+   */
+  async taoBanQuyenTuKey(params = {}, conn = null) {
+    await this.query(
+      `INSERT INTO LICENSE (LicenseID, CustomerID, GameID, Source, AccessToken, Status)
+       VALUES (?, ?, ?, 'Key', ?, 'Active')`,
+      [params.licenseId, params.customerId, params.gameId, params.accessTokenHash],
+      conn,
+    );
+  }
+
+  /**
+   * Lấy thông tin game đơn giản (Title, CoverImage).
+   * @param {{ gameId: string }} params
+   */
+  async layThongTinGameDonGian(params = {}, conn = null) {
+    return this.one(
+      `SELECT GameID, Title, CoverImage, Status FROM GAME WHERE GameID = ?`,
+      [params.gameId],
+      conn,
+    );
+  }
+
+  /**
+   * Kiểm tra xem khách đã có bản quyền Active của game chưa.
+   * @param {{ customerId: string, gameId: string }} params
+   */
+  async kiemTraGameDaSoHuu(params = {}, conn = null) {
+    return this.one(
+      `SELECT LicenseID
+       FROM LICENSE
+       WHERE CustomerID = ? AND GameID = ? AND Status = 'Active'
+       FOR UPDATE`,
+      [params.customerId, params.gameId],
+      conn,
+    );
   }
 
   // ─── LICENSE_DEVICE operations ───

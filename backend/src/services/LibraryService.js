@@ -1,9 +1,16 @@
 'use strict';
 const path = require('path');
 const fs = require('fs');
+const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const BaseService = require('./BaseService');
-const { NghiepVuException, NotFoundException, ForbiddenException, ValidationException } = require('../exceptions');
+const {
+  NghiepVuException,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+  ValidationException,
+} = require('../exceptions');
 const LicenseDAO = require('../dao/LicenseDAO');
 const env = require('../config/env');
 const { BUILDS_ROOT } = require('../utils/autoDrmPackager');
@@ -12,7 +19,7 @@ const { BUILDS_ROOT } = require('../utils/autoDrmPackager');
 const LAUNCH_TOKEN_TTL = '10m';
 
 /**
- * LibraryService — tầng Business Logic cho thư viện & DRM.
+ * LibraryService — tầng Business Logic cho thư viện, đổi Key & DRM.
  */
 class LibraryService extends BaseService {
   constructor() {
@@ -24,6 +31,8 @@ class LibraryService extends BaseService {
 
   /**
    * UC16. Xem thư viện cá nhân.
+   * Lấy danh sách LICENSE.Status = 'Active' JOIN GAME và GAMEVERSION (IsCurrent = 1)
+   * Trả về VersionNumber, ChangeLog, FileSize, Sha256.
    */
   async yeuCauXemThuVien(params = {}) {
     const { user } = params;
@@ -42,7 +51,89 @@ class LibraryService extends BaseService {
       changeLog: row.ChangeLog,
       versionDate: row.VersionDate,
       fileSize: row.FileSize ? Number(row.FileSize) : null,
+      sha256: row.Sha256 || null,
     }));
+  }
+
+  /**
+   * Đổi mã kích hoạt game (Redeem Key).
+   * Trong 1 Transaction:
+   *   - Kiểm tra ACTIVATIONKEY.Status = 'Unused'
+   *   - Kiểm tra khách chưa sở hữu game
+   *   - Cập nhật ACTIVATIONKEY (Status = 'Used', ActivatedDate = NOW(), RedeemedBy = customerId)
+   *   - Chèn LICENSE (Source = 'Key', AccessToken SHA-256)
+   * @param {object} params
+   */
+  async redeemKey(params = {}) {
+    const { user } = params;
+    const customerId = user?.accountId;
+    if (!customerId) throw new ValidationException('Tài khoản khách hàng không hợp lệ');
+
+    const rawCode = params.keyCode || params.code || '';
+    const keyCode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+    if (!keyCode) {
+      throw new ValidationException('Vui lòng nhập mã kích hoạt trò chơi (Activation Key).');
+    }
+
+    return this.transaction(async (conn) => {
+      // 1. Kiểm tra tồn tại và khóa dòng ACTIVATIONKEY
+      const keyRow = await this.licenseDAO.timKeyKichHoat({ keyCode }, conn);
+      if (!keyRow) {
+        throw new NotFoundException('Mã kích hoạt không tồn tại hoặc không hợp lệ.');
+      }
+
+      if (keyRow.Status === 'Used') {
+        throw new NghiepVuException('Mã kích hoạt này đã được sử dụng trước đó.', 422, 'KEY_ALREADY_USED');
+      }
+
+      if (keyRow.Status === 'Revoked') {
+        throw new NghiepVuException('Mã kích hoạt này đã bị thu hồi hoặc vô hiệu hóa.', 422, 'KEY_REVOKED');
+      }
+
+      // 2. Kiểm tra khách chưa sở hữu game này
+      const alreadyOwned = await this.licenseDAO.kiemTraGameDaSoHuu({
+        customerId,
+        gameId: keyRow.GameID,
+      }, conn);
+
+      if (alreadyOwned) {
+        throw new ConflictException('Bạn đã sở hữu trò chơi này trong thư viện cá nhân.');
+      }
+
+      // 3. Cập nhật ACTIVATIONKEY sang Used
+      const updated = await this.licenseDAO.capNhatKeyDaSuDung({
+        keyId: keyRow.KeyID,
+        customerId,
+      }, conn);
+
+      if (!updated) {
+        throw new ConflictException('Mã kích hoạt vừa được sử dụng bởi người khác.');
+      }
+
+      // 4. Tạo token SHA-256 và chèn LICENSE
+      const token = randomBytes(32).toString('hex');
+      const accessTokenHash = createHash('sha256').update(token).digest('hex');
+      const licenseId = randomUUID();
+
+      await this.licenseDAO.taoBanQuyenTuKey({
+        licenseId,
+        customerId,
+        gameId: keyRow.GameID,
+        accessTokenHash,
+      }, conn);
+
+      // 5. Lấy thông tin game để trả về
+      const game = await this.licenseDAO.layThongTinGameDonGian({ gameId: keyRow.GameID }, conn);
+
+      return {
+        success: true,
+        licenseId,
+        gameId: keyRow.GameID,
+        title: game?.Title || 'Trò chơi mới',
+        coverImage: game?.CoverImage || null,
+        message: `Kích hoạt thành công! "${game?.Title || 'Trò chơi'}" đã được thêm vào thư viện của bạn.`,
+      };
+    });
   }
 
   /**

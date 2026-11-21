@@ -1,5 +1,5 @@
 'use strict';
-const { NotImplementedException } = require('../exceptions');
+const { randomUUID } = require('node:crypto');
 
 /**
  * Hệ thống ngân hàng nhận lệnh chuyển khoản (giả lập cho đồ án).
@@ -8,16 +8,35 @@ const { NotImplementedException } = require('../exceptions');
 class BankClient {
   /**
    * UC14. Rút tiền (#7)
+   * @param {{ amount: number, bankInfo?: string, customerId?: string, simulateFailure?: boolean }} params
    */
   async yeuCauChuyenTien(params = {}) {
-    throw new NotImplementedException('BankClient.yeuCauChuyenTien');
+    const amount = Number(params.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { success: false, message: 'Số tiền rút không hợp lệ' };
+    }
+    if (params.simulateFailure || params.bankInfo === 'FAIL') {
+      return {
+        success: false,
+        message: 'Lệnh chuyển khoản bị từ chối từ hệ thống ngân hàng liên kết',
+      };
+    }
+    return {
+      success: true,
+      referenceCode: randomUUID(),
+      message: 'Chuyển khoản thành công về tài khoản ngân hàng',
+    };
   }
 
   /**
    * UC57. Phê duyệt rút doanh thu (#14)
    */
   async yeuCauChuyenKhoanNganHang(params = {}) {
-    throw new NotImplementedException('BankClient.yeuCauChuyenKhoanNganHang');
+    return {
+      success: true,
+      referenceCode: randomUUID(),
+      message: 'Chuyển khoản doanh thu thành công',
+    };
   }
 }
 

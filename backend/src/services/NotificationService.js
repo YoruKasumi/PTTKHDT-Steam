@@ -1,12 +1,12 @@
 'use strict';
 const { randomUUID } = require('node:crypto');
 const BaseService = require('./BaseService');
-const { NotImplementedException, ValidationException } = require('../exceptions');
+const { NotImplementedException, ValidationException, NotFoundException } = require('../exceptions');
 const NotificationDAO = require('../dao/NotificationDAO');
 
 /**
  * NotificationService - tầng Business Logic.
- * Tên phương thức lấy đúng từ sơ đồ sequence; nội dung bên dưới chỉ là khung cần cài đặt.
+ * Tên phương thức lấy đúng từ sơ đồ sequence; quản lý thông báo người dùng.
  */
 class NotificationService extends BaseService {
   constructor() {
@@ -41,6 +41,68 @@ class NotificationService extends BaseService {
     return notification;
   }
 
+  /**
+   * Lấy danh sách thông báo và số lượng chưa đọc của tài khoản hiện tại.
+   * GET /api/notifications
+   */
+  async layDanhSachThongBao(params = {}) {
+    const accountId = params.user?.accountId || params.accountId;
+    if (!accountId) throw new ValidationException('Tài khoản không hợp lệ.');
+
+    const limit = params.limit ? parseInt(params.limit, 10) : 50;
+    const offset = params.offset ? parseInt(params.offset, 10) : 0;
+
+    const [rows, unreadCount] = await Promise.all([
+      this.notificationDAO.layDanhSachThongBao({ accountId, limit, offset }),
+      this.notificationDAO.demThongBaoChuaDoc({ accountId }),
+    ]);
+
+    const items = rows.map((r) => ({
+      notificationId: r.NotificationID,
+      id: r.NotificationID,
+      type: r.Type,
+      content: r.Content,
+      sentAt: r.SentAt,
+      isRead: Boolean(r.IsRead),
+    }));
+
+    return {
+      items,
+      unreadCount,
+    };
+  }
+
+  /**
+   * Đánh dấu 1 thông báo là đã đọc.
+   * PATCH /api/notifications/:id/read
+   */
+  async danhDauDaDoc(params = {}) {
+    const accountId = params.user?.accountId || params.accountId;
+    const notificationId = params.notificationId || params.id;
+
+    if (!accountId) throw new ValidationException('Tài khoản không hợp lệ.');
+    if (!notificationId) throw new ValidationException('ID thông báo không hợp lệ.');
+
+    const updated = await this.notificationDAO.danhDauDaDoc({ notificationId, accountId });
+    if (!updated) {
+      throw new NotFoundException('Thông báo không tồn tại hoặc đã được xử lý.');
+    }
+
+    return { notificationId, isRead: true };
+  }
+
+  /**
+   * Đánh dấu tất cả thông báo là đã đọc.
+   * PATCH /api/notifications/read-all
+   */
+  async danhDauTatCaDaDoc(params = {}) {
+    const accountId = params.user?.accountId || params.accountId;
+    if (!accountId) throw new ValidationException('Tài khoản không hợp lệ.');
+
+    const updatedCount = await this.notificationDAO.danhDauTatCaDaDoc({ accountId });
+    return { updatedCount, isRead: true };
+  }
+
   // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)
 
   /**
@@ -70,4 +132,11 @@ class NotificationService extends BaseService {
   }
 }
 
+// Hàm dùng chung cho các service khác gọi trực tiếp
+async function createNotification(accountId, type, content, conn = null) {
+  const service = new NotificationService();
+  return service.createNotification({ accountId, type, content }, conn);
+}
+
 module.exports = NotificationService;
+module.exports.createNotification = createNotification;

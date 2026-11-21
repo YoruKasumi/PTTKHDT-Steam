@@ -20,4 +20,8 @@ router.post('/checkout', authenticate, authorize('Customer'), asyncHandler(async
   ok(res, await orderService.checkout(requestContext(req)), 201, 'Thanh toán thành công')
 )));
 
+router.post('/:orderId/refund', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await orderService.guiYeuCauHoanTien(requestContext(req)), 200, 'Hoàn tiền thành công')
+)));
+
 module.exports = router;

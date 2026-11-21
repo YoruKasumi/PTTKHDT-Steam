@@ -1,7 +1,8 @@
 import { Link, NavLink } from 'react-router-dom';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { formatVnd } from '../utils/format';
+import { notificationApi } from '../api/notification';
 
 const links = [
   { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
@@ -14,13 +15,78 @@ const links = [
 const btn = ({ isActive }) =>
   `relative flex h-11 w-12 items-center justify-center bg-page sm:w-[70px] ${isActive ? 'outline outline-1 outline-accent' : ''}`;
 
+function timeAgo(dateString) {
+  if (!dateString) return '';
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffSec = Math.floor((now - date) / 1000);
+  if (diffSec < 60) return 'Vừa xong';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} phút trước`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays} ngày trước`;
+  return date.toLocaleDateString('vi-VN');
+}
+
 /** Thanh điều hướng đen phía trên (Figma: node 1:319). */
 export default function TopBar() {
   const { cart, balance, user, shopError } = useShop();
   const [openMenu, setOpenMenu] = useState('');
-  const [allRead, setAllRead] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
 
   const toggleMenu = (menu) => setOpenMenu((current) => current === menu ? '' : menu);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user?.accountId) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+    try {
+      setLoadingNotifs(true);
+      const res = await notificationApi.list();
+      const items = res?.items || (Array.isArray(res) ? res : []);
+      setNotifications(items);
+      setUnreadCount(res?.unreadCount ?? items.filter((n) => !n.isRead).length);
+    } catch {
+      // Bỏ qua lỗi kết nối nền
+    } finally {
+      setLoadingNotifs(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationApi.markAllRead();
+      setNotifications((current) => current.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Lỗi đánh dấu tất cả đã đọc:', err);
+    }
+  };
+
+  const handleMarkOneRead = async (item) => {
+    if (item.isRead) return;
+    try {
+      await notificationApi.markRead(item.id || item.notificationId);
+      setNotifications((current) =>
+        current.map((n) =>
+          (n.id === item.id || n.notificationId === item.notificationId) ? { ...n, isRead: true } : n,
+        ),
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      console.error('Lỗi đánh dấu đã đọc:', err);
+    }
+  };
 
   return (
     <div className="flex h-[51px] items-center justify-between bg-topbar px-3 sm:px-[50px]">
@@ -42,29 +108,81 @@ export default function TopBar() {
         ) : null}
         {shopError ? <span role="alert" title={shopError} className="self-center text-xs text-red-300">Lỗi đồng bộ giỏ hàng/ví</span> : null}
         <div className="relative">
-          <button type="button" className={btn({ isActive: openMenu === 'notifications' })} aria-label="Thông báo" title="Thông báo" aria-expanded={openMenu === 'notifications'} onClick={() => toggleMenu('notifications')}>
+          <button
+            type="button"
+            className={btn({ isActive: openMenu === 'notifications' })}
+            aria-label={`Thông báo ${unreadCount > 0 ? `(${unreadCount} chưa đọc)` : ''}`}
+            title="Thông báo"
+            aria-expanded={openMenu === 'notifications'}
+            onClick={() => {
+              toggleMenu('notifications');
+              if (openMenu !== 'notifications') fetchNotifications();
+            }}
+          >
             <img className="h-[30px] w-auto" src="/assets/icon-bell.svg" alt="" />
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-md">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            ) : null}
             <img className="absolute bottom-1.5 right-1.5 size-[15px] rotate-90" src="/assets/caret-bell.svg" alt="" />
           </button>
           {openMenu === 'notifications' ? (
-            <section aria-label="Thông báo mới" className="absolute right-0 top-full z-50 mt-2 w-[288px] rounded-lg border border-stone-900 bg-zinc-950 p-3 shadow-2xl">
+            <section aria-label="Thông báo mới" className="absolute right-0 top-full z-50 mt-2 w-[320px] rounded-lg border border-stone-900 bg-zinc-950 p-3 shadow-2xl">
               <div className="flex items-center justify-between border-b border-white/20 pb-2">
-                <h2 className="m-0 text-sm font-semibold text-white/70">THÔNG BÁO MỚI</h2>
-                <button type="button" onClick={() => setAllRead(true)} className="text-xs font-semibold text-accent-light hover:underline">Đã đọc tất cả</button>
+                <div className="flex items-center gap-2">
+                  <h2 className="m-0 text-sm font-semibold text-white/70">THÔNG BÁO</h2>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-bold text-red-400">
+                      {unreadCount} mới
+                    </span>
+                  )}
+                </div>
+                {unreadCount > 0 && (
+                  <button type="button" onClick={handleMarkAllRead} className="text-xs font-semibold text-accent-light hover:underline">
+                    Đã đọc tất cả
+                  </button>
+                )}
               </div>
-              <ul className="m-0 list-none space-y-2 p-0 pt-3">
-                <li className="rounded-md border border-stone-900 bg-neutral-900 p-3">
-                  <p className={`m-0 text-xs ${allRead ? 'text-muted' : 'text-accent-light'}`}>Khuyến mãi</p>
-                  <p className="mb-1 mt-1 text-xs text-white">Game Counter Strike 2 vừa ra mắt battle pass mới</p>
-                  <span className="text-[10px] text-zinc-400">10 phút trước</span>
-                </li>
-                <li className="rounded-md border border-stone-900 bg-neutral-900 p-3">
-                  <p className="m-0 text-xs text-green-500">Nạp tiền thành công</p>
-                  <p className="mb-1 mt-1 text-xs text-white">Đã cộng 200.000 ₫ vào Ví Game</p>
-                  <span className="text-[10px] text-zinc-400">1 ngày trước</span>
-                </li>
+              <ul className="m-0 list-none space-y-2 p-0 pt-3 max-h-[360px] overflow-y-auto">
+                {loadingNotifs && notifications.length === 0 ? (
+                  <li className="p-3 text-center text-xs text-muted">Đang tải thông báo...</li>
+                ) : notifications.length === 0 ? (
+                  <li className="p-3 text-center text-xs text-muted">Không có thông báo nào</li>
+                ) : (
+                  notifications.map((item) => (
+                    <li
+                      key={item.id || item.notificationId}
+                      onClick={() => handleMarkOneRead(item)}
+                      className={`cursor-pointer rounded-md border p-3 transition-colors ${
+                        item.isRead
+                          ? 'border-white/5 bg-neutral-900/60 opacity-80'
+                          : 'border-indigo-500/30 bg-neutral-900 shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[11px] font-bold uppercase tracking-wider ${
+                          item.type === 'REFUND' || item.type === 'WARNING'
+                            ? 'text-yellow-400'
+                            : item.type === 'PURCHASE' || item.type === 'WALLET'
+                            ? 'text-emerald-400'
+                            : 'text-accent-light'
+                        }`}>
+                          {item.type || 'Hệ thống'}
+                        </span>
+                        {!item.isRead && (
+                          <span className="size-2 rounded-full bg-accent" title="Chưa đọc" />
+                        )}
+                      </div>
+                      <p className="mb-1 mt-1 text-xs text-white leading-relaxed">{item.content}</p>
+                      <span className="text-[10px] text-zinc-400">{timeAgo(item.sentAt)}</span>
+                    </li>
+                  ))
+                )}
               </ul>
-              <Link to="/settings" onClick={() => setOpenMenu('')} className="mt-3 block text-center text-xs font-bold text-accent-light">Xem tất cả thông báo</Link>
+              <Link to="/settings" onClick={() => setOpenMenu('')} className="mt-3 block text-center text-xs font-bold text-accent-light hover:underline">
+                Cài đặt thông báo
+              </Link>
             </section>
           ) : null}
         </div>
