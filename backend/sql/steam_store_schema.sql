@@ -167,7 +167,7 @@ CREATE TABLE SALECAMPAIGN (
   PRIMARY KEY (CampaignID),
   KEY idx_sale_window (GameID, StartDate, EndDate),
   CONSTRAINT fk_sale_game FOREIGN KEY (GameID) REFERENCES GAME(GameID),
-  CONSTRAINT ck_sale_percent CHECK (PercentOff BETWEEN 1 AND 90),
+  CONSTRAINT ck_sale_percent CHECK (PercentOff BETWEEN 1 AND 100),
   CONSTRAINT ck_sale_dates   CHECK (EndDate > StartDate)
 ) ENGINE=InnoDB;
 

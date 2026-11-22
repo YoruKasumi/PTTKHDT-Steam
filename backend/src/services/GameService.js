@@ -3,7 +3,13 @@ const path = require('path');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const BaseService = require('./BaseService');
-const { NghiepVuException, NotFoundException, ConflictException, ValidationException } = require('../exceptions');
+const {
+  NghiepVuException,
+  NotFoundException,
+  ConflictException,
+  UnauthorizedException,
+  ValidationException,
+} = require('../exceptions');
 const GameDAO = require('../dao/GameDAO');
 const StorageClient = require('../integrations/StorageClient');
 const { validateAndProcessBuildZip } = require('../utils/autoDrmPackager');
@@ -79,6 +85,11 @@ class GameService extends BaseService {
     return { result: 'clean', scannedAt: new Date().toISOString() };
   }
 
+  async layDanhSachDuAnCuaToi(params = {}) {
+    const developerId = params.user?.accountId;
+    if (!developerId) throw new UnauthorizedException();
+    return this.gameDAO.layDanhSachGameTheoDeveloper(developerId);
+  }
 
   async luuHoSoDuAnGame(params = {}) {
     const { title, description, price, minSpec, recSpec, genreIds, versionNumber = '1.0.0', changeLog, tempFilePath, user } = params;

@@ -265,6 +265,7 @@ function RollbackModal({ game, onClose, onSuccess }) {
 export default function DeveloperGames() {
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [projectsError, setProjectsError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [patchTarget, setPatchTarget] = useState(null);   // game đang upload patch
   const [rollbackTarget, setRollbackTarget] = useState(null); // game đang rollback
@@ -279,32 +280,30 @@ export default function DeveloperGames() {
   // ── Tải danh sách game của developer từ API ──────────────────────────────
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
+    setProjectsError('');
     try {
-      // Thử endpoint /api/game/myGames (nếu có), fallback về dữ liệu mock
-      const res = await http.get('/game/myGames').catch(() => null);
-      if (res) {
-        const rawList = Array.isArray(res) ? res : (res.items || []);
-        const list = rawList.map((g) => ({
-          id: g.GameID ?? g.gameId,
-          title: g.Title ?? g.title,
-          genres: g.Genres ?? g.genres ?? '—',
-          status: g.Status ?? g.status ?? 'Pending',
-          build: g.VersionNumber ? `v${g.VersionNumber}` : (g.build ?? 'v1.0.0'),
-          price: Number(g.Price ?? g.price ?? 0),
-          discount: Number(g.Discount ?? g.discount ?? 0),
-          startDate: g.SaleStart ?? g.startDate,
-          endDate: g.SaleEnd ?? g.endDate,
-          fileSize: g.FileSize ?? g.fileSize,
-          sha256: g.Sha256 ?? g.sha256,
-          hasDrmJs: g.HasDrmJs ?? g.hasDrmJs ?? false,
-          hasManifest: g.HasManifest ?? g.hasManifest ?? false,
-        }));
-        setProjects(list);
-        if (!priceGameId && list.length) setPriceGameId(list[0].id);
-        if (!saleGameId && list.length) setSaleGameId(list[0].id);
-      }
-    } catch (_) {
-      // Server chưa có endpoint myGames → dùng mock (phát triển)
+      const response = await gameApi.listMyGames();
+      const list = (Array.isArray(response) ? response : []).map((game) => ({
+        id: game.GameID,
+        title: game.Title,
+        genres: game.Genres || '—',
+        status: game.Status,
+        build: game.VersionNumber ? `v${game.VersionNumber}` : 'v1.0.0',
+        price: Number(game.Price || 0),
+        discount: Number(game.Discount || 0),
+        startDate: game.SaleStart,
+        endDate: game.SaleEnd,
+        fileSize: game.FileSize,
+        sha256: game.Sha256,
+        hasDrmJs: game.HasDrmJs || false,
+        hasManifest: game.HasManifest || false,
+      }));
+      // Endpoint đã có dữ liệu thật; danh sách rỗng được hiển thị như trạng thái chưa có dự án, không thay bằng mock.
+      setProjects(list);
+      if (!priceGameId && list.length) setPriceGameId(list[0].id);
+      if (!saleGameId && list.length) setSaleGameId(list[0].id);
+    } catch (error) {
+      setProjectsError(error?.message || 'Không thể tải danh sách dự án.');
     } finally {
       setLoadingProjects(false);
     }
@@ -372,8 +371,11 @@ export default function DeveloperGames() {
       return;
     }
     try {
-      await http.post('/game/yeuCauThietLapGia', { gameId: priceGame.id, newPrice: price }).catch(() => null);
-    } catch (_) { /* server xử lý */ }
+      await http.post('/game/yeuCauThietLapGia', { gameId: priceGame.id, newPrice: price });
+    } catch (error) {
+      setMessage(error?.message || 'Không thể cập nhật giá bán.');
+      return;
+    }
     setProjects((current) =>
       current.map((p) => (p.id === priceGame.id ? { ...p, price } : p)),
     );
@@ -449,7 +451,9 @@ export default function DeveloperGames() {
           </button>
         </div>
 
-        {loadingProjects ? (
+        {projectsError ? (
+          <p role="alert" className="mt-6 text-center text-red-400">{projectsError}</p>
+        ) : loadingProjects ? (
           <p className="mt-6 text-center text-muted">Đang tải danh sách game...</p>
         ) : projects.length === 0 ? (
           <p className="mt-6 text-center text-muted">

@@ -23,7 +23,11 @@ class ModerationService extends BaseService {
    * UC38. Lấy danh sách game chờ duyệt.
    */
   async yeuCauLayHoSoGameChoDuyet(params = {}) {
-    const rows = await this.moderationDAO.truyVanDanhSachGameChoDuyet();
+    const status = params.status || 'Pending';
+    if (!['Pending', 'Approved', 'Rejected', 'Delisted', 'Hidden'].includes(status)) {
+      throw new ValidationException('Trạng thái game không hợp lệ.');
+    }
+    const rows = await this.moderationDAO.truyVanDanhSachGameChoDuyet({ status });
     return rows.map((row) => ({
       gameId: row.GameID,
       title: row.Title,
@@ -95,9 +99,8 @@ class ModerationService extends BaseService {
       throw new ValidationException('decision phải là Approved | Rejected | EmergencyDelist.');
     }
 
-    // ck_gr_reason: Rejected bắt buộc có Reason không rỗng
-    if (decision === 'Rejected' && (!reason || !reason.trim())) {
-      throw new ValidationException('Lý do từ chối (reason) là bắt buộc và không được rỗng.');
+    if (decision !== 'Approved' && (!reason || !reason.trim())) {
+      throw new ValidationException('Lý do từ chối hoặc gỡ khẩn cấp là bắt buộc và không được rỗng.');
     }
 
     // Lấy thông tin game + phiên bản hiện hành

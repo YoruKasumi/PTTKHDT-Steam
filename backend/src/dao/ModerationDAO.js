@@ -53,10 +53,10 @@ class ModerationDAO extends BaseDAO {
        FROM GAME g
        INNER JOIN ACCOUNT a ON a.AccountID = g.DeveloperID
        LEFT JOIN GAMEVERSION gv ON gv.GameID = g.GameID AND gv.IsCurrent = 1
-       WHERE g.Status = 'Pending'
+       WHERE g.Status = ?
        ORDER BY gv.UploadDate DESC
        LIMIT 200`,
-      [],
+      [params.status || 'Pending'],
       conn,
     );
   }

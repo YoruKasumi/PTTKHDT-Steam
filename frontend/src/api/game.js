@@ -31,4 +31,6 @@ export const gameApi = {
    * @param {string} versionId
    */
   rollback: (gameId, versionId) => http.post(`/game/${gameId}/rollback`, { versionId }),
+
+  listMyGames: () => http.get('/game/myGames'),
 };

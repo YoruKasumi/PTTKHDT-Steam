@@ -4,7 +4,7 @@ const BaseDAO = require('./BaseDAO');
 class ReportDAO extends BaseDAO {
   async truyVanGiaoDichThanhCong(params = {}, conn = null) {
     let filterDate = '';
-    const queryParams = [params.developerId];
+    const queryParams = [];
 
     if (params.fromDate) {
       filterDate += ' AND o.OrderDate >= ?';
@@ -14,14 +14,15 @@ class ReportDAO extends BaseDAO {
       filterDate += ' AND o.OrderDate <= ?';
       queryParams.push(params.toDate);
     }
+    queryParams.push(params.developerId);
 
     const sql = `
       SELECT 
         g.GameID,
         g.Title,
         g.Price,
-        COUNT(oi.OrderID) AS UnitsSold,
-        COALESCE(SUM(oi.PriceAfterDiscount), 0) AS GrossSales
+        COUNT(CASE WHEN o.OrderID IS NOT NULL THEN oi.GameID END) AS UnitsSold,
+        COALESCE(SUM(CASE WHEN o.OrderID IS NOT NULL THEN oi.PriceAfterDiscount ELSE 0 END), 0) AS GrossSales
       FROM GAME g
       LEFT JOIN ORDERITEM oi ON g.GameID = oi.GameID
       LEFT JOIN ORDERS o ON oi.OrderID = o.OrderID AND o.Status = 'Completed' ${filterDate}
@@ -127,7 +128,7 @@ class ReportDAO extends BaseDAO {
 
   async truyVanCacDonHangHoanTienThanhCong(params = {}, conn = null) {
     const sql = `
-      SELECT r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate, r.RequestDate AS ProcessedAt
+      SELECT r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate
       FROM REFUNDREQUEST r
       JOIN ORDERS o ON r.OrderID = o.OrderID
       WHERE r.Status = 'Approved'
