@@ -5,6 +5,8 @@ const links = [
   { to: '/admin/staff', label: 'Nhân sự', adminOnly: true },
   { to: '/admin/rbac', label: 'Phân quyền', adminOnly: true },
   { to: '/admin/reviews', label: 'Đánh giá', permission: 'review.moderate', adminOnly: false },
+  { to: '/moderation/community', label: 'Cộng đồng', permission: 'community.moderate', adminOnly: false },
+  { to: '/finance/overview', label: 'Tài chính', permission: 'finance.read', adminOnly: false },
   { to: '/admin/genres-banners', label: 'Thể loại & banner', permission: ['genres.manage', 'banners.manage'], adminOnly: false },
   { to: '/admin/audit-logs', label: 'Nhật ký', adminOnly: true },
   { to: '/admin/games', label: 'Kiểm duyệt game', permission: 'game.approve', adminOnly: false },

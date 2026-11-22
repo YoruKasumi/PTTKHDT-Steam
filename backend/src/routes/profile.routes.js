@@ -9,6 +9,10 @@ const { authService, profileService } = require('../services');
 
 const router = express.Router();
 
+router.get('/', authenticate, asyncHandler(async (req, res) => (
+  ok(res, await profileService.getProfile(requestContext(req)))
+)));
+
 /** UC4. Cập nhật hồ sơ cá nhân (#3)  | quyền: Authenticated */
 router.post('/guiTenHienThiMoi', authenticate, asyncHandler(async (req, res) => ok(res, await profileService.guiTenHienThiMoi(requestContext(req)))));
 

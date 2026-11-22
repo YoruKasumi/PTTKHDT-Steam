@@ -35,6 +35,10 @@ export const adminApi = {
   moderateReview: (reviewId, status, reason) => (
     http.patch(`/moderation/reviews/${reviewId}/status`, { status, reason })
   ),
+  listCommunityReviews: () => http.get('/moderation/yeuCauDanhSachNoiDungGanCo'),
+  moderateCommunityReview: (reviewId, status, reason) => (
+    http.post('/moderation/capNhatTrangThaiKiemDuyet', { reviewId, status, reason })
+  ),
 
   listPendingGames: () => http.get('/moderation/games'),
   getGameDetail: (gameId) => http.get(`/moderation/games/${encodeURIComponent(gameId)}`),

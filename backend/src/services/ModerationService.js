@@ -229,7 +229,7 @@ class ModerationService extends BaseService {
     return this.transaction(async (conn) => {
       const review = await this.moderationDAO.layDanhGiaTheoId({ reviewId: params.reviewId }, conn);
       if (!review) throw new NotFoundException('Không tìm thấy đánh giá');
-      await this.moderationDAO.capNhatTrangThaiDanhGia({ reviewId: params.reviewId, status }, conn);
+      await this.moderationDAO.luuTrangThaiKiemDuyet({ reviewId: params.reviewId, status }, conn);
       if (this.auditLogService) {
         await this.auditLogService.recordLog({
           accountId: params.user.accountId,
@@ -263,17 +263,28 @@ class ModerationService extends BaseService {
   }
 
   /**
-   * UC47. Danh sách nội dung bị gắn cờ.
+   * UC47. Danh sách đánh giá game hiện có.
    */
   async yeuCauDanhSachNoiDungGanCo(params = {}) {
-    throw new NotImplementedException('ModerationService.yeuCauDanhSachNoiDungGanCo');
+    const rows = await this.moderationDAO.truyVanNoiDungBiGanCo(params);
+    return rows.map((row) => ({
+      reviewId: row.ReviewID,
+      customerId: row.CustomerID,
+      username: row.Username,
+      gameId: row.GameID,
+      gameTitle: row.GameTitle,
+      rating: Number(row.Rating),
+      content: row.Content,
+      reviewDate: row.ReviewDate,
+      status: row.Status,
+    }));
   }
 
   /**
    * UC47. Cập nhật trạng thái kiểm duyệt.
    */
   async capNhatTrangThaiKiemDuyet(params = {}) {
-    throw new NotImplementedException('ModerationService.capNhatTrangThaiKiemDuyet');
+    return this.yeuCauXuLyDanhGiaViPham(params);
   }
 
   // ─── Phương thức nội bộ ──────────────────────────────────────────────────

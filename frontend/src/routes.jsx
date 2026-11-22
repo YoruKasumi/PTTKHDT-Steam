@@ -1,6 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ScreenPlaceholder from './pages/ScreenPlaceholder';
+import NotFound from './pages/NotFound';
+import Profile from './pages/Profile';
 import Cart from './pages/cart/Cart';
 import Wallet from './pages/wallet/Wallet';
 import Settings from './pages/settings/Settings';
@@ -19,6 +21,9 @@ import AdminReviews from './pages/admin/AdminReviews';
 import AdminGenresBanners from './pages/admin/AdminGenresBanners';
 import AdminSystemConfig from './pages/admin/AdminSystemConfig';
 import AdminAuditLogs from './pages/admin/AdminAuditLogs';
+import AdminFinance from './pages/admin/AdminFinance';
+import CommunityModeration from './pages/admin/CommunityModeration';
+import DeveloperPatches from './pages/developer/DeveloperPatches';
 import Wishlist from './pages/Wishlist';
 import Library from './pages/Library';
 import GameDetail from './pages/GameDetail';
@@ -27,6 +32,12 @@ import WalletTransactions from './pages/wallet/WalletTransactions';
 import CatalogSearch from './pages/CatalogSearch';
 
 function getRouteAccess(path) {
+  if (path === '/profile') {
+    return { allowedRoles: ['Customer', 'Developer', 'Admin', 'Manager'] };
+  }
+  if (path === '/moderation/community') {
+    return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['community.moderate'] };
+  }
   if (path === '/developer/register') return { allowedRoles: ['Customer', 'Developer', 'Admin'] };
   if (path.startsWith('/developer/')) return { allowedRoles: ['Developer', 'Admin'] };
   if (path === '/admin/accounts') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['account.moderate'] };
@@ -75,6 +86,8 @@ export const pendingScreens = [
   { path: "/admin/games", title: "Kiểm duyệt phát hành game", node: "146:2", uc: "UC38-41 ModerationService" },
   { path: "/admin/keys", title: "Phê duyệt kích hoạt Key", node: "146:44", uc: "chưa có trong sequence" },
   { path: "/admin/withdrawals", title: "Duyệt rút doanh thu", node: "146:66", uc: "UC57 WithdrawalService" },
+  { path: "/moderation/community", title: "Kiểm duyệt cộng đồng", uc: "UC47 ModerationService" },
+  { path: "/finance/overview", title: "Tài chính sàn", uc: "UC50-56 FinanceService" },
   { path: "/admin/system-config", title: "Cấu hình hệ thống", node: "147:2", uc: "UC58 SystemConfigService" },
   { path: "/admin/rbac", title: "Ma trận phân quyền", node: "147:42", uc: "UC59 RbacService" },
   { path: "/admin/staff", title: "Quản lý nhân sự", node: "147:110", uc: "UC61-63 StaffService" },
@@ -97,10 +110,12 @@ export const routes = [
         '/games/:id': <GameDetail />,
         '/library': <Library />,
         '/wishlist': <Wishlist />,
+        '/profile': <Profile />,
         '/orders': <Orders />,
         '/developer/register': <DeveloperRegistration />,
         '/developer/profile': <DeveloperProfile />,
         '/developer/games': <DeveloperGames />,
+        '/developer/patches': <DeveloperPatches />,
         '/developer/keys': <DeveloperKeys />,
         '/developer/revenue': <DeveloperRevenue />,
         '/admin/accounts': <AdminAccounts />,
@@ -112,8 +127,11 @@ export const routes = [
           '/admin/audit-logs': <AdminAuditLogs />,
           '/admin/games': <AdminGames />,
           '/admin/withdrawals': <AdminWithdrawals />,
+          '/moderation/community': <CommunityModeration />,
+          '/finance/overview': <AdminFinance />,
         '/admin/keys': <AdminKeyApprovals />,
       }[screen.path] ?? <ScreenPlaceholder screen={screen} />,
       ...getRouteAccess(screen.path),
     })),
+  { path: '*', element: <NotFound /> },
 ];
