@@ -2,7 +2,12 @@
 const BaseService = require('./BaseService');
 const WithdrawalDAO = require('../dao/WithdrawalDAO');
 const crypto = require('crypto');
-const { NghiepVuException, ValidationException, NotFoundException, ForbiddenException } = require('../exceptions');
+const {
+  NghiepVuException,
+  ValidationException,
+  NotFoundException,
+  UnauthorizedException,
+} = require('../exceptions');
 
 /**
  * WithdrawalService - tầng Business Logic cho Rút doanh thu NPH và Duyệt chi.
@@ -19,7 +24,9 @@ class WithdrawalService extends BaseService {
   async guiYeuCauRutDoanhThu(params = {}) {
     const developerId = params.user?.accountId || params.developerId;
     const amount = this.kiemTraHanMucRutToiThieu(params);
-    const bankInfo = params.bankInfo;
+    const bankInfo = typeof params.bankInfo === 'string' ? params.bankInfo.trim() : '';
+    if (!bankInfo) throw new ValidationException('Vui lòng cung cấp thông tin tài khoản nhận tiền.');
+    if (bankInfo.length > 100) throw new ValidationException('Thông tin tài khoản nhận tiền không được vượt quá 100 ký tự.');
 
     return this.transaction(async (conn) => {
       const fin = await this.withdrawalDAO.kiemTraSoTienKhaDung({ developerId }, conn);
@@ -36,7 +43,7 @@ class WithdrawalService extends BaseService {
         requestId,
         developerId,
         amount,
-        bankInfo: bankInfo || 'Tài khoản theo hồ sơ NPH'
+        bankInfo
       }, conn);
 
       return {
@@ -50,12 +57,36 @@ class WithdrawalService extends BaseService {
 
   async layChiTietLenhRutTien(params = {}) {
     const { requestId } = params;
-    if (!requestId) throw new ValidationException('Thiếu mã yêu cầu rút tiền');
+    if (!requestId) {
+      const status = params.status || 'Pending';
+      if (!['Pending', 'Approved', 'Rejected', 'all'].includes(status)) {
+        throw new ValidationException('Trạng thái lệnh rút tiền không hợp lệ.');
+      }
+      return this.withdrawalDAO.layDanhSachLenhRutTien({ status });
+    }
     const detail = await this.withdrawalDAO.truyVanChiTietLenhRutVaThongTinNganHang({ requestId });
     if (!detail) throw new NotFoundException('Không tìm thấy yêu cầu rút tiền');
     return detail;
   }
 
+  async yeuCauXemLichSuRutTien(params = {}) {
+    const developerId = params.user?.accountId;
+    if (!developerId) throw new UnauthorizedException();
+    const [finances, withdrawals] = await Promise.all([
+      this.withdrawalDAO.kiemTraSoTienKhaDung({ developerId }),
+      this.withdrawalDAO.layLichSuRutTien(developerId),
+    ]);
+    return {
+      availableRevenue: finances.availableRevenue,
+      withdrawals: withdrawals.map((row) => ({
+        requestId: row.RequestID,
+        amount: Number(row.Amount),
+        bankInfo: row.BankInfo,
+        status: row.Status,
+        requestDate: row.RequestDate,
+      })),
+    };
+  }
 
   async guiYeuCauTuChoi(params = {}) {
     const { requestId, reason } = params;

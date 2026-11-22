@@ -98,8 +98,8 @@ class PromotionService extends BaseService {
 
   kiemTraPhanTramGiaSale(params = {}) {
     const discount = parseInt(params.percentOff, 10);
-    if (isNaN(discount) || discount < 5 || discount > 90) {
-      throw new ValidationException('Tỷ lệ giảm giá khuyến mãi phải từ 5% đến 90%', 'ERR_INVALID_SALE_PARAMS');
+    if (isNaN(discount) || discount < 5 || discount > 100) {
+      throw new ValidationException('Tỷ lệ giảm giá khuyến mãi phải từ 5% đến 100%', 'ERR_INVALID_SALE_PARAMS');
     }
     return discount;
   }

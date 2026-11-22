@@ -112,7 +112,7 @@ describe('UC30/31 & UC50/51/53/55: Báo cáo doanh thu & Tài chính sàn', () =
     assert.equal(result.data.recentRefunds[0].CustomerID, 'cus-1');
   });
 
-  it('ReportDAO SQL Query syntax verification: Không còn các cột sai lược đồ', () => {
+  it('ReportDAO SQL Query syntax verification: Không còn các cột sai lược đồ', async () => {
     const dao = new ReportDAO();
     // Tạo stub query method để bắt lại câu lệnh SQL thực thi
     let capturedQueries = [];
@@ -125,10 +125,10 @@ describe('UC30/31 & UC50/51/53/55: Báo cáo doanh thu & Tài chính sàn', () =
       return {};
     };
 
-    dao.truyVanGiaoDichThanhCong({ developerId: 'dev-1', fromDate: '2026-01-01', toDate: '2026-01-31' });
-    dao.truyVanDuLieuTaiChinhRealTime();
-    dao.truyVanDonHangThanhCongTheoThoiGian();
-    dao.truyVanCacDonHangHoanTienThanhCong();
+    await dao.truyVanGiaoDichThanhCong({ developerId: 'dev-1', fromDate: '2026-01-01', toDate: '2026-01-31' });
+    await dao.truyVanDuLieuTaiChinhRealTime();
+    await dao.truyVanDonHangThanhCongTheoThoiGian();
+    await dao.truyVanCacDonHangHoanTienThanhCong();
 
     for (const { sql } of capturedQueries) {
       assert.doesNotMatch(sql, /OrderItemID/i, 'Không được chứa OrderItemID');
@@ -137,5 +137,11 @@ describe('UC30/31 & UC50/51/53/55: Báo cáo doanh thu & Tài chính sàn', () =
       assert.doesNotMatch(sql, /RequestedAt/i, 'Không được chứa RequestedAt');
       assert.doesNotMatch(sql, /r\.CustomerID/i, 'CustomerID phải từ bảng ORDERS o');
     }
+    const sales = capturedQueries.find(({ sql }) => /UnitsSold/.test(sql));
+    assert.match(sales.sql, /COUNT\(CASE WHEN o\.OrderID IS NOT NULL THEN oi\.GameID END\)/);
+    assert.deepEqual(sales.params, ['2026-01-01', '2026-01-31', 'dev-1']);
+    const refunds = capturedQueries.find(({ sql }) => /RequestDate/.test(sql));
+    assert.match(refunds.sql, /r\.RequestDate/);
+    assert.doesNotMatch(refunds.sql, /ProcessedAt/);
   });
 });

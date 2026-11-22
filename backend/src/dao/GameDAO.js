@@ -88,6 +88,21 @@ class GameDAO extends BaseDAO {
     return this.listApprovedGames({ ...params, sort: 'price' }, conn);
   }
 
+  async layDanhSachGameTheoDeveloper(developerId, conn = null) {
+    return this.query(
+      `SELECT g.GameID, g.Title, g.Status, g.Price,
+              COALESCE(GROUP_CONCAT(DISTINCT genre.GenreName ORDER BY genre.GenreName SEPARATOR ', '), '') AS Genres
+       FROM GAME AS g
+       LEFT JOIN GAME_GENRE AS gameGenre ON gameGenre.GameID = g.GameID
+       LEFT JOIN GENRE AS genre ON genre.GenreID = gameGenre.GenreID
+       WHERE g.DeveloperID = ?
+       GROUP BY g.GameID, g.Title, g.Status, g.Price
+       ORDER BY g.GameID DESC`,
+      [developerId],
+      conn,
+    );
+  }
+
   async layThongTinSanPham(params = {}, conn = null) {
     return this.one(
       `SELECT g.GameID, g.Title, g.Description, g.CoverImage, g.TrailerUrl,

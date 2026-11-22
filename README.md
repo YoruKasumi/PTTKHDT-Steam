@@ -9,6 +9,7 @@ Tên phương thức trong `services/`, `dao/`, `integrations/` lấy đúng t�
 backend/
 ├─ package.json, .env.example, .gitignore
 ├─ sql/                          steam_store_schema.sql, steam_store_sample_data.sql, extra_tables.sql
+├─ Dockerfile                    image backend
 ├─ docs/                         sequence_method_map.md, frontend_handlers.md, needs_review.md
 ├─ storage/                      uploads/ (tạm), builds/ (file game khi dùng driver local)
 ├─ tests/
@@ -36,6 +37,24 @@ npm run dev
 ```
 
 Kiểm tra: `GET http://localhost:3000/health`. Các API có dạng `/api/<service>/<tenHamTrongSequence>`, ví dụ `POST /api/auth/guiThongTinDangKy`.
+
+## Chạy frontend, backend và MySQL bằng Docker
+
+Cần Docker Desktop ở chế độ Linux containers. Từ thư mục gốc repository, tạo file cấu hình cục bộ nếu chưa có rồi thay mật khẩu mẫu bằng mật khẩu riêng:
+
+```powershell
+if (!(Test-Path .env.docker)) { Copy-Item .env.docker.example .env.docker }
+```
+
+Khởi động toàn bộ stack:
+
+```powershell
+docker compose --env-file .env.docker up --build -d
+```
+
+Frontend: `http://localhost:5173`; API và tài liệu API được proxy cùng origin tại `/api` và `/api-docs`; MySQL chỉ mở trên máy local tại cổng `3307`. Backend chỉ truy cập trong mạng Docker. Docker dùng MySQL riêng, không sửa DB MySQL đang chạy ngoài Docker. Lần khởi tạo đầu tiên nạp schema, dữ liệu mẫu và ba game Tetris/Snake/Sudoku; file game được đọc từ `backend/storage` trên máy nên cần giữ thư mục này.
+
+Dừng stack bằng `docker compose --env-file .env.docker down`. MySQL lưu trong named volume `mysql_data`; không dùng `down -v` trừ khi muốn xóa toàn bộ DB Docker. Các file SQL khởi tạo chỉ chạy khi volume DB còn trống.
 
 ## Quy ước
 

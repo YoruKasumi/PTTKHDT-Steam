@@ -6,6 +6,7 @@ const AccountDAO = require('../src/dao/AccountDAO');
 const AuthService = require('../src/services/AuthService');
 const CatalogService = require('../src/services/CatalogService');
 const GameDAO = require('../src/dao/GameDAO');
+const GameService = require('../src/services/GameService');
 const ProfileService = require('../src/services/ProfileService');
 const password = require('../src/utils/password');
 
@@ -145,6 +146,30 @@ test('catalog DAO composes approved-only filters and uses the sale-price view', 
   assert.match(query.sql, /REVIEW WHERE Status = 'Visible'/);
   assert.match(query.sql, /price\.CurrentPrice DESC/);
   assert.deepEqual(query.params, ['%Example%', '%Example%', 'genre-1', 10, 100]);
+});
+
+test('developer project listing is scoped to the authenticated developer and returns genres', async () => {
+  const dao = new GameDAO();
+  let received;
+  dao.query = async (sql, params) => {
+    received = { sql, params };
+    return [{ GameID: 'game-1', Title: 'Example', Status: 'Pending', Price: '1000.00', Genres: 'Action' }];
+  };
+  const rows = await dao.layDanhSachGameTheoDeveloper('developer-1');
+  assert.deepEqual(received.params, ['developer-1']);
+  assert.match(received.sql, /WHERE g\.DeveloperID = \?/);
+  assert.match(received.sql, /GROUP_CONCAT\(DISTINCT genre\.GenreName/);
+  assert.match(received.sql, /ORDER BY g\.GameID DESC/);
+  assert.equal(rows[0].Genres, 'Action');
+
+  const service = new GameService();
+  let developerId;
+  service.gameDAO.layDanhSachGameTheoDeveloper = async (id) => {
+    developerId = id;
+    return rows;
+  };
+  assert.deepEqual(await service.layDanhSachDuAnCuaToi({ user: { accountId: 'developer-1' } }), rows);
+  assert.equal(developerId, 'developer-1');
 });
 
 test('catalog applies combined validated filters and maps database prices to numbers', async () => {

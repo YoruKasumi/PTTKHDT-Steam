@@ -62,6 +62,8 @@ npm run db:sample
 
 `db:sample` là tùy chọn nếu cần dữ liệu mẫu. **Cẩn thận:** `sql/steam_store_schema.sql` xóa và tạo lại các bảng trong `steam_store`; chỉ chạy trên database mới hoặc sau khi đã sao lưu dữ liệu cần giữ. Các lệnh `db:*` dùng MySQL CLI (`mysql`) và cần MySQL `bin` có trong `PATH`. Có thể thay bằng Workbench: kết nối `localhost:3306` với user MySQL của bạn, mở file SQL tương ứng trong thư mục `sql/`, rồi Execute.
 
+Để nâng database đã tạo trước đó lên mức giảm giá tối đa 100%, chạy một lần `sql/migrate_sale_max_100_percent.sql`; không chạy lại `db:schema` trên database đang có dữ liệu.
+
 Khởi động backend:
 
 ```powershell

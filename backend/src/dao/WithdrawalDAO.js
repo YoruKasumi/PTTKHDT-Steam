@@ -71,6 +71,33 @@ class WithdrawalDAO extends BaseDAO {
     return this.one(sql, [params.requestId], conn);
   }
 
+  async layDanhSachLenhRutTien(params = {}, conn = null) {
+    if (params.status === 'all') {
+      return this.query(
+        `SELECT w.RequestID, w.DeveloperID, w.Amount, w.BankInfo, w.Status, w.RequestDate,
+                d.CompanyName, d.BankAccount, d.VerifyStatus
+         FROM WITHDRAWALREQUEST AS w
+         INNER JOIN DEVELOPER AS d ON d.AccountID = w.DeveloperID
+         ORDER BY w.RequestDate DESC
+         LIMIT 200`,
+        [],
+        conn,
+      );
+    }
+
+    return this.query(
+      `SELECT w.RequestID, w.DeveloperID, w.Amount, w.BankInfo, w.Status, w.RequestDate,
+              d.CompanyName, d.BankAccount, d.VerifyStatus
+       FROM WITHDRAWALREQUEST AS w
+       INNER JOIN DEVELOPER AS d ON d.AccountID = w.DeveloperID
+       WHERE w.Status = ?
+       ORDER BY w.RequestDate DESC
+       LIMIT 200`,
+      [params.status || 'Pending'],
+      conn,
+    );
+  }
+
   async hoanLaiSoDuTamGiuVaoViNPH(params = {}, conn = null) {
     const sql = `
       UPDATE WITHDRAWALREQUEST 

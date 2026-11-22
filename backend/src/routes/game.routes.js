@@ -131,6 +131,12 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await gameService.yeuCauThietLapGia({ user: req.user, ...req.body }))),
 );
 
+router.get(
+  '/myGames',
+  authenticate, authorize('Developer'),
+  asyncHandler(async (req, res) => ok(res, await gameService.layDanhSachDuAnCuaToi({ user: req.user }))),
+);
+
 /** UC29. Lấy danh sách phiên bản để rollback */
 router.get(
   '/:gameId/versions',

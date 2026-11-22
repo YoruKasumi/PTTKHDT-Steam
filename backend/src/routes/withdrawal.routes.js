@@ -12,6 +12,10 @@ const router = express.Router();
 /** UC33. Rút doanh thu về ngân hàng (#2)  | quyền: Developer */
 router.post('/guiYeuCauRutDoanhThu', authenticate, authorize('Developer'), asyncHandler(async (req, res) => ok(res, await withdrawalService.guiYeuCauRutDoanhThu(requestContext(req)))));
 
+router.get('/myRequests', authenticate, authorize('Developer'), asyncHandler(async (req, res) => (
+  ok(res, await withdrawalService.yeuCauXemLichSuRutTien(requestContext(req)))
+)));
+
 /** UC57. Phê duyệt rút doanh thu (#2)  | quyền: Admin, Manager */
 router.post('/layChiTietLenhRutTien', authenticate, authorize('Admin', 'Manager'), requirePermission('withdrawal.approve'), asyncHandler(async (req, res) => ok(res, await withdrawalService.layChiTietLenhRutTien(requestContext(req)))));
 

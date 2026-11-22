@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AdminShell from '../../components/admin/AdminShell';
-import { adminApi } from '../../api/admin';
+import { moderationApi } from '../../api/moderation';
 import { formatVnd } from '../../utils/format';
 
 function formatBytes(bytes) {
@@ -28,7 +28,7 @@ export default function AdminGames() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('Pending');
 
   // Modal chi tiết & phê duyệt
   const [selectedGame, setSelectedGame] = useState(null);
@@ -40,11 +40,11 @@ export default function AdminGames() {
   const [actionReason, setActionReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const loadGames = async () => {
+  const loadGames = async (status = statusFilter) => {
     setLoading(true);
     setError('');
     try {
-      const data = await adminApi.listPendingGames();
+      const data = await moderationApi.listPendingGames({ status });
       setGames(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err?.message || 'Lỗi tải danh sách game chờ duyệt.');
@@ -62,7 +62,7 @@ export default function AdminGames() {
     setDetailError('');
     setSelectedGame({ gameId });
     try {
-      const detail = await adminApi.getGameDetail(gameId);
+      const detail = await moderationApi.getGameProfile(gameId);
       setSelectedGame(detail);
     } catch (err) {
       setDetailError(err?.message || 'Không thể lấy thông tin chi tiết game.');
@@ -83,8 +83,8 @@ export default function AdminGames() {
     const { game, decision } = actionTarget;
     const reason = actionReason.trim();
 
-    if (decision === 'Rejected' && !reason) {
-      setError('Bắt buộc phải nhập lý do khi từ chối phát hành game.');
+    if (decision !== 'Approved' && !reason) {
+      setError('Bắt buộc phải nhập lý do khi từ chối hoặc gỡ game khẩn cấp.');
       return;
     }
 
@@ -92,7 +92,7 @@ export default function AdminGames() {
     setError('');
     setNotice('');
     try {
-      const res = await adminApi.reviewGame(game.gameId ?? game.id, decision, reason || undefined);
+      const res = await moderationApi.reviewGame(game.gameId ?? game.id, decision, reason || undefined);
       setNotice(
         `Game "${game.title}" đã được ${
           decision === 'Approved' ? 'phê duyệt thành công!' : decision === 'Rejected' ? 'từ chối.' : 'gỡ bỏ khẩn cấp.'
@@ -149,10 +149,13 @@ export default function AdminGames() {
           />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              const status = e.target.value;
+              setStatusFilter(status);
+              loadGames(status);
+            }}
             className="rounded-lg border border-line bg-page px-3 py-2 text-sm text-white outline-none focus:border-accent"
           >
-            <option value="">Tất cả trạng thái</option>
             <option value="Pending">Chờ duyệt (Pending)</option>
             <option value="Approved">Đã duyệt (Approved)</option>
             <option value="Rejected">Bị từ chối (Rejected)</option>
@@ -398,7 +401,7 @@ export default function AdminGames() {
             ) : (
               <div>
                 <label className="block text-xs font-bold text-muted mb-1">
-                  Lý do {actionTarget.decision === 'Rejected' ? '(bắt buộc)' : '(tùy chọn)'}:
+                Lý do {actionTarget.decision === 'Rejected' || actionTarget.decision === 'EmergencyDelist' ? '(bắt buộc)' : '(tùy chọn)'}:
                 </label>
                 <textarea
                   value={actionReason}
@@ -406,7 +409,7 @@ export default function AdminGames() {
                   placeholder="Ghi rõ lý do quyết định để gửi thông báo cho Nhà phát hành..."
                   rows={4}
                   className="w-full rounded-lg border border-line bg-page p-3 text-sm text-white outline-none focus:border-accent"
-                  required={actionTarget.decision === 'Rejected'}
+                  required={actionTarget.decision !== 'Approved'}
                 />
               </div>
             )}
@@ -422,7 +425,7 @@ export default function AdminGames() {
               </button>
               <button
                 type="submit"
-                disabled={submitting || (actionTarget.decision === 'Rejected' && !actionReason.trim())}
+                disabled={submitting || (actionTarget.decision !== 'Approved' && !actionReason.trim())}
                 className={`rounded-lg px-4 py-2 text-xs font-bold text-white disabled:opacity-50 ${
                   actionTarget.decision === 'Approved'
                     ? 'bg-emerald-600 hover:bg-emerald-500'
