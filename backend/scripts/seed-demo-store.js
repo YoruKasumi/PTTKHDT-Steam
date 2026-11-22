@@ -10,45 +10,28 @@ const AdmZip = require('adm-zip');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../src/config/database');
 const services = require('../src/services');
-const { BUILDS_ROOT, validateAndProcessBuildZip, ensureDrmWrappedOnApprove } = require('../src/utils/autoDrmPackager');
+const demoGames = require('../src/config/demoGameCatalog');
+const {
+  LEGACY_BUILDS_ROOT,
+  PRIVATE_STORAGE_ROOT,
+  getGameBuildKey,
+  getGameVersionDir,
+  getLegacyGameVersionDir,
+  safeStorageSegment,
+} = require('../src/utils/storagePaths');
+const {
+  validateAndProcessBuildZip,
+  ensureDrmWrappedOnApprove,
+} = require('../src/utils/autoDrmPackager');
 
-const DEMO_GAMES = [
-  {
-    slug: 'tetris',
-    title: 'Xếp Gạch Tetris',
-    description: 'Bản demo HTML5 để kiểm thử quy trình duyệt, mua và chạy game.',
-    price: 10000,
-    genre: 'Arcade',
-    versions: [{ versionNumber: '1.0.0', source: 'tetris/1.0.0/index.html' }],
-  },
-  {
-    slug: 'snake',
-    title: 'Rắn Săn Mồi Cổ Điển',
-    description: 'Bản demo HTML5 để kiểm thử quy trình duyệt, mua và chạy game.',
-    price: 19000,
-    genre: 'Arcade',
-    versions: [
-      { versionNumber: '1.0.0', source: 'snake/1.0.0/index.html' },
-      { versionNumber: '1.1.0', source: 'snake/1.1.0/index.html' },
-    ],
-  },
-  {
-    slug: 'sudoku',
-    title: 'Sudoku Trí Tuệ',
-    description: 'Bản demo HTML5 để kiểm thử quy trình duyệt, mua và chạy game.',
-    price: 0,
-    genre: 'Puzzle',
-    versions: [{ versionNumber: '1.0.0', source: 'sudoku/1.0.0/index.html' }],
-  },
-  {
-    slug: 'minesweeper',
-    title: 'Dò Mìn Cổ Điển',
-    description: 'Bản demo HTML5 để kiểm thử quy trình duyệt, mua và chạy game.',
-    price: 12000,
-    genre: 'Puzzle',
-    versions: [{ versionNumber: '1.0.0', source: 'minesweeper/1.0.0/index.html' }],
-  },
-];
+const DEMO_GAMES = demoGames.map((game) => ({
+  ...game,
+  coverImage: `/api/media/games/${game.slug}/${game.slug}-cover.${game.coverExtension}`,
+  trailerUrl: game.trailerExtension
+    ? `/api/media/games/${game.slug}/${game.slug}-trailer.${game.trailerExtension}`
+    : null,
+  versions: [{ versionNumber: '1.0.0' }],
+}));
 
 const DEMO_CUSTOMERS = Array.from({ length: 5 }, (_, index) => ({
   username: `demo_customer_0${index + 1}`,
@@ -58,40 +41,59 @@ const DEMO_CUSTOMERS = Array.from({ length: 5 }, (_, index) => ({
 
 const PURCHASE_PLAN = [
   { customerIndex: 0, gameSlugs: ['tetris', 'snake'] },
-  { customerIndex: 1, gameSlugs: ['snake'] },
-  { customerIndex: 2, gameSlugs: ['sudoku', 'snake'] },
-  { customerIndex: 3, gameSlugs: ['minesweeper'] },
-  { customerIndex: 4, gameSlugs: ['snake'] },
+  { customerIndex: 1, gameSlugs: ['repo'] },
+  { customerIndex: 2, gameSlugs: ['sudoku', 'genshin-impact'] },
+  { customerIndex: 3, gameSlugs: ['ma-soi'] },
+  { customerIndex: 4, gameSlugs: ['squid-game'] },
 ];
 
 const REVIEW_PLAN = [
-  { customerIndex: 0, gameSlug: 'tetris', rating: 5, content: 'Bản demo chạy ổn, giao diện gọn và dễ theo dõi.' },
-  { customerIndex: 0, gameSlug: 'snake', rating: 5, content: 'Bản game demo chạy ổn sau khi mua trong cửa hàng.' },
-  { customerIndex: 1, gameSlug: 'snake', rating: 4, content: 'Đã thử được luồng mua và khởi chạy bản demo.' },
+  { customerIndex: 0, gameSlug: 'tetris', rating: 5, content: 'Bản demo giả lập mở được từ thư viện sau khi mua.' },
+  { customerIndex: 0, gameSlug: 'snake', rating: 5, content: 'Đã kiểm tra được luồng mua và khởi chạy bản demo.' },
+  { customerIndex: 1, gameSlug: 'repo', rating: 4, content: 'Hóa đơn và bản quyền game được ghi nhận chính xác.' },
   { customerIndex: 2, gameSlug: 'sudoku', rating: 5, content: 'Bản demo Sudoku mở được trong thư viện game.' },
-  { customerIndex: 2, gameSlug: 'snake', rating: 4, content: 'Hóa đơn và bản quyền game được ghi nhận chính xác.' },
-  { customerIndex: 3, gameSlug: 'minesweeper', rating: 5, content: 'Game demo đã được duyệt và chạy thành công.' },
-  { customerIndex: 4, gameSlug: 'snake', rating: 3, content: 'Đã kiểm tra được hóa đơn và quy trình yêu cầu hoàn tiền.' },
+  { customerIndex: 2, gameSlug: 'genshin-impact', rating: 4, content: 'Đã kiểm tra được quyền sở hữu game miễn phí.' },
+  { customerIndex: 3, gameSlug: 'ma-soi', rating: 5, content: 'Game demo đã được duyệt và có thể khởi chạy.' },
+  { customerIndex: 4, gameSlug: 'squid-game', rating: 3, content: 'Đã kiểm tra được hóa đơn và quy trình yêu cầu hoàn tiền.' },
 ];
 
 const DEMO_SOURCE_ROOT = path.join(__dirname, '..', 'demo-games');
+const DEMO_TEMPLATE_PATH = path.join(DEMO_SOURCE_ROOT, 'index.template.html');
+const DEMO_TEMPLATE = fs.readFileSync(DEMO_TEMPLATE_PATH, 'utf8');
 const DEPOSIT_TARGET = 250000;
+const LEGACY_GAME_IDS = [
+  ...Array.from({ length: 23 }, (_, index) => `G${String(index + 1).padStart(3, '0')}`),
+  'bac4ae9f-ff75-4686-9ba9-adcdf3df5e43',
+  '87921b9e-4614-4237-aefa-53fe2fe5e559',
+  '35447c3c-fe6e-4120-8cb7-10ca5efc1abb',
+];
+const LEGACY_GAME_TITLES = [
+  'Xếp Gạch Tetris',
+  'Rắn Săn Mồi Cổ Điển',
+  'Sudoku Trí Tuệ',
+  'Dò Mìn Cổ Điển',
+];
 
-function sourcePath(relativePath) {
-  return path.join(DEMO_SOURCE_ROOT, ...relativePath.split('/'));
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
-function createGameArchive(htmlPath) {
-  if (!fs.existsSync(htmlPath)) throw new Error(`Không tìm thấy file game demo: ${htmlPath}`);
+function createGameArchive(game) {
   const archivePath = path.join(os.tmpdir(), `steam-demo-${randomUUID()}.zip`);
+  const html = DEMO_TEMPLATE.replace(/\{\{GAME_TITLE\}\}/g, escapeHtml(game.title));
   const archive = new AdmZip();
-  archive.addLocalFile(htmlPath);
+  archive.addFile('index.html', Buffer.from(html, 'utf8'));
   archive.writeZip(archivePath);
   return archivePath;
 }
 
-async function withGameArchive(htmlPath, callback) {
-  const archivePath = createGameArchive(htmlPath);
+async function withGameArchive(game, callback) {
+  const archivePath = createGameArchive(game);
   try {
     return await callback(archivePath);
   } finally {
@@ -112,9 +114,9 @@ async function checkDemoGameArchives() {
   const checked = [];
   for (const game of DEMO_GAMES) {
     for (const version of game.versions) {
-      await withGameArchive(sourcePath(version.source), async (archivePath) => {
+      await withGameArchive(game, async (archivePath) => {
         if (!archiveHasRootIndex(archivePath)) {
-          throw new Error(`Build demo không có index.html ở thư mục gốc: ${version.source}`);
+          throw new Error(`Build demo không có index.html ở thư mục gốc: ${game.slug}@${version.versionNumber}`);
         }
       });
       checked.push(`${game.slug}@${version.versionNumber}`);
@@ -126,6 +128,187 @@ async function checkDemoGameArchives() {
 async function queryOne(db, sql, values = []) {
   const [rows] = await db.execute(sql, values);
   return rows[0] || null;
+}
+
+async function ensureGameSlugColumn() {
+  const [columns] = await pool.execute(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'GAME' AND COLUMN_NAME = 'Slug'`,
+  );
+  if (!columns.length) {
+    await pool.query('ALTER TABLE GAME ADD COLUMN Slug VARCHAR(120) NULL AFTER Title');
+  }
+
+  const [indexes] = await pool.execute(
+    `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'GAME' AND INDEX_NAME = 'uq_game_slug'`,
+  );
+  if (!indexes.length) {
+    await pool.query('ALTER TABLE GAME ADD UNIQUE KEY uq_game_slug (Slug)');
+  }
+}
+
+async function resetLegacySampleGames() {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [games] = await conn.query(
+      'SELECT GameID FROM GAME WHERE GameID IN (?) OR Title IN (?) FOR UPDATE',
+      [LEGACY_GAME_IDS, LEGACY_GAME_TITLES],
+    );
+    const gameIds = games.map((game) => game.GameID);
+    if (!gameIds.length) {
+      await conn.commit();
+      return { removedGameCount: 0, cleanupWarnings: [] };
+    }
+    const [gameOwners] = await conn.query(
+      'SELECT DISTINCT GameID, DeveloperID FROM GAME WHERE GameID IN (?)',
+      [gameIds],
+    );
+
+    const [mixedOrders] = await conn.query(
+      `SELECT item.OrderID
+       FROM ORDERITEM AS item
+       WHERE item.OrderID IN (
+         SELECT sampleItem.OrderID FROM ORDERITEM AS sampleItem
+         WHERE sampleItem.GameID IN (?)
+       )
+       GROUP BY item.OrderID
+       HAVING SUM(item.GameID IN (?)) <> COUNT(*)`,
+      [gameIds, gameIds],
+    );
+    if (mixedOrders.length) {
+      throw new Error(
+        `Dừng xóa dữ liệu mẫu: phát hiện hóa đơn chứa cả game mẫu lẫn game khác (${mixedOrders.map((row) => row.OrderID).join(', ')}).`,
+      );
+    }
+
+    const [orders] = await conn.query(
+      'SELECT DISTINCT OrderID FROM ORDERITEM WHERE GameID IN (?)',
+      [gameIds],
+    );
+    const orderIds = orders.map((order) => order.OrderID);
+    if (orderIds.length) {
+      await conn.query(
+        `UPDATE WALLET AS wallet
+         JOIN (
+           SELECT transactionRow.WalletID,
+                  SUM(CASE transactionRow.Type
+                    WHEN 'Purchase' THEN transactionRow.Amount
+                    WHEN 'Refund' THEN -transactionRow.Amount
+                    ELSE 0
+                  END) AS BalanceAdjustment
+           FROM \`TRANSACTION\` AS transactionRow
+           WHERE transactionRow.OrderID IN (?)
+             AND transactionRow.Status = 'Success'
+             AND transactionRow.Type IN ('Purchase', 'Refund')
+           GROUP BY transactionRow.WalletID
+         ) AS ledger ON ledger.WalletID = wallet.WalletID
+         SET wallet.Balance = wallet.Balance + ledger.BalanceAdjustment`,
+        [orderIds],
+      );
+      await conn.query('DELETE FROM REFUNDREQUEST WHERE OrderID IN (?)', [orderIds]);
+      await conn.query('DELETE FROM `TRANSACTION` WHERE OrderID IN (?)', [orderIds]);
+      await conn.query('DELETE FROM ORDERITEM WHERE OrderID IN (?)', [orderIds]);
+      await conn.query('DELETE FROM ORDERS WHERE OrderID IN (?)', [orderIds]);
+    }
+
+    await conn.query(
+      `DELETE device FROM LICENSE_DEVICE AS device
+       INNER JOIN LICENSE AS license ON license.LicenseID = device.LicenseID
+       WHERE license.GameID IN (?)`,
+      [gameIds],
+    );
+    for (const table of [
+      'CARTITEM',
+      'WISHLISTITEM',
+      'REVIEW',
+      'ACTIVATIONKEY',
+      'SALECAMPAIGN',
+      'COUPON',
+      'LICENSE',
+      'GAMEREVIEW',
+      'GAME_GENRE',
+      'GAMEVERSION',
+    ]) {
+      await conn.query(`DELETE FROM \`${table}\` WHERE GameID IN (?)`, [gameIds]);
+    }
+    await conn.query(
+      'DELETE FROM AUDITLOG WHERE Target IN (?)',
+      [gameIds.map((gameId) => `GAME:${gameId}`)],
+    );
+    await conn.query('DELETE FROM GAME WHERE GameID IN (?)', [gameIds]);
+    await conn.commit();
+
+    const cleanupWarnings = [];
+    for (const game of gameOwners) {
+      try {
+        const gameId = safeStorageSegment(game.GameID, 'gameId');
+        const developerId = safeStorageSegment(game.DeveloperID, 'developerId');
+        const legacyGameDir = path.join(LEGACY_BUILDS_ROOT, 'games', gameId);
+        const privateGameDir = path.join(PRIVATE_STORAGE_ROOT, 'developers', developerId, 'games', gameId);
+        for (const directory of [legacyGameDir, privateGameDir]) {
+          if (fs.existsSync(directory)) fs.rmSync(directory, { recursive: true, force: true });
+        }
+      } catch (error) {
+        cleanupWarnings.push(`${game.GameID}: ${error.message}`);
+      }
+    }
+    return { removedGameCount: gameIds.length, cleanupWarnings };
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
+async function migrateLegacyBuildStorage() {
+  const [versions] = await pool.query(
+    `SELECT gv.VersionID, gv.GameID, gv.VersionNumber, gv.BuildFile, game.DeveloperID
+     FROM GAMEVERSION AS gv
+     INNER JOIN GAME AS game ON game.GameID = gv.GameID
+     WHERE gv.BuildFile LIKE 'games/%'`,
+  );
+  const missingBuilds = [];
+  const cleanupWarnings = [];
+  let migratedBuildCount = 0;
+
+  for (const version of versions) {
+    const legacyDir = getLegacyGameVersionDir(version.GameID, version.VersionNumber);
+    const newDir = getGameVersionDir(version.DeveloperID, version.GameID, version.VersionNumber);
+    const legacyBuild = path.join(legacyDir, 'build.zip');
+    const newBuild = path.join(newDir, 'build.zip');
+
+    if (!fs.existsSync(newBuild) && fs.existsSync(legacyBuild)) {
+      fs.mkdirSync(path.dirname(newDir), { recursive: true });
+      fs.cpSync(legacyDir, newDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(newBuild)) {
+      missingBuilds.push({
+        gameId: version.GameID,
+        versionNumber: version.VersionNumber,
+        buildFile: version.BuildFile,
+      });
+      continue;
+    }
+
+    const newBuildKey = getGameBuildKey(version.DeveloperID, version.GameID, version.VersionNumber);
+    await pool.execute(
+      'UPDATE GAMEVERSION SET BuildFile = ? WHERE VersionID = ?',
+      [newBuildKey, version.VersionID],
+    );
+    migratedBuildCount += 1;
+
+    try {
+      if (fs.existsSync(legacyDir)) fs.rmSync(legacyDir, { recursive: true, force: true });
+    } catch (error) {
+      cleanupWarnings.push(`${version.GameID}@${version.VersionNumber}: ${error.message}`);
+    }
+  }
+
+  return { migratedBuildCount, missingBuilds, cleanupWarnings };
 }
 
 async function ensureAccount(conn, account, passwordHash) {
@@ -183,8 +366,7 @@ async function ensureDemoAccounts(password) {
     await conn.beginTransaction();
     const accountIds = {};
     for (let index = 0; index < identities.length; index += 1) {
-      const identity = identities[index];
-      accountIds[identity.key] = await ensureAccount(conn, identity, hashes[index]);
+      accountIds[identities[index].key] = await ensureAccount(conn, identities[index], hashes[index]);
     }
 
     await conn.execute('INSERT IGNORE INTO ADMIN (AccountID) VALUES (?)', [accountIds.admin]);
@@ -221,10 +403,9 @@ async function ensureDemoAccounts(password) {
       await conn.execute('INSERT IGNORE INTO CART (CustomerID) VALUES (?)', [customerId]);
     }
 
+    const genreNames = new Set(DEMO_GAMES.flatMap((game) => game.genres));
     const genres = {};
-    for (const name of new Set(DEMO_GAMES.map((game) => game.genre))) {
-      genres[name] = await ensureGenre(conn, name);
-    }
+    for (const name of genreNames) genres[name] = await ensureGenre(conn, name);
 
     await conn.commit();
     return { accountIds, genres };
@@ -236,12 +417,12 @@ async function ensureDemoAccounts(password) {
   }
 }
 
-async function fetchGame(title) {
+async function fetchGame(slug) {
   return queryOne(
     pool,
-    `SELECT GameID, DeveloperID, Title, Status
-     FROM GAME WHERE Title = ? LIMIT 1`,
-    [title],
+    `SELECT GameID, DeveloperID, Title, Slug, Description, Price, CoverImage, TrailerUrl, Status
+     FROM GAME WHERE Slug = ? LIMIT 1`,
+    [slug],
   );
 }
 
@@ -255,11 +436,12 @@ async function fetchVersions(gameId) {
 }
 
 async function addGameVersion(game, definition) {
-  return withGameArchive(sourcePath(definition.source), (tempFilePath) =>
+  const demo = DEMO_GAMES.find((candidate) => candidate.slug === game.Slug);
+  return withGameArchive(demo, (tempFilePath) =>
     services.gameService.guiGoiCapNhat({
       gameId: game.GameID,
       versionNumber: definition.versionNumber,
-      changeLog: 'Bản game demo dùng cho kiểm thử local.',
+      changeLog: 'Bản game demo giả lập dùng cho kiểm thử local.',
       tempFilePath,
       user: { accountId: game.DeveloperID },
     }));
@@ -275,47 +457,56 @@ function compareVersions(left, right) {
   return 0;
 }
 
-async function ensureGame(gameDefinition, developerId, managerId, genreId) {
-  let game = await fetchGame(gameDefinition.title);
+async function ensureGame(gameDefinition, developerId, managerId, genres) {
+  let game = await fetchGame(gameDefinition.slug);
+  if (game && game.Title !== gameDefinition.title) {
+    throw new Error(`Slug "${gameDefinition.slug}" đang thuộc game khác: "${game.Title}".`);
+  }
   if (!game) {
-    const initialVersion = gameDefinition.versions[0];
-    await withGameArchive(sourcePath(initialVersion.source), (tempFilePath) =>
+    await withGameArchive(gameDefinition, (tempFilePath) =>
       services.gameService.luuHoSoDuAnGame({
         title: gameDefinition.title,
+        slug: gameDefinition.slug,
         description: gameDefinition.description,
         price: gameDefinition.price,
         minSpec: 'Trình duyệt hiện đại, kết nối internet.',
         recSpec: 'Trình duyệt hiện đại, kết nối internet.',
-        coverImage: '',
-        genreIds: [genreId],
-        versionNumber: initialVersion.versionNumber,
-        changeLog: 'Bản game demo dùng cho kiểm thử local.',
+        coverImage: gameDefinition.coverImage,
+        trailerUrl: gameDefinition.trailerUrl,
+        genreIds: gameDefinition.genres.map((name) => genres[name]),
+        versionNumber: '1.0.0',
+        changeLog: 'Bản game demo giả lập dùng cho kiểm thử local.',
         tempFilePath,
         user: { accountId: developerId },
       }));
-    game = await fetchGame(gameDefinition.title);
+    game = await fetchGame(gameDefinition.slug);
   }
   if (!game) throw new Error(`Không tạo hoặc tìm được game demo "${gameDefinition.title}".`);
 
-  let versions = await fetchVersions(game.GameID);
-  if (versions.length === 0) {
-    for (const definition of gameDefinition.versions) {
-      await addGameVersion(game, definition);
-    }
-    versions = await fetchVersions(game.GameID);
-  } else {
-    const currentVersion = versions.find((version) => Number(version.IsCurrent) === 1);
-    for (const definition of gameDefinition.versions) {
-      if (versions.some((version) => version.VersionNumber === definition.versionNumber)) continue;
-      if (gameDefinition.slug === 'snake'
-        && definition.versionNumber === '1.1.0'
-        && (!currentVersion || compareVersions(currentVersion.VersionNumber, '1.1.0') < 0)) {
-        await addGameVersion(game, definition);
-        versions = await fetchVersions(game.GameID);
-      }
-    }
+  await pool.execute(
+    `UPDATE GAME
+     SET Title = ?, Slug = ?, Description = ?, Price = ?, CoverImage = ?, TrailerUrl = ?
+     WHERE GameID = ?`,
+    [
+      gameDefinition.title, gameDefinition.slug, gameDefinition.description,
+      gameDefinition.price, gameDefinition.coverImage, gameDefinition.trailerUrl, game.GameID,
+    ],
+  );
+  await pool.execute('DELETE FROM GAME_GENRE WHERE GameID = ?', [game.GameID]);
+  for (const genreName of gameDefinition.genres) {
+    await pool.execute(
+      'INSERT IGNORE INTO GAME_GENRE (GameID, GenreID) VALUES (?, ?)',
+      [game.GameID, genres[genreName]],
+    );
   }
 
+  let versions = await fetchVersions(game.GameID);
+  for (const definition of gameDefinition.versions) {
+    if (!versions.some((version) => version.VersionNumber === definition.versionNumber)) {
+      await addGameVersion(game, definition);
+      versions = await fetchVersions(game.GameID);
+    }
+  }
   if (versions.length && !versions.some((version) => Number(version.IsCurrent) === 1)) {
     const current = versions.reduce((latest, version) =>
       compareVersions(version.VersionNumber, latest.VersionNumber) > 0 ? version : latest);
@@ -327,12 +518,13 @@ async function ensureGame(gameDefinition, developerId, managerId, genreId) {
     const definition = gameDefinition.versions.find((candidate) => candidate.versionNumber === version.VersionNumber);
     if (!definition) continue;
 
-    const versionDir = path.join(BUILDS_ROOT, 'games', game.GameID, version.VersionNumber);
+    const versionDir = getGameVersionDir(game.DeveloperID, game.GameID, version.VersionNumber);
     const buildPath = path.join(versionDir, 'build.zip');
     if (!archiveHasRootIndex(buildPath)) {
-      const result = await withGameArchive(sourcePath(definition.source), (tempFilePath) =>
+      const result = await withGameArchive(gameDefinition, (tempFilePath) =>
         validateAndProcessBuildZip({
           tempFilePath,
+          developerId: game.DeveloperID,
           gameId: game.GameID,
           versionNumber: version.VersionNumber,
         }));
@@ -344,6 +536,7 @@ async function ensureGame(gameDefinition, developerId, managerId, genreId) {
 
     if (game.Status === 'Approved') {
       const drmResult = await ensureDrmWrappedOnApprove({
+        developerId: game.DeveloperID,
         gameId: game.GameID,
         versionId: version.VersionID,
         versionNumber: version.VersionNumber,
@@ -370,7 +563,7 @@ async function ensureGame(gameDefinition, developerId, managerId, genreId) {
     });
   }
 
-  return fetchGame(gameDefinition.title);
+  return fetchGame(gameDefinition.slug);
 }
 
 async function ensureDeposit(customerId) {
@@ -498,8 +691,8 @@ async function seedDemoStore(options = {}) {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('Từ chối chạy seed demo khi NODE_ENV=production.');
   }
-  if (process.env.SEED_DEMO_DATA !== '1') {
-    throw new Error('Đặt SEED_DEMO_DATA=1 để xác nhận chạy seed demo trên DB hiện tại.');
+  if (process.env.SEED_DEMO_DATA !== '1' || process.env.RESET_DEMO_GAMES !== '1') {
+    throw new Error('Đặt SEED_DEMO_DATA=1 và RESET_DEMO_GAMES=1 để xác nhận seed và xóa game mẫu cũ.');
   }
   if (typeof password !== 'string'
     || password.length < 12
@@ -514,6 +707,9 @@ async function seedDemoStore(options = {}) {
     if (Number(lock.Acquired) !== 1) throw new Error('Không lấy được khóa seed demo; có thể một tiến trình khác đang chạy.');
     lockAcquired = true;
 
+    await ensureGameSlugColumn();
+    const resetResult = await resetLegacySampleGames();
+    const storageMigration = await migrateLegacyBuildStorage();
     const { accountIds, genres } = await ensureDemoAccounts(password);
     const games = {};
     for (const definition of DEMO_GAMES) {
@@ -521,7 +717,7 @@ async function seedDemoStore(options = {}) {
         definition,
         accountIds.developer,
         accountIds.manager,
-        genres[definition.genre],
+        genres,
       );
     }
 
@@ -545,10 +741,14 @@ async function seedDemoStore(options = {}) {
     }
 
     const refundCustomerId = accountIds.customer5;
-    const refundOrder = orders['5:snake'];
+    const refundOrder = orders['5:squid-game'];
     const refundRequestId = await ensureRefund(refundCustomerId, refundOrder.OrderID);
+    orders['5:squid-game'] = await findPurchase(refundCustomerId, games['squid-game'].GameID);
 
     return {
+      removedLegacyGameCount: resetResult.removedGameCount,
+      legacyBuildCleanupWarnings: resetResult.cleanupWarnings,
+      storageMigration,
       accounts: {
         admin: 'demo_store_admin',
         moderator: 'demo_store_moderator',
@@ -596,5 +796,6 @@ if (require.main === module) {
 module.exports = {
   DEMO_GAMES,
   checkDemoGameArchives,
+  resetLegacySampleGames,
   seedDemoStore,
 };

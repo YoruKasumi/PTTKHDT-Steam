@@ -34,6 +34,33 @@ function uploadZip(fieldName = 'buildFile') {
   }).single(fieldName);
 }
 
+function uploadGameFiles() {
+  const allowedExtensions = {
+    buildFile: new Set(['.zip']),
+    coverFile: new Set(['.jpg', '.jpeg', '.png', '.webp']),
+    trailerFile: new Set(['.mp4', '.webm', '.mov']),
+  };
+  return multer({
+    dest: path.join(env.storage.localDir, 'uploads'),
+    limits: {
+      fileSize: parseInt(process.env.MAX_ZIP_SIZE_MB || '500', 10) * 1024 * 1024,
+      files: 3,
+    },
+    fileFilter(_req, file, cb) {
+      const extensions = allowedExtensions[file.fieldname];
+      const extension = path.extname(file.originalname).toLowerCase();
+      if (!extensions || !extensions.has(extension)) {
+        return cb(new Error(`Định dạng tệp không được hỗ trợ cho trường ${file.fieldname}.`));
+      }
+      cb(null, true);
+    },
+  }).fields([
+    { name: 'buildFile', maxCount: 1 },
+    { name: 'coverFile', maxCount: 1 },
+    { name: 'trailerFile', maxCount: 1 },
+  ]);
+}
+
 /** Middleware upload ảnh thông thường (avatar, banner, cover). */
 const uploadImage = multer({
   dest: path.join(env.storage.localDir, 'uploads'),
@@ -49,4 +76,5 @@ const uploadImage = multer({
 
 module.exports = upload;
 module.exports.uploadZip = uploadZip;
+module.exports.uploadGameFiles = uploadGameFiles;
 module.exports.uploadImage = uploadImage;

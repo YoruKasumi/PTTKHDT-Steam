@@ -115,6 +115,7 @@ class ModerationService extends BaseService {
       if (decision === 'Approved') {
         // ── Kiểm tra Trường hợp A / B / C ──
         const drmResult = await ensureDrmWrappedOnApprove({
+          developerId: gameInfo.DeveloperID,
           gameId,
           versionId: gameInfo.VersionID,
           versionNumber: gameInfo.VersionNumber,

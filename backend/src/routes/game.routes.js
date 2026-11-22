@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { uploadZip } = require('../middlewares/upload');
+const { uploadZip, uploadGameFiles } = require('../middlewares/upload');
 const asyncHandler = require('../utils/asyncHandler');
 const { ok } = require('../utils/response');
 const { gameService } = require('../services');
@@ -16,24 +16,28 @@ router.post(
 );
 
 /**
- * UC24. Upload Patch & Changelog — multipart/form-data với field 'buildFile'
+ * UC24. Upload Patch & Changelog — multipart/form-data
  * POST /api/games/uploadPatch
  * Fields: gameId, versionNumber, changeLog
- * File: buildFile (.zip)
+ * Files: buildFile (.zip), coverFile (optional), trailerFile (optional)
  */
 router.post(
   '/uploadPatch',
   authenticate, authorize('Developer'),
-  uploadZip('buildFile'),
+  uploadGameFiles(),
   asyncHandler(async (req, res) => {
-    if (!req.file) {
+    const files = req.files || {};
+    const buildFile = files.buildFile && files.buildFile[0];
+    if (!buildFile) {
       return res.status(400).json({ success: false, code: 'NO_FILE', message: 'Không có tệp .zip được upload.' });
     }
     const result = await gameService.guiGoiCapNhat({
       gameId: req.body.gameId,
       versionNumber: req.body.versionNumber,
       changeLog: req.body.changeLog,
-      tempFilePath: req.file.path,
+      tempFilePath: buildFile.path,
+      coverFile: files.coverFile && files.coverFile[0],
+      trailerFile: files.trailerFile && files.trailerFile[0],
       user: req.user,
     });
     return ok(res, result, 200, 'Upload patch thành công.');
@@ -44,16 +48,20 @@ router.post(
 router.post(
   '/guiGoiCapNhat',
   authenticate, authorize('Developer'),
-  uploadZip('buildFile'),
+  uploadGameFiles(),
   asyncHandler(async (req, res) => {
-    if (!req.file) {
+    const files = req.files || {};
+    const buildFile = files.buildFile && files.buildFile[0];
+    if (!buildFile) {
       return res.status(400).json({ success: false, code: 'NO_FILE', message: 'Không có tệp .zip được upload.' });
     }
     const result = await gameService.guiGoiCapNhat({
       gameId: req.body.gameId,
       versionNumber: req.body.versionNumber,
       changeLog: req.body.changeLog,
-      tempFilePath: req.file.path,
+      tempFilePath: buildFile.path,
+      coverFile: files.coverFile && files.coverFile[0],
+      trailerFile: files.trailerFile && files.trailerFile[0],
       user: req.user,
     });
     return ok(res, result);
@@ -68,17 +76,19 @@ router.post(
 );
 
 /**
- * UC25. Khởi tạo dự án game mới — multipart/form-data với field 'buildFile'
+ * UC25. Khởi tạo dự án game mới — multipart/form-data
  * POST /api/games/createProject
- * Fields: title, description, price, minSpec, recSpec, genreIds (JSON array), versionNumber, changeLog
- * File: buildFile (.zip)
+ * Fields: title, slug (optional), description, price, minSpec, recSpec, genreIds (JSON array), versionNumber, changeLog
+ * Files: buildFile (.zip), coverFile (optional), trailerFile (optional)
  */
 router.post(
   '/createProject',
   authenticate, authorize('Developer'),
-  uploadZip('buildFile'),
+  uploadGameFiles(),
   asyncHandler(async (req, res) => {
-    if (!req.file) {
+    const files = req.files || {};
+    const buildFile = files.buildFile && files.buildFile[0];
+    if (!buildFile) {
       return res.status(400).json({ success: false, code: 'NO_FILE', message: 'Không có tệp .zip được upload.' });
     }
     let genreIds = [];
@@ -90,12 +100,15 @@ router.post(
       price: Number(req.body.price),
       minSpec: req.body.minSpec,
       recSpec: req.body.recSpec,
+      slug: req.body.slug,
       genreIds,
       versionNumber: req.body.versionNumber || '1.0.0',
       changeLog: req.body.changeLog,
       coverImage: req.body.coverImage,
       trailerUrl: req.body.trailerUrl,
-      tempFilePath: req.file.path,
+      coverFile: files.coverFile && files.coverFile[0],
+      trailerFile: files.trailerFile && files.trailerFile[0],
+      tempFilePath: buildFile.path,
       user: req.user,
     });
     return ok(res, result, 201, 'Dự án game đã được khởi tạo.');
@@ -106,9 +119,11 @@ router.post(
 router.post(
   '/luuHoSoDuAnGame',
   authenticate, authorize('Developer'),
-  uploadZip('buildFile'),
+  uploadGameFiles(),
   asyncHandler(async (req, res) => {
-    if (!req.file) {
+    const files = req.files || {};
+    const buildFile = files.buildFile && files.buildFile[0];
+    if (!buildFile) {
       return res.status(400).json({ success: false, code: 'NO_FILE', message: 'Không có tệp .zip được upload.' });
     }
     let genreIds = [];
@@ -117,7 +132,10 @@ router.post(
       ...req.body,
       price: Number(req.body.price),
       genreIds,
-      tempFilePath: req.file.path,
+      slug: req.body.slug,
+      coverFile: files.coverFile && files.coverFile[0],
+      trailerFile: files.trailerFile && files.trailerFile[0],
+      tempFilePath: buildFile.path,
       user: req.user,
     });
     return ok(res, result);

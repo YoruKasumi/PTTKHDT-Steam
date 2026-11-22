@@ -55,8 +55,8 @@ function makeTempEmptyFile() {
 const {
   validateAndProcessBuildZip,
   ensureDrmWrappedOnApprove,
-  BUILDS_ROOT,
 } = require('../src/utils/autoDrmPackager');
+const { getGameVersionDir } = require('../src/utils/storagePaths');
 
 const { NghiepVuException, ValidationException } = require('../src/exceptions');
 
@@ -205,19 +205,19 @@ describe('Scenario 2 — Game thô: validateAndProcessBuildZip + ensureDrmWrappe
 
   after(() => {
     // Dọn dẹp thư mục test
-    const versionDir = path.join(BUILDS_ROOT, 'games', gameId, version);
+    const versionDir = getGameVersionDir('unassigned', gameId, version);
     if (fs.existsSync(versionDir)) {
       fs.rmSync(versionDir, { recursive: true, force: true });
     }
   });
 
   it('2a. Build hợp lệ được lưu vào BUILDS_ROOT', () => {
-    const buildZip = path.join(BUILDS_ROOT, 'games', gameId, version, 'build.zip');
+    const buildZip = path.join(getGameVersionDir('unassigned', gameId, version), 'build.zip');
     assert.ok(fs.existsSync(buildZip), `build.zip phải tồn tại tại: ${buildZip}`);
   });
 
   it('2b. Thư mục unpacked/ được giải nén sẵn', () => {
-    const unpackedDir = path.join(BUILDS_ROOT, 'games', gameId, version, 'unpacked');
+    const unpackedDir = path.join(getGameVersionDir('unassigned', gameId, version), 'unpacked');
     assert.ok(fs.existsSync(unpackedDir), 'unpacked/ phải tồn tại');
     const indexHtml = path.join(unpackedDir, 'index.html');
     assert.ok(fs.existsSync(indexHtml), 'unpacked/index.html phải tồn tại');
@@ -236,7 +236,7 @@ describe('Scenario 2 — Game thô: validateAndProcessBuildZip + ensureDrmWrappe
   });
 
   it('2d. Sau Auto-DRM: manifest.json + drm.js + _game_app.html tồn tại trong unpacked/', () => {
-    const unpackedDir = path.join(BUILDS_ROOT, 'games', gameId, version, 'unpacked');
+    const unpackedDir = path.join(getGameVersionDir('unassigned', gameId, version), 'unpacked');
     assert.ok(fs.existsSync(path.join(unpackedDir, 'manifest.json')), 'manifest.json phải có');
     assert.ok(fs.existsSync(path.join(unpackedDir, 'drm.js')), 'drm.js phải có');
     assert.ok(fs.existsSync(path.join(unpackedDir, '_game_app.html')), '_game_app.html phải có (đổi tên từ index.html)');
@@ -244,7 +244,7 @@ describe('Scenario 2 — Game thô: validateAndProcessBuildZip + ensureDrmWrappe
   });
 
   it('2e. manifest.json đúng cấu trúc DRM', () => {
-    const unpackedDir = path.join(BUILDS_ROOT, 'games', gameId, version, 'unpacked');
+    const unpackedDir = path.join(getGameVersionDir('unassigned', gameId, version), 'unpacked');
     const manifest = JSON.parse(fs.readFileSync(path.join(unpackedDir, 'manifest.json'), 'utf8'));
     assert.equal(manifest.drm?.required, true, 'drm.required phải là true');
     assert.equal(manifest.drm?.autoWrappedByPlatform, true, 'drm.autoWrappedByPlatform phải là true');
@@ -278,7 +278,7 @@ describe('Scenario 3 — Game DRM-ready: ensureDrmWrappedOnApprove giữ nguyên
   });
 
   after(() => {
-    const versionDir = path.join(BUILDS_ROOT, 'games', gameId, version);
+    const versionDir = getGameVersionDir('unassigned', gameId, version);
     if (fs.existsSync(versionDir)) fs.rmSync(versionDir, { recursive: true, force: true });
   });
 
@@ -295,7 +295,7 @@ describe('Scenario 3 — Game DRM-ready: ensureDrmWrappedOnApprove giữ nguyên
   });
 
   it('3b. index.html gốc không bị đổi tên khi đã có DRM', () => {
-    const unpackedDir = path.join(BUILDS_ROOT, 'games', gameId, version, 'unpacked');
+    const unpackedDir = path.join(getGameVersionDir('unassigned', gameId, version), 'unpacked');
     assert.ok(fs.existsSync(path.join(unpackedDir, 'index.html')), 'index.html phải vẫn còn');
     // _game_app.html KHÔNG tồn tại (không bị auto-wrap)
     assert.ok(
@@ -530,7 +530,7 @@ describe('Scenario 6 — Patch & Rollback: validateAndProcessBuildZip nhiều ph
   });
 
   after(() => {
-    const gameDir = path.join(BUILDS_ROOT, 'games', gameId);
+    const gameDir = path.dirname(getGameVersionDir('unassigned', gameId, '1.0.0'));
     if (fs.existsSync(gameDir)) fs.rmSync(gameDir, { recursive: true, force: true });
   });
 
@@ -585,7 +585,7 @@ describe('Scenario 6 — Patch & Rollback: validateAndProcessBuildZip nhiều ph
 
   it('6f. Build file thực tế tồn tại trên disk sau patch', () => {
     for (const v of ['1.0.0', '1.1.0', '2.0.0']) {
-      const buildPath = path.join(BUILDS_ROOT, 'games', gameId, v, 'build.zip');
+      const buildPath = path.join(getGameVersionDir('unassigned', gameId, v), 'build.zip');
       assert.ok(fs.existsSync(buildPath), `build.zip của v${v} phải tồn tại tại: ${buildPath}`);
     }
   });

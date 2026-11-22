@@ -10,6 +10,7 @@ const asyncHandler = require('./utils/asyncHandler');
 const { pool } = require('./config/database');
 const { createOpenApiSpec } = require('./docs/openapi');
 const { ok } = require('./utils/response');
+const { PACKAGED_PUBLIC_ROOT, PUBLIC_STORAGE_ROOT } = require('./utils/storagePaths');
 
 const app = express();
 
@@ -49,6 +50,10 @@ app.use(
 app.use(cookieParser());
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
+
+const mediaOptions = { dotfiles: 'deny', fallthrough: true, index: false };
+app.use('/api/media', express.static(PUBLIC_STORAGE_ROOT, mediaOptions));
+app.use('/api/media', express.static(PACKAGED_PUBLIC_ROOT, mediaOptions));
 
 app.get('/health', (req, res) => ok(res, { status: 'ok' }));
 app.get('/health/database', asyncHandler(async (req, res) => {
