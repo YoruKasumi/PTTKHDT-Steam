@@ -11,14 +11,21 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
+const StorageClient = require('../integrations/StorageClient');
+const {
+  DEFAULT_DEVELOPER_ID,
+  getLegacyGameVersionDir,
+  PRIVATE_STORAGE_ROOT,
+  getGameVersionDir,
+} = require('./storagePaths');
 
 // ─────────────────────────── Hằng số ───────────────────────────────────────
 
 /** Phần mở rộng thực thi nguy hiểm */
 const DANGEROUS_EXTS = new Set(['.exe', '.bat', '.cmd', '.sh', '.msi', '.dll', '.php', '.ps1']);
 
-/** Đường dẫn thư mục gốc lưu trữ build (tương đối từ cwd, tuyệt đối tốt hơn) */
-const BUILDS_ROOT = path.resolve(__dirname, '../../storage/builds');
+/** Private build root; build paths are scoped to their developer and game. */
+const BUILDS_ROOT = PRIVATE_STORAGE_ROOT;
 
 // ─────────────────────────── Tiện ích file ─────────────────────────────────
 
@@ -94,11 +101,12 @@ function isDangerousEntry(entryName) {
  *
  * @param {object} params
  * @param {string} params.tempFilePath   - Đường dẫn file .zip tạm (multer dest)
+ * @param {string} params.developerId    - Chủ sở hữu game
  * @param {string} params.gameId         - UUID của game
  * @param {string} params.versionNumber  - VD: "1.0.0"
  * @returns {Promise<{
  *   buildFilePath: string,   // Đường dẫn vật lý build.zip
- *   buildFileKey: string,    // Object key: games/<gameId>/<version>/build.zip
+ *   buildFileKey: string,    // Object key scoped to developer/game/version
  *   fileSize: number,
  *   sha256: string,
  *   unpackedDir: string,     // Thư mục đã giải nén
@@ -108,8 +116,17 @@ function isDangerousEntry(entryName) {
  * }>}
  * @throws {NghiepVuException} Nếu file không hợp lệ
  */
-async function validateAndProcessBuildZip({ tempFilePath, gameId, versionNumber }) {
+async function validateAndProcessBuildZip({
+  tempFilePath,
+  developerId = DEFAULT_DEVELOPER_ID,
+  gameId,
+  versionNumber,
+}) {
   const { NghiepVuException } = require('../exceptions');
+
+  if (!gameId || !versionNumber) {
+    throw new NghiepVuException('Thiếu gameId hoặc versionNumber hợp lệ.', 400);
+  }
 
   // 1. Kiểm tra file tạm tồn tại và không rỗng
   if (!tempFilePath || !fs.existsSync(tempFilePath)) {
@@ -183,11 +200,15 @@ async function validateAndProcessBuildZip({ tempFilePath, gameId, versionNumber 
   }
 
   // 5. Lưu file vào đường dẫn chính thức
-  const versionDir = path.join(BUILDS_ROOT, 'games', gameId, versionNumber);
-  mkdirSafe(versionDir);
-  const buildFilePath = path.join(versionDir, 'build.zip');
-  fs.copyFileSync(tempFilePath, buildFilePath);
-  fs.unlinkSync(tempFilePath); // xóa tạm
+  const storageClient = new StorageClient();
+  const storedBuild = await storageClient.luuTruBanVa({
+    tempFilePath,
+    developerId,
+    gameId,
+    versionNumber,
+  });
+  const versionDir = getGameVersionDir(developerId, gameId, versionNumber);
+  const buildFilePath = storedBuild.localPath;
 
   // 6. Tính FileSize và Sha256
   const fileSize = getFileSize(buildFilePath);
@@ -201,7 +222,7 @@ async function validateAndProcessBuildZip({ tempFilePath, gameId, versionNumber 
 
   return {
     buildFilePath,
-    buildFileKey: `games/${gameId}/${versionNumber}/build.zip`,
+    buildFileKey: storedBuild.buildFileKey,
     fileSize,
     sha256,
     unpackedDir,
@@ -231,10 +252,21 @@ async function validateAndProcessBuildZip({ tempFilePath, gameId, versionNumber 
  * }>}
  * @throws {NghiepVuException} Trường hợp A
  */
-async function ensureDrmWrappedOnApprove({ gameId, versionId, versionNumber, gameTitle }) {
+async function ensureDrmWrappedOnApprove({
+  developerId = DEFAULT_DEVELOPER_ID,
+  gameId,
+  versionId,
+  versionNumber,
+  gameTitle,
+}) {
   const { NghiepVuException } = require('../exceptions');
 
-  const versionDir = path.join(BUILDS_ROOT, 'games', gameId, versionNumber);
+  let versionDir = getGameVersionDir(developerId, gameId, versionNumber);
+  const legacyVersionDir = getLegacyGameVersionDir(gameId, versionNumber);
+  if (!fs.existsSync(path.join(versionDir, 'build.zip'))
+    && fs.existsSync(path.join(legacyVersionDir, 'build.zip'))) {
+    versionDir = legacyVersionDir;
+  }
   const buildFilePath = path.join(versionDir, 'build.zip');
   const unpackedDir = path.join(versionDir, 'unpacked');
 

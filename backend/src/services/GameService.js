@@ -1,6 +1,6 @@
 'use strict';
-const path = require('path');
-const crypto = require('crypto');
+const path = require('node:path');
+const fs = require('node:fs');
 const { v4: uuidv4 } = require('uuid');
 const BaseService = require('./BaseService');
 const {
@@ -13,6 +13,11 @@ const {
 const GameDAO = require('../dao/GameDAO');
 const StorageClient = require('../integrations/StorageClient');
 const { validateAndProcessBuildZip } = require('../utils/autoDrmPackager');
+const { normalizeGameSlug } = require('../utils/gameSlug');
+const {
+  getGameVersionDir,
+  getLegacyGameVersionDir,
+} = require('../utils/storagePaths');
 
 class GameService extends BaseService {
   constructor() {
@@ -43,7 +48,10 @@ class GameService extends BaseService {
     const game = await this.gameDAO.truyVanThongTinGame({ gameId, developerId: user.accountId });
     if (!game) throw new NotFoundException('Không tìm thấy game hoặc bạn không phải chủ sở hữu.');
 
-    const buildInfo = await validateAndProcessBuildZip({ tempFilePath, gameId, versionNumber });
+    const slug = normalizeGameSlug(game.Slug, game.Title);
+    const buildInfo = await validateAndProcessBuildZip({
+      tempFilePath, developerId: game.DeveloperID, gameId, versionNumber,
+    });
 
     let finalFileSize = buildInfo.fileSize;
     let finalSha256 = buildInfo.sha256;
@@ -52,12 +60,21 @@ class GameService extends BaseService {
     if (game.Status === 'Approved') {
       const { ensureDrmWrappedOnApprove } = require('../utils/autoDrmPackager');
       const drmResult = await ensureDrmWrappedOnApprove({
+        developerId: game.DeveloperID,
         gameId, versionId: null, versionNumber, gameTitle: game.Title,
       });
       finalFileSize = drmResult.fileSize;
       finalSha256 = drmResult.sha256;
       autoWrapped = drmResult.autoWrapped;
     }
+
+    const assets = await this.saveGameAssets({
+      slug,
+      title: game.Title,
+      coverFile: params.coverFile,
+      trailerFile: params.trailerFile,
+      replace: true,
+    });
 
     await this.transaction(async (conn) => {
       await this.gameDAO.resetCurrentVersion({ gameId }, conn);
@@ -67,6 +84,13 @@ class GameService extends BaseService {
         fileSize: finalFileSize,
         sha256: finalSha256,
         changeLog,
+      }, conn);
+      await this.gameDAO.capNhatMediaGame({
+        gameId,
+        developerId: game.DeveloperID,
+        slug,
+        coverImage: assets.coverImage,
+        trailerUrl: assets.trailerUrl,
       }, conn);
     });
 
@@ -92,7 +116,10 @@ class GameService extends BaseService {
   }
 
   async luuHoSoDuAnGame(params = {}) {
-    const { title, description, price, minSpec, recSpec, genreIds, versionNumber = '1.0.0', changeLog, tempFilePath, user } = params;
+    const {
+      title, description, price, minSpec, recSpec, genreIds,
+      versionNumber = '1.0.0', changeLog, tempFilePath, user,
+    } = params;
 
     if (!title || !title.trim()) throw new ValidationException('Tên game là bắt buộc.');
     if (!description || !description.trim()) throw new ValidationException('Mô tả game là bắt buộc.');
@@ -102,19 +129,33 @@ class GameService extends BaseService {
     const duplicate = await this.gameDAO.kiemTraTenGameTrungLap({ title: title.trim() });
     if (duplicate) throw new ConflictException(`Tên game "${title.trim()}" đã tồn tại trên hệ thống.`);
 
+    const slug = normalizeGameSlug(params.slug, title);
+    const duplicateSlug = await this.gameDAO.kiemTraSlugGameTrungLap({ slug });
+    if (duplicateSlug) {
+      throw new ConflictException(`Slug "${slug}" đã được sử dụng cho game khác.`);
+    }
     const gameId = uuidv4();
 
-    const buildInfo = await validateAndProcessBuildZip({ tempFilePath, gameId, versionNumber });
+    const buildInfo = await validateAndProcessBuildZip({
+      tempFilePath, developerId: user.accountId, gameId, versionNumber,
+    });
+    const assets = await this.saveGameAssets({
+      slug,
+      title: title.trim(),
+      coverFile: params.coverFile,
+      trailerFile: params.trailerFile,
+    });
 
     await this.transaction(async (conn) => {
       await this.gameDAO.taoBanGhiDuAnMoi({
         gameId,
         developerId: user.accountId,
         title: title.trim(),
+        slug,
         description: description.trim(),
         price,
-        coverImage: params.coverImage || '',
-        trailerUrl: params.trailerUrl || null,
+        coverImage: assets.coverImage || params.coverImage || '',
+        trailerUrl: assets.trailerUrl || params.trailerUrl || null,
         minSpec: minSpec || '',
         recSpec: recSpec || '',
         genreIds: genreIds || [],
@@ -137,6 +178,31 @@ class GameService extends BaseService {
       status: 'Pending',
       message: 'Dự án game đã được khởi tạo. Vui lòng chờ phê duyệt từ Manager.',
     };
+  }
+
+  async saveGameAssets(params = {}) {
+    const result = { coverImage: null, trailerUrl: null };
+    if (params.coverFile) {
+      const saved = await this.storageClient.luuAnhGame({
+        tempFilePath: params.coverFile.path,
+        originalName: params.coverFile.originalname,
+        slug: params.slug,
+        title: params.title,
+        replace: params.replace,
+      });
+      result.coverImage = saved.publicUrl;
+    }
+    if (params.trailerFile) {
+      const saved = await this.storageClient.luuTrailerGame({
+        tempFilePath: params.trailerFile.path,
+        originalName: params.trailerFile.originalname,
+        slug: params.slug,
+        title: params.title,
+        replace: params.replace,
+      });
+      result.trailerUrl = saved.publicUrl;
+    }
+    return result;
   }
 
 
@@ -208,10 +274,10 @@ class GameService extends BaseService {
     if (!target) throw new NotFoundException('Không tìm thấy phiên bản cần rollback.');
     if (Boolean(target.IsCurrent)) throw new NghiepVuException('Phiên bản này đã là bản hiện hành.', 422);
 
-    const { BUILDS_ROOT } = require('../utils/autoDrmPackager');
-    const path = require('path');
-    const fs = require('fs');
-    const buildPath = path.join(BUILDS_ROOT, 'games', gameId, target.VersionNumber, 'build.zip');
+    let buildPath = path.join(getGameVersionDir(user.accountId, gameId, target.VersionNumber), 'build.zip');
+    if (!fs.existsSync(buildPath)) {
+      buildPath = path.join(getLegacyGameVersionDir(gameId, target.VersionNumber), 'build.zip');
+    }
     if (!fs.existsSync(buildPath)) {
       throw new NghiepVuException(`Tệp build phiên bản ${target.VersionNumber} không còn tồn tại trên đĩa.`, 422);
     }

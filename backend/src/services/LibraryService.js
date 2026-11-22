@@ -13,7 +13,10 @@ const {
 } = require('../exceptions');
 const LicenseDAO = require('../dao/LicenseDAO');
 const env = require('../config/env');
-const { BUILDS_ROOT } = require('../utils/autoDrmPackager');
+const {
+  getGameVersionDir,
+  getLegacyGameVersionDir,
+} = require('../utils/storagePaths');
 
 /** Thời gian sống của Launch Token: 10 phút */
 const LAUNCH_TOKEN_TTL = '10m';
@@ -158,7 +161,11 @@ class LibraryService extends BaseService {
       throw new ForbiddenException('Bạn chưa sở hữu game này hoặc bản quyền đã bị thu hồi.');
     }
 
-    const { LicenseID: licenseId, VersionNumber: versionNumber } = license;
+    const {
+      LicenseID: licenseId,
+      DeveloperID: developerId,
+      VersionNumber: versionNumber,
+    } = license;
 
     // Kiểm tra LICENSE_DEVICE
     const existingDevice = await this.licenseDAO.timThietBi({ licenseId, deviceFingerprint });
@@ -189,6 +196,7 @@ class LibraryService extends BaseService {
         licenseId,
         customerId: user.accountId,
         gameId,
+        developerId,
         deviceFingerprint,
       },
       env.jwtSecret,
@@ -289,7 +297,12 @@ class LibraryService extends BaseService {
     }
 
     // Chống path traversal
-    const unpackedDir = path.resolve(BUILDS_ROOT, 'games', gameId, version, 'unpacked');
+    let versionDir = getGameVersionDir(claims.developerId, gameId, version);
+    if (!fs.existsSync(path.join(versionDir, 'unpacked'))) {
+      const legacyVersionDir = getLegacyGameVersionDir(gameId, version);
+      if (fs.existsSync(path.join(legacyVersionDir, 'unpacked'))) versionDir = legacyVersionDir;
+    }
+    const unpackedDir = path.resolve(versionDir, 'unpacked');
     const resolvedPath = path.resolve(unpackedDir, requestedPath || 'index.html');
 
     if (!resolvedPath.startsWith(unpackedDir + path.sep) && resolvedPath !== unpackedDir) {

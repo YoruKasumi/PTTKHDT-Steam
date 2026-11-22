@@ -218,6 +218,7 @@ class CatalogService extends BaseService {
       gameId: row.GameID,
       id: row.GameID,
       title: row.Title,
+      slug: row.Slug,
       description: row.Description,
       coverImage: row.CoverImage,
       image: row.CoverImage,

@@ -35,7 +35,7 @@ class GameDAO extends BaseDAO {
     }[params.sort] || 'popularity.Popularity DESC, g.GameID';
 
     return this.query(
-      `SELECT g.GameID, g.Title, g.Description, g.CoverImage, g.ReleaseDate,
+      `SELECT g.GameID, g.Title, g.Slug, g.Description, g.CoverImage, g.ReleaseDate,
               developer.CompanyName,
               price.BasePrice, price.PercentOff, price.CurrentPrice,
               COALESCE(rating.AverageRating, 0) AS AverageRating,
@@ -90,13 +90,13 @@ class GameDAO extends BaseDAO {
 
   async layDanhSachGameTheoDeveloper(developerId, conn = null) {
     return this.query(
-      `SELECT g.GameID, g.Title, g.Status, g.Price,
+      `SELECT g.GameID, g.Title, g.Slug, g.Status, g.Price,
               COALESCE(GROUP_CONCAT(DISTINCT genre.GenreName ORDER BY genre.GenreName SEPARATOR ', '), '') AS Genres
        FROM GAME AS g
        LEFT JOIN GAME_GENRE AS gameGenre ON gameGenre.GameID = g.GameID
        LEFT JOIN GENRE AS genre ON genre.GenreID = gameGenre.GenreID
        WHERE g.DeveloperID = ?
-       GROUP BY g.GameID, g.Title, g.Status, g.Price
+       GROUP BY g.GameID, g.Title, g.Slug, g.Status, g.Price
        ORDER BY g.GameID DESC`,
       [developerId],
       conn,
@@ -105,7 +105,7 @@ class GameDAO extends BaseDAO {
 
   async layThongTinSanPham(params = {}, conn = null) {
     return this.one(
-      `SELECT g.GameID, g.Title, g.Description, g.CoverImage, g.TrailerUrl,
+      `SELECT g.GameID, g.Title, g.Slug, g.Description, g.CoverImage, g.TrailerUrl,
               g.MinSpec, g.RecSpec, g.ReleaseDate, developer.CompanyName,
               price.BasePrice, price.PercentOff, price.CurrentPrice,
               currentVersion.VersionID, currentVersion.VersionNumber,
@@ -190,7 +190,7 @@ class GameDAO extends BaseDAO {
   }
   async truyVanThongTinGame(params = {}, conn = null) {
     return this.one(
-      `SELECT g.GameID, g.DeveloperID, g.Title, g.Status,
+      `SELECT g.GameID, g.DeveloperID, g.Title, g.Slug, g.Status,
               gv.VersionID, gv.VersionNumber, gv.BuildFile, gv.FileSize, gv.Sha256
        FROM GAME g
        LEFT JOIN GAMEVERSION gv ON gv.GameID = g.GameID AND gv.IsCurrent = 1
@@ -224,12 +224,20 @@ class GameDAO extends BaseDAO {
     );
   }
 
+  async kiemTraSlugGameTrungLap(params = {}, conn = null) {
+    return this.one(
+      'SELECT GameID FROM GAME WHERE Slug = ? LIMIT 1',
+      [params.slug],
+      conn,
+    );
+  }
+
   async taoBanGhiDuAnMoi(params = {}, conn = null) {
     await this.query(
-      `INSERT INTO GAME (GameID, DeveloperID, Title, Description, Price, CoverImage, TrailerUrl, MinSpec, RecSpec, Status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')`,
+      `INSERT INTO GAME (GameID, DeveloperID, Title, Slug, Description, Price, CoverImage, TrailerUrl, MinSpec, RecSpec, Status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')`,
       [
-        params.gameId, params.developerId, params.title, params.description,
+        params.gameId, params.developerId, params.title, params.slug, params.description,
         params.price, params.coverImage || '', params.trailerUrl || null,
         params.minSpec || '', params.recSpec || '',
       ],
@@ -252,6 +260,17 @@ class GameDAO extends BaseDAO {
         );
       }
     }
+  }
+
+  async capNhatMediaGame(params = {}, conn = null) {
+    const result = await this.query(
+      `UPDATE GAME
+       SET Slug = ?, CoverImage = COALESCE(?, CoverImage), TrailerUrl = COALESCE(?, TrailerUrl)
+       WHERE GameID = ? AND DeveloperID = ?`,
+      [params.slug, params.coverImage || null, params.trailerUrl || null, params.gameId, params.developerId],
+      conn,
+    );
+    return result.affectedRows > 0;
   }
 
   /**
