@@ -3,11 +3,18 @@
 -- Kiến trúc 3 tầng: Route -> Service -> DAO
 -- Bao gồm đầy đủ 30 bảng, views, khóa ngoại, ràng buộc toàn vẹn và chỉ mục.
 -- =====================================================================
-SET FOREIGN_KEY_CHECKS = 0;
-DROP DATABASE IF EXISTS steam_store;
-CREATE DATABASE steam_store
+CREATE DATABASE IF NOT EXISTS steam_store
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE steam_store;
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS SYSTEM_PARAMETER, BANNER, GAMEREVIEW, AUDITLOG, NOTIFICATION,
+  WITHDRAWALREQUEST, `TRANSACTION`, WALLET, REFUNDREQUEST, REVIEW, WISHLISTITEM,
+  LICENSE, LICENSE_DEVICE, ORDERITEM, ORDERS, COUPON, CARTITEM, CART, SALECAMPAIGN, ACTIVATIONKEY,
+  GAMEVERSION, GAME_GENRE, GENRE, GAME, MANAGER, ROLE_PERMISSION, `ROLE`,
+  ADMIN, DEVELOPER, CUSTOMER, ACCOUNT;
+DROP VIEW IF EXISTS V_GAME_PRICE;
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- ---------------------------------------------------------------------
 -- CỤM 1: TÀI KHOẢN VÀ PHÂN QUYỀN

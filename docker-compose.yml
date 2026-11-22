@@ -1,32 +1,34 @@
+name: pttkhdt-steam
+
 services:
   db:
+    container_name: steam-db
     image: mysql:8.0.44
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env.docker}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-270106}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-steam_store}
       MYSQL_USER: ${MYSQL_USER:-steam_app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env.docker}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-270106}
     command:
       - mysqld
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     ports:
-      - "127.0.0.1:3307:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./backend/sql/steam_store_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./backend/sql/extra_tables.sql:/docker-entrypoint-initdb.d/02-extra.sql:ro
-      - ./backend/sql/steam_store_sample_data.sql:/docker-entrypoint-initdb.d/03-sample.sql:ro
-      - ./backend/sql/docker_seed_games.sql:/docker-entrypoint-initdb.d/04-games.sql:ro
+      - ./backend/sql/steam_store_sample_data.sql:/docker-entrypoint-initdb.d/02-sample.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping --host=127.0.0.1 --user=root --password=\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      test: ["CMD-SHELL", "mysql -u root -p$${MYSQL_ROOT_PASSWORD} -e 'SELECT 1 FROM steam_store.GAME LIMIT 1;' || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 25
       start_period: 20s
     restart: unless-stopped
 
   backend:
+    container_name: steam-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -36,11 +38,15 @@ services:
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: ${MYSQL_USER:-steam_app}
-      DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env.docker}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-270106}
       DB_NAME: ${MYSQL_DATABASE:-steam_store}
       DB_POOL_SIZE: 10
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: "http://localhost:5173,http://localhost:80,http://127.0.0.1:5173,http://127.0.0.1:80"
       STORAGE_LOCAL_DIR: /app/storage
+      JWT_SECRET: ${JWT_SECRET:-steam-store-jwt-secret-key-32chars-min!}
+      JWT_EXPIRES_IN: 24h
+    ports:
+      - "3000:3000"
     volumes:
       - ./backend/storage:/app/storage
     depends_on:
@@ -51,14 +57,15 @@ services:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-      interval: 10s
+        - "fetch('http://127.0.0.1:3000/health/database').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 15s
+      retries: 15
+      start_period: 10s
     restart: unless-stopped
 
   frontend:
+    container_name: steam-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile

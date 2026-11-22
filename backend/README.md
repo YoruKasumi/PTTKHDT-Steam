@@ -1,140 +1,120 @@
 # Steam Store - Backend (3 tầng)
 
-Khung backend Node.js / Express / MySQL theo kiến trúc 3 tầng: **Route + Service (Business Logic)** → **DAO (Data Access)** → **MySQL**.
-Tên phương thức trong `services/`, `dao/`, `integrations/` lấy đúng từ các sơ đồ sequence. Nội dung hàm chưa cài đặt (ném `NotImplementedException`); mỗi hàm có chú thích liệt kê luồng theo sơ đồ.
+Kiến trúc backend Node.js / Express / MySQL theo đúng chuẩn 3 tầng: **Route + Middleware** → **Service (Business Logic)** → **DAO (Data Access Object)** → **MySQL**.
 
-## Cấu trúc thư mục
+---
 
-```
+## 1. Cấu trúc thư mục
+
+```text
 backend/
-├─ package.json, .env.example, .gitignore
-├─ sql/                          schema, sample data, extra tables, and one-time migrations
-├─ docs/                         sequence_method_map.md, frontend_handlers.md, needs_review.md
-├─ storage/                      uploads/ (tạm), builds/ (file game khi dùng driver local)
-├─ tests/
-└─ src/
-   ├─ server.js, app.js
-   ├─ config/                    env.js, database.js (pool + withTransaction), storage.js
-   ├─ routes/                    *.routes.js  ┐
-   ├─ middlewares/               auth.js (JWT, phân quyền), upload.js, errorHandler.js  ┘ Business Logic: Route
-   ├─ services/                  23 *Service + BaseService + index.js   (Business Logic)
-   ├─ exceptions/                NghiepVuException, Forbidden, NotFound, NotImplemented
-   ├─ dao/                       19 *DAO + BaseDAO                      (Data Access)
-   ├─ integrations/              StorageClient, PaymentGatewayClient, BankClient
-   └─ utils/                     asyncHandler, response, requestContext, password, token
+├── package.json, .env.example, .gitignore
+├── sql/
+│   ├── steam_store_schema.sql       # Toàn bộ 30 bảng, 1 view, khóa ngoại, chỉ mục
+│   └── steam_store_sample_data.sql  # Dữ liệu mẫu (35 games, ví, tài khoản demo, banner)
+├── assets/public/games/             # Ảnh cover và trailer game phục vụ qua /api/media
+├── storage/                         # Lưu trữ cục bộ (uploads tạm, builds file zip game)
+├── tests/                           # Bộ 151 unit tests tự động (node --test)
+├── scripts/                         # bootstrap-demo-accounts.js, bootstrap-admin.js
+└── src/
+    ├── server.js, app.js
+    ├── config/                      env.js, database.js (pool + withTransaction)
+    ├── routes/                      *.routes.js (Tầng Route)
+    ├── middlewares/                 auth.js (JWT, RBAC), upload.js, errorHandler.js
+    ├── services/                    23 Services (Tầng Nghiệp vụ)
+    ├── exceptions/                  NghiepVuException, Forbidden, NotFound, Conflict
+    ├── dao/                         19 DAOs (Tầng Truy vấn Dữ liệu)
+    ├── integrations/                BankClient, PaymentGatewayClient, StorageClient
+    └── utils/                       mailer, otpStore, tokenRevocation, response, autoDrmPackager
 ```
 
-## Chạy thử
+---
 
-### Cài MySQL và kết nối backend trên Windows
+## 2. Hướng dẫn cài đặt và chạy cục bộ (Local Development)
 
-Backend dùng **MySQL Server 8.0.16 trở lên**. MySQL Workbench chỉ là ứng dụng giao diện để quản lý/chạy SQL; cài Workbench một mình chưa có MySQL Server để backend kết nối. Cài và khởi động dịch vụ MySQL Server trước, thường có tên dịch vụ `MySQL80`.
+### Yêu cầu tiên quyết
+- **Node.js**: Phiên bản 18 trở lên (khuyến nghị Node.js 20 hoặc 22).
+- **MySQL Server**: Phiên bản 8.0.16 trở lên.
 
-Mở PowerShell tại thư mục backend:
+### Các bước thực hiện
+1. **Cấu hình môi trường**:
+   ```powershell
+   cd backend
+   Copy-Item .env.example .env
+   ```
+   Cập nhật thông tin MySQL và bí mật JWT trong `.env`:
+   ```dotenv
+   PORT=3000
+   NODE_ENV=development
+   CORS_ORIGIN=http://localhost:5173
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASSWORD=mat_khau_mysql_cua_ban
+   DB_NAME=steam_store
+   JWT_SECRET=chuoi-bi-mat-jwt-it-nhat-32-ky-tu!
+   ```
 
-```powershell
-cd D:\Code\PTTKHDT-Steam\backend
-Copy-Item .env.example .env
-notepad .env
-```
+2. **Cài đặt thư viện và khởi tạo cơ sở dữ liệu**:
+   ```powershell
+   npm install
+   npm run db:schema
+   npm run db:sample
+   ```
 
-Trong `.env`, đặt thông tin trùng với MySQL Server đang chạy:
+3. **Khởi tạo tài khoản phát triển (Admin & Staff demo)**:
+   ```powershell
+   npm run db:bootstrap-demo
+   ```
 
-```dotenv
-PORT=3000
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=mat_khau_root_cua_mysql
-DB_NAME=steam_store
-```
+4. **Chạy kiểm thử (Unit Tests)**:
+   ```powershell
+   npm test
+   ```
+   *(Toàn bộ 151 test cases phải pass 100%).*
 
-`PORT=3000` là cổng HTTP của backend; `DB_PORT=3306` là cổng MySQL. Đây là hai cổng khác nhau. Không commit file `.env` hoặc gửi mật khẩu database lên chat.
+5. **Khởi động server phát triển**:
+   ```powershell
+   npm run dev
+   ```
+   - Server lắng nghe tại: `http://localhost:3000`
+   - Tài liệu OpenAPI / Swagger UI: `http://localhost:3000/api-docs`
+   - Kiểm tra trạng thái máy chủ: `http://localhost:3000/health`
+   - Kiểm tra kết nối MySQL: `http://localhost:3000/health/database`
 
-Sau khi lưu `.env`, tạo database và các bảng:
+---
 
-```powershell
-npm install
-npm run db:schema
-npm run db:extra
-npm run db:sample
-```
+## 3. Quy ước thiết kế 3 tầng
 
-`db:sample` là tùy chọn nếu cần dữ liệu mẫu. **Cẩn thận:** `sql/steam_store_schema.sql` xóa và tạo lại các bảng trong `steam_store`; chỉ chạy trên database mới hoặc sau khi đã sao lưu dữ liệu cần giữ. Các lệnh `db:*` dùng MySQL CLI (`mysql`) và cần MySQL `bin` có trong `PATH`. Có thể thay bằng Workbench: kết nối `localhost:3306` với user MySQL của bạn, mở file SQL tương ứng trong thư mục `sql/`, rồi Execute.
+- **Route & Middleware**: Chỉ tiếp nhận HTTP request, xác thực JWT, kiểm tra phân quyền vai trò (RBAC), trích xuất tham số qua `requestContext(req)`, gọi đúng phương thức Service và trả kết quả dưới dạng JSON chuẩn. Không chứa logic nghiệp vụ.
+- **Service**: Kiểm tra toàn bộ quy tắc nghiệp vụ (Business Rules), điều phối transaction (`withTransaction`), sử dụng pessimistic lock (`FOR UPDATE`) khi cần thiết, gửi thông báo (`NotificationService`), ghi nhật ký kiểm toán (`AuditLogService`), ném ngoại lệ chuẩn khi vi phạm.
+- **DAO**: Chỉ chứa các câu lệnh SQL thuần túy (Prepared Statements với tham số `?` để ngăn chặn triệt để SQL Injection). Hỗ trợ nhận `conn` để chạy trong transaction của Service.
+- **Chuẩn phản hồi API**:
+  - Thành công: `{ success: true, message: '...', data: ... }`
+  - Thất bại: `{ success: false, code: '...', message: '...', details?: ... }`
 
-Để nâng database đã tạo trước đó lên mức giảm giá tối đa 100%, chạy một lần `sql/migrate_sale_max_100_percent.sql`; không chạy lại `db:schema` trên database đang có dữ liệu.
+---
 
-Để nâng database hiện có cho hoàn tiền theo từng game và khôi phục bản quyền khi mở khóa tài khoản, chạy một lần `sql/migration_refund_per_game_and_license_restore.sql` trước khi triển khai backend mới. Migration giữ các yêu cầu hoàn tiền cũ ở mức đơn hàng (`GameID = NULL`) và không tự khôi phục các license/thiết bị cũ không có lý do thu hồi xác định.
+## 4. Danh sách các dịch vụ nghiệp vụ (Services)
 
-Để bật tự động hết hạn tạm khóa trên database hiện có, chạy một lần `sql/migration_auto_expire_account_suspensions.sql` trước khi triển khai backend mới. Backend kiểm tra mỗi phút; thời hạn được chọn theo giờ khi Admin/Manager tạm khóa. Hết hạn sẽ mở lại tài khoản, ghi audit và thông báo, đồng thời áp dụng quy tắc khôi phục license hiện có. Worker chạy trong tiến trình backend liên tục (như service Docker trong `docker-compose.yml`); môi trường serverless không bảo đảm timer tồn tại và cần dùng cron/worker bên ngoài.
-
-Khởi động backend:
-
-```powershell
-npm run dev
-```
-
-Mở Swagger UI tại **http://localhost:3000/api-docs**. OpenAPI JSON ở `http://localhost:3000/api-docs/openapi.json`; kiểm tra backend bằng `/health` và MySQL bằng `/health/database`. Swagger chỉ được bật khi `NODE_ENV` không phải `production`.
-
-Các API có yêu cầu đăng nhập cần Bearer JWT trong Swagger nút **Authorize**.
-
-### Chạy tự động bằng npm
-
-```bash
-npm install
-cp .env.example .env
-npm run db:schema
-npm run db:extra
-npm run db:sample
-npm run dev
-```
-
-Khối lệnh trên dùng cú pháp `cp` của Bash; với PowerShell dùng các lệnh Windows trong phần trước. Đặt `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_DISPLAY_NAME`, `BOOTSTRAP_ADMIN_PASSWORD` trong môi trường rồi chạy `npm run db:bootstrap-admin` nếu cần tạo Admin đầu tiên.
-
-Các API có dạng `/api/<service>/<tenHamTrongSequence>`, ví dụ `POST /api/auth/guiThongTinDangKy`. Xem danh sách và thử request tại Swagger UI.
-
-`db:bootstrap-admin` không nhận mật khẩu qua tham số dòng lệnh, không có mật khẩu mặc định và chỉ chạy khi bảng `ADMIN` trống hoặc chứa đúng tài khoản mẫu A001 đang bị vô hiệu hóa. Không ghi các biến `BOOTSTRAP_ADMIN_*` vào SQL hay commit chúng. Nếu bỏ qua dữ liệu mẫu, có thể chạy lệnh bootstrap ngay sau `db:extra`; nếu đã nạp sample, script sẽ đặt thông tin đăng nhập mới cho A001.
-
-Để tạo hai tài khoản phát triển tạm thời (Admin và Staff/Manager) với mật khẩu ngẫu nhiên, sau khi đã tạo schema, chạy `npm run db:bootstrap-demo`. Lệnh chỉ dùng ngoài production, chỉ tạo nếu username/email demo chưa tồn tại và in thông tin đăng nhập một lần ra terminal. Lưu lại mật khẩu; chạy lại sẽ không ghi đè các tài khoản trước đó.
-
-Đăng ký Customer yêu cầu `username`, `email`, `displayName`, `password` và OTP 4 chữ số. Trong môi trường không phải production, OTP `0000` mô phỏng thất bại; OTP 4 chữ số khác mô phỏng xác minh thành công. Đây chỉ là luồng thử nghiệm, không gửi email/SMS; production bị chặn cho đến khi tích hợp nhà cung cấp OTP thật.
-
-Đăng nhập nhận `account` (username hoặc email) và `password`, trả JWT cùng vai trò để dùng qua Swagger **Authorize**. Mật khẩu lưu dưới dạng bcrypt hash.
-
-## Quy ước
-
-- **Route** chỉ nhận request, gọi đúng một hàm Service và trả JSON; không chứa nghiệp vụ.
-- **Service** kiểm tra quy định nghiệp vụ, điều phối transaction (`this.transaction(async (conn) => ...)`), ném `NghiepVuException` khi vi phạm.
-- **DAO** chỉ chứa SQL; hàm ghi nhận thêm tham số `conn` để chạy trong transaction của Service.
-- Thông điệp phía giao diện (`chon...`, `nhap...`, `hienThi...`) nằm trong `docs/frontend_handlers.md`, dùng cho bước frontend.
-- Lời gọi giữa các service được gắn trong `services/index.js` (ví dụ `moderationService.auditLogService`).
-
-## Danh sách service
-
-| Service | Use case | Hàm public (UI gọi) | Hàm nội bộ | DAO chính |
-|---|---|---|---|---|
-| AuthService | UC1, UC2, UC3, UC5, UC12 | 4 | 4 | AccountDAO |
-| ProfileService | UC4 | 2 | 0 | AccountDAO |
-| CatalogService | UC6, UC7 | 8 | 0 | GameDAO |
-| CartService | UC8, UC9, UC10 | 3 | 2 | CartDAO |
-| GameService | UC9, UC11, UC15, UC24, UC25, UC26, UC29, UC34, UC35, UC36 | 11 | 2 | GameDAO |
-| WishlistService | UC11 | 2 | 0 | WishlistDAO |
-| WalletService | UC12, UC13, UC14, UC15, UC20, UC21 | 7 | 0 | WalletDAO |
-| OrderService | UC15, UC21 | 3 | 0 | OrderDAO |
-| LibraryService | UC16, UC17, UC18, UC19 | 3 | 3 | LicenseDAO |
-| NotificationService | UC22 | 2 | 0 | NotificationDAO |
-| DeveloperService | UC23 | 2 | 0 | DeveloperDAO |
-| PromotionService | UC27, UC28 | 2 | 4 | PromotionDAO |
-| ReportService | UC30, UC31, UC32 | 3 | 4 | ReportDAO |
-| WithdrawalService | UC33, UC57 | 4 | 1 | WithdrawalDAO |
-| ModerationService | UC38, UC39, UC40, UC41, UC43, UC47 | 9 | 1 | ModerationDAO |
-| AuditLogService | UC39, UC40, UC41, UC43, UC44, UC45, UC58, UC59, UC60, UC61, UC62 | 4 | 2 | AuditLogDAO |
-| AccountService | UC42, UC44, UC45 | 3 | 0 | AccountDAO |
-| GenreService | UC48 | 3 | 0 | GenreDAO |
-| BannerService | UC49 | 1 | 1 | BannerDAO |
-| FinanceService | UC50, UC51, UC52, UC53, UC54, UC55, UC56 | 7 | 7 | ReportDAO |
-| SystemConfigService | UC58 | 2 | 2 | SystemConfigDAO |
-| RbacService | UC59 | 2 | 2 | RoleDAO |
-| StaffService | UC61, UC62 | 3 | 1 | StaffDAO |
-
-Xem thêm `docs/needs_review.md` để biết các điểm cần đối chiếu với sơ đồ.
+| Service | Nghiệp vụ cốt lõi | DAO chính |
+|---|---|---|
+| **AuthService** | Đăng ký (OTP SMTP thật), Đăng nhập (JWT), Đăng xuất (Thu hồi JTI), Quên mật khẩu | AccountDAO |
+| **CatalogService** | Tìm kiếm sản phẩm, Lọc theo thể loại/giá/sale, Sắp xếp, Chi tiết game | GameDAO |
+| **CartService** | Thêm/xóa giỏ hàng, Kiểm tra bản quyền trùng lặp | CartDAO |
+| **GameService** | Quản lý game, Upload ảnh bìa/trailer, Đóng gói DRM tự động | GameDAO |
+| **WishlistService** | Danh sách game yêu thích, Chặn thêm game đã sở hữu | WishlistDAO |
+| **WalletService** | Nạp tiền vào ví, Rút tiền, Ghi nhật ký biến động số dư | WalletDAO |
+| **OrderService** | Thanh toán đơn hàng (Checkout), Yêu cầu hoàn tiền trong 24 giờ | OrderDAO |
+| **LibraryService** | Thư viện game người dùng, Khởi chạy game (Ký DRM Launch Token), Verify token | LicenseDAO |
+| **NotificationService** | Gửi và đánh dấu đã đọc thông báo hệ thống | NotificationDAO |
+| **DeveloperService** | Quản lý thông tin nhà phát hành, Thu phí đăng ký NPH | DeveloperDAO |
+| **PromotionService** | Quản lý chiến dịch giảm giá (Sale Campaign), Áp dụng Coupon | PromotionDAO |
+| **ReportService** | Báo cáo doanh thu thời gian thực, Kết xuất bảng kê bán hàng | ReportDAO |
+| **WithdrawalService** | Yêu cầu rút doanh thu của NPH, Chuyển khoản ngân hàng (BankClient), Khóa dòng bi quan | WithdrawalDAO |
+| **ModerationService** | Kiểm duyệt game đăng bán, Duyệt/Từ chối đánh giá cộng đồng | ModerationDAO |
+| **AuditLogService** | Ghi nhận nhật ký kiểm toán hành động quản trị | AuditLogDAO |
+| **AccountService** | Khóa/Mở khóa tài khoản người dùng, Tự động hết hạn tạm khóa theo giờ | AccountDAO |
+| **FinanceService** | Thống kê doanh số, Báo cáo tài chính, Tỷ lệ hoa hồng sàn | ReportDAO |
+| **SystemConfigService** | Quản lý thông số cấu hình hệ thống (Dynamic Parameters) | SystemConfigDAO |
+| **RbacService / StaffService** | Phân quyền vai trò quản trị, Quản lý tài khoản nhân viên | RoleDAO, StaffDAO |
