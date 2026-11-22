@@ -689,7 +689,7 @@ Loại thông điệp được xác định từ hướng mũi tên (UI → Serv
 | 10 | `hienThiHoSoChiTiet` | Kết quả trả về |  |
 | 11 | `xacNhanHoanTatKiemTraThongTin` | Frontend |  |
 | 12 | `capNhatTrangThaiDaKiemTra` | Service (public) | ModerationService.capNhatTrangThaiDaKiemTra |
-| 13 | `luuTrangThaiDaKiemTra` | DAO | ModerationDAO.luuTrangThaiDaKiemTra |
+| 13 | `ghiNhanNhatKyKiemTraGame` | Service → Service | AuditLogService.recordLog |
 | 14 | `xacNhanLuuThanhCong` | Kết quả trả về |  |
 | 15 | `thongBaoKiemTraHoanTat` | Kết quả trả về |  |
 | 16 | `hienThiThongBaoHoanTat` | Frontend |  |

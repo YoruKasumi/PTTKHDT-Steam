@@ -76,10 +76,35 @@ class ModerationService extends BaseService {
   }
 
   /**
-   * UC38. Cập nhật trạng thái đã kiểm tra.
+   * UC38. Ghi audit khi người kiểm duyệt hoàn tất bước kiểm tra hồ sơ.
    */
   async capNhatTrangThaiDaKiemTra(params = {}) {
-    throw new NotImplementedException('ModerationService.capNhatTrangThaiDaKiemTra');
+    const gameId = String(params.gameId || '').trim();
+    const reviewerId = params.user?.accountId;
+    if (!gameId) throw new ValidationException('Thiếu gameId.');
+    if (!reviewerId) throw new ValidationException('Thiếu người kiểm duyệt.');
+
+    return this.transaction(async (conn) => {
+      const game = await this.moderationDAO.truyVanChiTietGame({ gameId }, conn);
+      if (!game) throw new NotFoundException('Không tìm thấy game.');
+
+      await this.auditLogService.recordLog({
+        accountId: reviewerId,
+        action: 'game.pre_review_completed',
+        target: `GAME:${game.GameID}`,
+        detail: JSON.stringify({
+          gameTitle: game.Title,
+          gameStatus: game.Status,
+          event: 'pre_review_completed',
+        }),
+      }, conn);
+
+      return {
+        gameId: game.GameID,
+        auditLogged: true,
+        reviewerId,
+      };
+    });
   }
 
   /**

@@ -97,7 +97,7 @@ test('login returns a JWT containing account roles after password verification',
   assert.deepEqual(token.verify(result.token).roles, ['Admin']);
 });
 
-test('login rejects invalid passwords and inactive accounts', async () => {
+test('login rejects invalid passwords and gives distinct errors for suspended and banned accounts', async () => {
   const passwordHash = await password.hash('strong-password-123');
   const invalidPasswordService = createService({
     AccountID: 'account-123',
@@ -109,13 +109,23 @@ test('login rejects invalid passwords and inactive accounts', async () => {
     (error) => error.status === 401,
   );
 
-  const inactiveService = createService({
+  const suspendedService = createService({
     AccountID: 'account-123',
     PasswordHash: passwordHash,
     Status: 'Suspended',
   }).service;
   await assert.rejects(
-    inactiveService.guiThongTinDangNhap({ account: 'demo_admin', password: 'strong-password-123' }),
-    (error) => error.code === 'ACCOUNT_INACTIVE' && error.status === 403,
+    suspendedService.guiThongTinDangNhap({ account: 'demo_admin', password: 'strong-password-123' }),
+    (error) => error.code === 'ACCOUNT_SUSPENDED' && error.status === 403,
+  );
+
+  const bannedService = createService({
+    AccountID: 'account-123',
+    PasswordHash: passwordHash,
+    Status: 'Banned',
+  }).service;
+  await assert.rejects(
+    bannedService.guiThongTinDangNhap({ account: 'demo_admin', password: 'strong-password-123' }),
+    (error) => error.code === 'ACCOUNT_BANNED' && error.status === 403,
   );
 });

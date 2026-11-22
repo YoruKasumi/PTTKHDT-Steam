@@ -28,11 +28,13 @@ CREATE TABLE ACCOUNT (
   DisplayName   VARCHAR(50)  NOT NULL,
   AvatarUrl     VARCHAR(255) NULL,
   Status        ENUM('Active','Suspended','Banned') NOT NULL DEFAULT 'Active',
+  SuspendUntil  DATETIME     NULL,
   NotifyEnabled TINYINT(1)   NOT NULL DEFAULT 1,
   CreatedAt     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (AccountID),
   UNIQUE KEY uq_account_username (Username),
-  UNIQUE KEY uq_account_email (Email)
+  UNIQUE KEY uq_account_email (Email),
+  KEY idx_account_suspension_expiry (Status, SuspendUntil)
 ) ENGINE=InnoDB;
 
 -- [SỬA] Một tài khoản ĐƯỢC PHÉP có cả dòng CUSTOMER lẫn DEVELOPER (khách hàng đăng ký làm nhà
@@ -218,7 +220,7 @@ CREATE TABLE ORDERS (
   CouponID    CHAR(36)      NULL,
   OrderDate   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   TotalAmount DECIMAL(15,2) NOT NULL,                 -- = SUM(ORDERITEM.PriceAfterDiscount); coupon đã được chia vào từng dòng
-  Status      ENUM('Completed','Refunded') NOT NULL DEFAULT 'Completed',
+  Status      ENUM('Completed','PartiallyRefunded','Refunded') NOT NULL DEFAULT 'Completed',
   PRIMARY KEY (OrderID),
   KEY idx_orders_customer_date (CustomerID, OrderDate),
   CONSTRAINT fk_orders_customer FOREIGN KEY (CustomerID) REFERENCES CUSTOMER(AccountID),
@@ -251,6 +253,7 @@ CREATE TABLE LICENSE (
   AccessToken  VARCHAR(255) NOT NULL,
   Status       ENUM('Active','Revoked') NOT NULL DEFAULT 'Active',
   RevokedAt    DATETIME     NULL,                     -- [THÊM]
+  RevokedReason ENUM('Refund','AccountSuspended') NULL,
   ActiveKey    VARCHAR(80) GENERATED ALWAYS AS
                (IF(Status = 'Active', CONCAT(CustomerID, '|', GameID), NULL)) STORED,
   PRIMARY KEY (LicenseID),
@@ -270,6 +273,7 @@ CREATE TABLE LICENSE_DEVICE (
   FirstSeen         DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   LastSeen          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   Status            ENUM('Active','Revoked') NOT NULL DEFAULT 'Active',
+  RevokedReason     ENUM('Refund','AccountSuspended','User') NULL,
   PRIMARY KEY (DeviceID),
   UNIQUE KEY uq_license_device (LicenseID, DeviceFingerprint),
   CONSTRAINT fk_ld_license FOREIGN KEY (LicenseID) REFERENCES LICENSE(LicenseID)
@@ -305,13 +309,16 @@ CREATE TABLE REVIEW (
 CREATE TABLE REFUNDREQUEST (
   RequestID          CHAR(36)     NOT NULL DEFAULT (UUID()),
   OrderID            CHAR(36)     NOT NULL,
+  GameID             CHAR(36)     NULL,
   Reason             VARCHAR(500) NOT NULL,
   RequestDate        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   Status             ENUM('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending',
   HoursSincePurchase INT          NOT NULL,
   PRIMARY KEY (RequestID),
   KEY idx_refund_order (OrderID),
+  KEY idx_refund_order_game_status (OrderID, GameID, Status),
   CONSTRAINT fk_refund_order FOREIGN KEY (OrderID) REFERENCES ORDERS(OrderID),
+  CONSTRAINT fk_refund_game FOREIGN KEY (GameID) REFERENCES GAME(GameID),
   CONSTRAINT ck_refund_hours CHECK (HoursSincePurchase >= 0)
 ) ENGINE=InnoDB;
 
@@ -339,6 +346,7 @@ CREATE TABLE `TRANSACTION` (
   Amount    DECIMAL(15,2) NOT NULL,
   TransDate DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   Status    ENUM('Success','Failed','Pending') NOT NULL DEFAULT 'Success',
+  Detail    TEXT          NULL,
   PRIMARY KEY (TransID),
   KEY idx_trans_wallet_date (WalletID, TransDate),
   CONSTRAINT fk_trans_wallet FOREIGN KEY (WalletID) REFERENCES WALLET(WalletID),
@@ -347,7 +355,8 @@ CREATE TABLE `TRANSACTION` (
 ) ENGINE=InnoDB;
 
 -- Doanh thu khả dụng của developer KHÔNG lưu cột riêng, tính bằng:
---   SUM(ORDERITEM.PriceAfterDiscount của game do dev phát hành, đơn Completed)
+--   SUM(ORDERITEM.PriceAfterDiscount của game do dev phát hành, đơn đã thanh toán)
+--   - SUM(ORDERITEM.PriceAfterDiscount của game có REFUNDREQUEST Approved)
 --   - SUM(WITHDRAWALREQUEST.Amount với Status IN ('Pending','Approved'))   -- Pending = tiền đang tạm giữ
 CREATE TABLE WITHDRAWALREQUEST (
   RequestID   CHAR(36)      NOT NULL DEFAULT (UUID()),
@@ -379,7 +388,7 @@ CREATE TABLE NOTIFICATION (
 
 CREATE TABLE AUDITLOG (
   LogID     CHAR(36)     NOT NULL DEFAULT (UUID()),
-  AccountID CHAR(36)     NOT NULL,
+  AccountID CHAR(36)     NULL,
   Action    VARCHAR(100) NOT NULL,
   Target    VARCHAR(200) NOT NULL,
   LogAt     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

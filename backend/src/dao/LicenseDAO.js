@@ -43,7 +43,7 @@ class LicenseDAO extends BaseDAO {
     return this.one(
       `SELECT l.LicenseID, l.CustomerID, l.GameID, l.Status AS LicenseStatus,
               g.DeveloperID,
-              gv.VersionID, gv.VersionNumber, gv.BuildFile
+              gv.VersionID, gv.VersionNumber, gv.BuildFile, gv.FileSize, gv.Sha256
        FROM LICENSE l
        INNER JOIN GAME g ON g.GameID = l.GameID
        INNER JOIN GAMEVERSION gv ON gv.GameID = l.GameID AND gv.IsCurrent = 1
@@ -124,6 +124,89 @@ class LicenseDAO extends BaseDAO {
     );
   }
 
+  async thuHoiBanQuyenTaiKhoan(params = {}, conn = null) {
+    const licenses = await this.query(
+      `SELECT LicenseID
+         FROM LICENSE
+        WHERE CustomerID = ? AND Status = 'Active'
+        FOR UPDATE`,
+      [params.customerId],
+      conn,
+    );
+    if (!licenses.length) return 0;
+
+    const licenseIds = licenses.map((license) => license.LicenseID);
+    const placeholders = licenseIds.map(() => '?').join(', ');
+    await this.query(
+      `UPDATE LICENSE
+          SET Status = 'Revoked', RevokedAt = NOW(), RevokedReason = 'AccountSuspended'
+        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
+      licenseIds,
+      conn,
+    );
+    await this.query(
+      `UPDATE LICENSE_DEVICE
+          SET Status = 'Revoked', RevokedReason = 'AccountSuspended'
+        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
+      licenseIds,
+      conn,
+    );
+    return licenses.length;
+  }
+
+  async khoiPhucBanQuyenTaiKhoan(params = {}, conn = null) {
+    const licenses = await this.query(
+      `SELECT LicenseID
+         FROM LICENSE
+        WHERE CustomerID = ? AND Status = 'Revoked' AND RevokedReason = 'AccountSuspended'
+        FOR UPDATE`,
+      [params.customerId],
+      conn,
+    );
+    if (!licenses.length) return 0;
+
+    const licenseIds = licenses.map((license) => license.LicenseID);
+    const licensePlaceholders = licenseIds.map(() => '?').join(', ');
+    await this.query(
+      `UPDATE LICENSE
+          SET Status = 'Active', RevokedAt = NULL, RevokedReason = NULL
+        WHERE LicenseID IN (${licensePlaceholders})
+          AND Status = 'Revoked' AND RevokedReason = 'AccountSuspended'`,
+      licenseIds,
+      conn,
+    );
+
+    for (const licenseId of licenseIds) {
+      const activeDeviceCount = await this.demThietBiActive({ licenseId }, conn);
+      const remainingSlots = Math.max(0, 3 - activeDeviceCount);
+      if (!remainingSlots) continue;
+
+      const devices = await this.query(
+        `SELECT DeviceID
+           FROM LICENSE_DEVICE
+          WHERE LicenseID = ? AND Status = 'Revoked' AND RevokedReason = 'AccountSuspended'
+          ORDER BY LastSeen DESC, FirstSeen DESC
+          LIMIT ?`,
+        [licenseId, remainingSlots],
+        conn,
+      );
+      if (!devices.length) continue;
+
+      const deviceIds = devices.map((device) => device.DeviceID);
+      const devicePlaceholders = deviceIds.map(() => '?').join(', ');
+      await this.query(
+        `UPDATE LICENSE_DEVICE
+            SET Status = 'Active', RevokedReason = NULL
+          WHERE DeviceID IN (${devicePlaceholders})
+            AND Status = 'Revoked' AND RevokedReason = 'AccountSuspended'`,
+        deviceIds,
+        conn,
+      );
+    }
+
+    return licenses.length;
+  }
+
   // ─── LICENSE_DEVICE operations ───
 
   /**
@@ -201,7 +284,7 @@ class LicenseDAO extends BaseDAO {
    */
   async thuHoiThietBi(params = {}, conn = null) {
     const result = await this.query(
-      `UPDATE LICENSE_DEVICE SET Status = 'Revoked'
+      `UPDATE LICENSE_DEVICE SET Status = 'Revoked', RevokedReason = 'User'
        WHERE DeviceID = ? AND LicenseID = ?`,
       [params.deviceId, params.licenseId],
       conn,

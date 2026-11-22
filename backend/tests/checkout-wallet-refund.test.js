@@ -162,6 +162,46 @@ describe('Luồng 1.3: Giỏ hàng, Wishlist & Thanh toán', () => {
 });
 
 describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () => {
+  it('orders list exposes per-game refund and license eligibility', async () => {
+    const service = new OrderService();
+    service.orderDAO.layDanhSachDonHang = async () => [
+      {
+        OrderID: 'ord-list',
+        OrderDate: '2026-11-20T10:00:00Z',
+        TotalAmount: '150000',
+        Status: 'PartiallyRefunded',
+        GameID: 'game-1',
+        Title: 'Refunded Game',
+        UnitPrice: '50000',
+        PriceAfterDiscount: '50000',
+        LicenseStatus: 'Revoked',
+        RevokedReason: 'Refund',
+        IsGameRefunded: 1,
+      },
+      {
+        OrderID: 'ord-list',
+        OrderDate: '2026-11-20T10:00:00Z',
+        TotalAmount: '150000',
+        Status: 'PartiallyRefunded',
+        GameID: 'game-2',
+        Title: 'Eligible Game',
+        UnitPrice: '100000',
+        PriceAfterDiscount: '100000',
+        LicenseStatus: 'Active',
+        IsGameRefunded: 0,
+      },
+    ];
+    service.refundDAO.layHanMucHoanTien = async () => 24;
+
+    const [order] = await service.yeuCauXemDonHang({ user: { accountId: 'cus-1' } });
+
+    assert.equal(order.status, 'PartiallyRefunded');
+    assert.equal(order.items[0].refunded, true);
+    assert.equal(order.items[0].canRefund, false);
+    assert.equal(order.items[1].refunded, false);
+    assert.equal(order.items[1].canRefund, true);
+  });
+
   it('1.4.1 - WalletService.guiYeuCauNapTien: Thành công cộng số dư và ghi Status=Success', async () => {
     const service = new WalletService();
     service.walletDAO.truyVanSoDuVi = async () => ({
@@ -250,7 +290,12 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
 
   it('1.4.4 - OrderService.guiYeuCauHoanTien: Đơn quá 24h VẪN ghi REFUNDREQUEST Status=Rejected rồi ném 422', async () => {
     const service = new OrderService();
-    service.transaction = async (cb) => cb({});
+    let transactionCommitted = false;
+    service.transaction = async (cb) => {
+      const result = await cb({});
+      transactionCommitted = true;
+      return result;
+    };
 
     service.orderDAO.layDonHangDeHoanTien = async () => ({
       OrderID: 'ord-old',
@@ -259,8 +304,11 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
       Status: 'Completed',
       HoursSincePurchase: 30, // > 24 giờ
     });
-    service.orderDAO.layItemsDonHang = async () => [{ GameID: 'game-1' }];
-    service.orderDAO.kiemTraTokenBanQuyen = async () => [{ LicenseID: 'lic-1', GameID: 'game-1' }];
+    service.orderDAO.layItemsDonHang = async () => [{ GameID: 'game-1', Title: 'Game 1', PriceAfterDiscount: '250000' }];
+    service.refundDAO.layGameDaHoanTien = async () => [];
+    service.refundDAO.layBanQuyenGame = async () => [{
+      LicenseID: 'lic-1', GameID: 'game-1', Source: 'Purchase', Status: 'Active',
+    }];
 
     const refundRequests = [];
     service.refundDAO.layHanMucHoanTien = async () => 24;
@@ -271,6 +319,7 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
         service.guiYeuCauHoanTien({
           user: { accountId: 'cus-1' },
           orderId: 'ord-old',
+          gameIds: ['game-1'],
           reason: 'Chơi không hợp',
         }),
       (err) => {
@@ -284,13 +333,17 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     assert.equal(refundRequests.length, 1);
     assert.equal(refundRequests[0].status, 'Rejected');
     assert.equal(refundRequests[0].hoursSincePurchase, 30);
+    assert.equal(transactionCommitted, true, 'Rejected request must commit before the service returns 422');
   });
 
   it('1.4.5 - OrderService refund: đúng biên 23h59, 24h05 và cửa sổ 48 giờ', async () => {
     const makeService = (seconds, windowHours) => {
       const service = new OrderService();
       service.transaction = async (cb) => cb({});
-      service.refundDAO.layHanMucHoanTien = async () => windowHours;
+      service.refundDAO.one = async (sql) => {
+        assert.match(sql, /REFUND_WINDOW_HOURS/);
+        return { ParamValue: String(windowHours) };
+      };
       service.orderDAO.layDonHangDeHoanTien = async () => ({
         OrderID: 'ord-boundary',
         CustomerID: 'cus-1',
@@ -298,8 +351,11 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
         Status: 'Completed',
         SecondsSincePurchase: seconds,
       });
-      service.orderDAO.layItemsDonHang = async () => [{ GameID: 'game-1' }];
-      service.orderDAO.kiemTraTokenBanQuyen = async () => [{ LicenseID: 'lic-1', GameID: 'game-1' }];
+      service.orderDAO.layItemsDonHang = async () => [{ GameID: 'game-1', Title: 'Game 1', PriceAfterDiscount: '200000' }];
+      service.refundDAO.layGameDaHoanTien = async () => [];
+      service.refundDAO.layBanQuyenGame = async () => [{
+        LicenseID: 'lic-1', GameID: 'game-1', Source: 'Purchase', Status: 'Active',
+      }];
       service.refundDAO.ghiYeuCauHoanTien = async () => {};
       service.refundDAO.capNhatDonDaHoan = async () => {};
       service.refundDAO.thuHoiBanQuyenGame = async () => {};
@@ -310,6 +366,7 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     const accepted = await makeService(23 * 3600 + 59 * 60, 24).guiYeuCauHoanTien({
       user: { accountId: 'cus-1' },
       orderId: 'ord-boundary',
+      gameIds: ['game-1'],
     });
     assert.equal(accepted.status, 'Refunded');
 
@@ -317,6 +374,7 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
       () => makeService(24 * 3600 + 5 * 60, 24).guiYeuCauHoanTien({
         user: { accountId: 'cus-1' },
         orderId: 'ord-boundary',
+        gameIds: ['game-1'],
       }),
       (err) => err.code === 'ERR_REFUND_EXPIRED',
     );
@@ -324,8 +382,19 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     const window48 = await makeService(30 * 3600, 48).guiYeuCauHoanTien({
       user: { accountId: 'cus-1' },
       orderId: 'ord-boundary',
+      gameIds: ['game-1'],
     });
     assert.equal(window48.status, 'Refunded');
+    assert.equal(window48.refundWindowHours, 48);
+
+    await assert.rejects(
+      () => makeService(48 * 3600 + 1, 48).guiYeuCauHoanTien({
+        user: { accountId: 'cus-1' },
+        orderId: 'ord-boundary',
+        gameIds: ['game-1'],
+      }),
+      (err) => err.code === 'ERR_REFUND_EXPIRED',
+    );
   });
 
   it('1.4.6 - OrderService.guiYeuCauHoanTien: Đơn <= 24h thu hồi bản quyền, ghi Approved và hoàn tiền ví', async () => {
@@ -339,8 +408,11 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
       Status: 'Completed',
       HoursSincePurchase: 2, // <= 24 giờ
     });
-    service.orderDAO.layItemsDonHang = async () => [{ GameID: 'game-1' }];
-    service.orderDAO.kiemTraTokenBanQuyen = async () => [{ LicenseID: 'lic-1', GameID: 'game-1' }];
+    service.orderDAO.layItemsDonHang = async () => [{ GameID: 'game-1', Title: 'Game 1', PriceAfterDiscount: '200000' }];
+    service.refundDAO.layGameDaHoanTien = async () => [];
+    service.refundDAO.layBanQuyenGame = async () => [{
+      LicenseID: 'lic-1', GameID: 'game-1', Source: 'Purchase', Status: 'Active',
+    }];
 
     const auditTrail = [];
     service.refundDAO.layHanMucHoanTien = async () => 24;
@@ -355,6 +427,7 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     const res = await service.guiYeuCauHoanTien({
       user: { accountId: 'cus-1' },
       orderId: 'ord-recent',
+      gameIds: ['game-1'],
       reason: 'Game phát sinh lỗi đồ họa',
     });
 
@@ -364,5 +437,95 @@ describe('Luồng 1.4: Ví điện tử & Hoàn tiền (Refund 24 giờ)', () =>
     assert.ok(auditTrail.some((a) => a[0] === 'setRefunded'));
     assert.ok(auditTrail.some((a) => a[0] === 'thuHoiLicense'));
     assert.ok(auditTrail.some((a) => a[0] === 'congTienVi'));
+  });
+
+  it('1.4.7 - OrderService refund: hoàn đúng game đã chọn và giữ đơn ở PartiallyRefunded', async () => {
+    const service = new OrderService();
+    service.transaction = async (cb) => cb({});
+    service.orderDAO.layDonHangDeHoanTien = async () => ({
+      OrderID: 'ord-partial',
+      Status: 'Completed',
+      SecondsSincePurchase: 3600,
+    });
+    service.orderDAO.layItemsDonHang = async () => [
+      { GameID: 'game-1', Title: 'Game 1', PriceAfterDiscount: '50000.00' },
+      { GameID: 'game-2', Title: 'Game 2', PriceAfterDiscount: '100000.00' },
+    ];
+    service.refundDAO.layGameDaHoanTien = async () => [];
+    service.refundDAO.layBanQuyenGame = async () => [
+      { LicenseID: 'lic-1', GameID: 'game-1', Source: 'Purchase', Status: 'Active' },
+    ];
+    service.refundDAO.layHanMucHoanTien = async () => 24;
+
+    const requests = [];
+    const revoked = [];
+    const orderStatuses = [];
+    const walletCredits = [];
+    service.refundDAO.ghiYeuCauHoanTien = async (params) => requests.push(params);
+    service.refundDAO.capNhatDonDaHoan = async (params) => orderStatuses.push(params);
+    service.refundDAO.thuHoiBanQuyenGame = async (params) => revoked.push(params);
+    service.walletService = {
+      congTienHoanTraVaoVi: async (params) => walletCredits.push(params),
+    };
+
+    const result = await service.guiYeuCauHoanTien({
+      user: { accountId: 'cus-1' },
+      orderId: 'ord-partial',
+      gameIds: ['game-1'],
+    });
+
+    assert.equal(result.status, 'PartiallyRefunded');
+    assert.equal(result.refundedAmount, 50000);
+    assert.deepEqual(result.refundedGameIds, ['game-1']);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].gameId, 'game-1');
+    assert.equal(requests[0].status, 'Approved');
+    assert.deepEqual(orderStatuses, [{ orderId: 'ord-partial', status: 'PartiallyRefunded' }]);
+    assert.deepEqual(revoked, [{ licenseIds: ['lic-1'] }]);
+    assert.equal(walletCredits[0].amount, 50000);
+    assert.match(walletCredits[0].detail, /Game 1/);
+  });
+
+  it('1.4.8 - OrderService refund rejects games outside the order and suspended licenses with reasons', async () => {
+    const service = new OrderService();
+    service.transaction = async (cb) => cb({});
+    service.orderDAO.layDonHangDeHoanTien = async () => ({
+      OrderID: 'ord-check',
+      Status: 'Completed',
+      SecondsSincePurchase: 3600,
+    });
+    service.orderDAO.layItemsDonHang = async () => [
+      { GameID: 'game-1', Title: 'Game 1', PriceAfterDiscount: '50000' },
+    ];
+
+    await assert.rejects(
+      service.guiYeuCauHoanTien({
+        user: { accountId: 'cus-1' },
+        orderId: 'ord-check',
+        gameIds: ['not-in-order'],
+      }),
+      (error) => error.code === 'ERR_INVALID_REFUND_GAMES'
+        && error.status === 422
+        && error.details.invalidGameIds[0] === 'not-in-order',
+    );
+
+    service.refundDAO.layGameDaHoanTien = async () => [];
+    service.refundDAO.layBanQuyenGame = async () => [{
+      LicenseID: 'lic-1',
+      GameID: 'game-1',
+      Source: 'Purchase',
+      Status: 'Revoked',
+      RevokedReason: 'AccountSuspended',
+    }];
+    await assert.rejects(
+      service.guiYeuCauHoanTien({
+        user: { accountId: 'cus-1' },
+        orderId: 'ord-check',
+        gameIds: ['game-1'],
+      }),
+      (error) => error.code === 'ERR_LICENSE_NOT_ACTIVE'
+        && error.status === 422
+        && error.details.ineligibleGames[0].reason.includes('tạm khóa'),
+    );
   });
 });

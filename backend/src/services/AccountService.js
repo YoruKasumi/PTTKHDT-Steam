@@ -1,6 +1,7 @@
 'use strict';
 const BaseService = require('./BaseService');
 const AccountDAO = require('../dao/AccountDAO');
+const LicenseDAO = require('../dao/LicenseDAO');
 const AuditLogService = require('./AuditLogService');
 const {
   ConflictException,
@@ -16,6 +17,7 @@ class AccountService extends BaseService {
   constructor() {
     super();
     this.accountDAO = new AccountDAO();
+    this.licenseDAO = new LicenseDAO();
     this.auditLogService = new AuditLogService();
   }
 
@@ -64,6 +66,7 @@ class AccountService extends BaseService {
         email: result.account.Email,
         displayName: result.account.DisplayName,
         status: result.account.Status,
+        suspendUntil: result.account.SuspendUntil,
         createdAt: result.account.CreatedAt,
       },
       roles: result.roles,
@@ -82,6 +85,7 @@ class AccountService extends BaseService {
         purchaseDate: license.PurchaseDate,
         status: license.Status,
         revokedAt: license.RevokedAt,
+        revokedReason: license.RevokedReason,
       })),
       violations: result.violations.map((log) => ({
         logId: log.LogID,
@@ -136,6 +140,10 @@ class AccountService extends BaseService {
     if (!reason || reason.length > 500) {
       throw new ValidationException('Lý do là bắt buộc và tối đa 500 ký tự');
     }
+    const suspensionHours = Number(params.suspensionHours);
+    if (status === 'Suspended' && (!Number.isSafeInteger(suspensionHours) || suspensionHours < 1 || suspensionHours > 87600)) {
+      throw new ValidationException('Thời hạn tạm khóa phải là số giờ nguyên từ 1 đến 87600');
+    }
     return this.transaction(async (conn) => {
       const account = await this.accountDAO.layTaiKhoanTheoId({ accountId: params.accountId }, conn);
       if (!account) throw new NotFoundException('Không tìm thấy tài khoản');
@@ -143,22 +151,114 @@ class AccountService extends BaseService {
         throw new ConflictException('Không thể thay đổi trạng thái tài khoản thuộc ADMIN');
       }
 
+      let revokedLicenses = 0;
+      let restoredLicenses = 0;
+      let accountWasEverBanned = account.Status === 'Banned';
+      if (status === 'Active' && account.Status === 'Suspended') {
+        accountWasEverBanned = Boolean(await this.accountDAO.kiemTraTaiKhoanTungBiKhoaVinhVien({
+          accountId: params.accountId,
+        }, conn));
+      }
+
       await this.accountDAO.capNhatTrangThaiTaiKhoan({
         accountId: params.accountId,
         status,
+        suspensionHours: status === 'Suspended' ? suspensionHours : null,
       }, conn);
+
+      if (status === 'Suspended' || status === 'Banned') {
+        revokedLicenses = await this.licenseDAO.thuHoiBanQuyenTaiKhoan({
+          customerId: params.accountId,
+        }, conn);
+      } else if (status === 'Active' && account.Status === 'Suspended' && !accountWasEverBanned) {
+        restoredLicenses = await this.licenseDAO.khoiPhucBanQuyenTaiKhoan({
+          customerId: params.accountId,
+        }, conn);
+      }
+
+      const updatedAccount = status === 'Suspended'
+        ? await this.accountDAO.layTaiKhoanTheoId({ accountId: params.accountId }, conn)
+        : null;
+      const detail = {
+        previousStatus: account.Status,
+        status,
+        reason,
+        suspensionHours: status === 'Suspended' ? suspensionHours : undefined,
+        suspendUntil: updatedAccount?.SuspendUntil,
+        revokedLicenses,
+        restoredLicenses,
+        restorationSkippedBecausePreviouslyBanned: status === 'Active' && accountWasEverBanned,
+      };
       await this.auditLogService.recordLog({
         accountId: params.user.accountId,
         action,
         target: `ACCOUNT:${params.accountId}`,
-        detail: JSON.stringify({ previousStatus: account.Status, status, reason }),
+        detail: JSON.stringify(detail),
       }, conn);
+
+      let notification = `Tài khoản của bạn đã được ${label}. Lý do: ${reason}`;
+      if (status === 'Active') {
+        notification = accountWasEverBanned
+          ? `Tài khoản của bạn đã được mở khóa. Bản quyền game không được tự động khôi phục đối với tài khoản từng bị khóa vĩnh viễn. Vui lòng liên hệ hỗ trợ để được xem xét. Lý do: ${reason}`
+          : `Tài khoản của bạn đã được mở khóa. Hệ thống đã khôi phục ${restoredLicenses} bản quyền bị thu hồi do tạm khóa; bản quyền đã hoàn tiền không được khôi phục. Lý do: ${reason}`;
+      }
       await this.accountDAO.taoThongBaoTaiKhoan({
         accountId: params.accountId,
         type: 'AccountStatus',
-        content: `Tài khoản của bạn đã được ${label}. Lý do: ${reason}`,
+        content: notification,
       }, conn);
-      return { accountId: params.accountId, status, reason };
+      return { accountId: params.accountId, status, reason, revokedLicenses, restoredLicenses };
+    });
+  }
+
+  async expireSuspendedAccounts() {
+    return this.transaction(async (conn) => {
+      const expiredAccounts = await this.accountDAO.layTaiKhoanTamKhoaDaHetHan(conn);
+      let expiredCount = 0;
+
+      for (const expiredAccount of expiredAccounts) {
+        const account = await this.accountDAO.layTaiKhoanTheoId({
+          accountId: expiredAccount.AccountID,
+        }, conn);
+        if (!account || account.Status !== 'Suspended') continue;
+
+        const accountWasEverBanned = Boolean(await this.accountDAO.kiemTraTaiKhoanTungBiKhoaVinhVien({
+          accountId: expiredAccount.AccountID,
+        }, conn));
+        await this.accountDAO.capNhatTrangThaiTaiKhoan({
+          accountId: expiredAccount.AccountID,
+          status: 'Active',
+        }, conn);
+        const restoredLicenses = accountWasEverBanned
+          ? 0
+          : await this.licenseDAO.khoiPhucBanQuyenTaiKhoan({
+            customerId: expiredAccount.AccountID,
+          }, conn);
+
+        await this.auditLogService.recordLog({
+          accountId: null,
+          system: true,
+          action: 'ACCOUNT_SUSPENSION_EXPIRED',
+          target: `ACCOUNT:${expiredAccount.AccountID}`,
+          detail: JSON.stringify({
+            previousStatus: 'Suspended',
+            status: 'Active',
+            suspendUntil: expiredAccount.SuspendUntil,
+            restoredLicenses,
+            restorationSkippedBecausePreviouslyBanned: accountWasEverBanned,
+          }),
+        }, conn);
+        await this.accountDAO.taoThongBaoTaiKhoan({
+          accountId: expiredAccount.AccountID,
+          type: 'AccountStatus',
+          content: accountWasEverBanned
+            ? 'Thời hạn tạm khóa đã kết thúc và tài khoản đã được mở lại. Bản quyền game không được tự động khôi phục vì tài khoản từng bị khóa vĩnh viễn; vui lòng liên hệ hỗ trợ.'
+            : `Thời hạn tạm khóa đã kết thúc. Tài khoản đã được mở lại và hệ thống khôi phục ${restoredLicenses} bản quyền bị thu hồi do tạm khóa.`,
+        }, conn);
+        expiredCount += 1;
+      }
+
+      return expiredCount;
     });
   }
 }

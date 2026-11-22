@@ -44,6 +44,7 @@ app.use(
     credentials: true,                    // cần cho cookie __sstore_lt_*
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Disposition', 'X-Game-Version', 'X-Game-Sha256'],
   }),
 );
 

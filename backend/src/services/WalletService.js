@@ -341,7 +341,7 @@ class WalletService extends BaseService {
    * UC21. Yêu cầu hoàn tiền - sequence #9: Service khác → WalletService
    * Cộng tiền hoàn trả vào ví và ghi giao dịch 'Refund'.
    * Không ghi TRANSACTION nếu amount === 0 (do CHECK amount > 0).
-   * @param {{ accountId: string, amount: number, orderId?: string }} params
+   * @param {{ accountId: string, amount: number, orderId?: string, detail?: string }} params
    * @param {object|null} conn
    */
   async congTienHoanTraVaoVi(params = {}, conn = null) {
@@ -371,6 +371,7 @@ class WalletService extends BaseService {
           type: 'Refund',
           amount,
           status: 'Success',
+          detail: params.detail || null,
         }, conn);
       }
 

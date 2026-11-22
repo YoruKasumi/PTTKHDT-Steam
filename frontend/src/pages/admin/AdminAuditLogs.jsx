@@ -136,8 +136,8 @@ export default function AdminAuditLogs() {
                   {log.logAt ? new Date(log.logAt).toLocaleString('vi-VN') : '—'}
                 </td>
                 <td className="p-3">
-                  <span className="font-semibold text-white">{log.username}</span>
-                  <small className="block text-muted">{log.accountId}</small>
+                  <span className="font-semibold text-white">{log.username || 'System'}</span>
+                  {log.accountId && <small className="block text-muted">{log.accountId}</small>}
                 </td>
                 <td className="p-3">
                   <code className="rounded bg-white/10 px-2 py-0.5 text-xs text-amber-300">{log.action}</code>

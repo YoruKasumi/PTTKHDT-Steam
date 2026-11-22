@@ -173,17 +173,18 @@ export default function AdminFinance() {
             <p className="mb-0 mt-1 text-sm text-muted">{refunds.totalRefundedOrders || 0} yêu cầu · {formatVnd(refunds.totalRefundedAmount || 0)}</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="bg-page text-xs uppercase text-muted"><tr><th className="px-4 py-3">Mã yêu cầu / đơn</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3 text-right">Số tiền</th></tr></thead>
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-page text-xs uppercase text-muted"><tr><th className="px-4 py-3">Mã yêu cầu / đơn</th><th className="px-4 py-3">Trò chơi</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3 text-right">Số tiền</th></tr></thead>
               <tbody className="divide-y divide-white/5">
                 {(refunds.recentRefunds || []).map((refund) => (
                   <tr key={refund.RequestID}>
                     <td className="px-4 py-3"><p className="m-0 font-mono text-xs">{refund.RequestID}</p><p className="mb-0 mt-1 text-xs text-muted">{refund.OrderID} · {formatDate(refund.RequestDate)}</p></td>
+                    <td className="px-4 py-3">{refund.GameTitle || 'Hoàn tiền theo đơn cũ'}</td>
                     <td className="px-4 py-3 font-mono text-xs">{refund.CustomerID}</td>
                     <td className="px-4 py-3 text-right font-mono">{formatVnd(refund.RefundAmount)}</td>
                   </tr>
                 ))}
-                {!loading && !(refunds.recentRefunds || []).length ? <EmptyRow colSpan={3}>Không có yêu cầu hoàn tiền đã duyệt.</EmptyRow> : null}
+                {!loading && !(refunds.recentRefunds || []).length ? <EmptyRow colSpan={4}>Không có yêu cầu hoàn tiền đã duyệt.</EmptyRow> : null}
               </tbody>
             </table>
           </div>

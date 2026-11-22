@@ -227,6 +227,12 @@ class OrderService extends BaseService {
           coverImage: row.CoverImage,
           unitPrice: Number(row.UnitPrice),
           priceAfterDiscount: Number(row.PriceAfterDiscount),
+          licenseStatus: row.LicenseStatus || null,
+          revokedReason: row.RevokedReason || null,
+          refunded: Boolean(Number(row.IsGameRefunded)),
+          canRefund: order.status !== 'Refunded'
+            && row.LicenseStatus === 'Active'
+            && !Boolean(Number(row.IsGameRefunded)),
         });
       }
     }
@@ -336,20 +342,7 @@ class OrderService extends BaseService {
   }
 
   /**
-   * UC21. Yêu cầu hoàn tiền - sequence #2: UI → OrderService
-   * POST /api/orders/:orderId/refund
-   * Vai trò gọi: Customer
-   * Ràng buộc:
-   *   1. Kiểm tra đơn thuộc khách, đang Completed, và LICENSE đang Active.
-   *   2. Tính HoursSincePurchase = TIMESTAMPDIFF(HOUR, OrderDate, NOW()):
-   *      - Nếu > 24 giờ: VẪN INSERT bản ghi REFUNDREQUEST với Status = 'Rejected' rồi ném NghiepVuException (422).
-   *      - Nếu <= 24 giờ: trong 1 Database Transaction:
-   *          a. Ghi REFUNDREQUEST (Status = 'Approved', HoursSincePurchase)
-   *          b. Cập nhật ORDERS.Status = 'Refunded'
-   *          c. Cập nhật LICENSE.Status = 'Revoked' + RevokedAt = NOW()
-   *          d. Cập nhật LICENSE_DEVICE.Status = 'Revoked'
-   *          e. Cộng lại TotalAmount vào WALLET.Balance
-   *          f. Ghi TRANSACTION (Type = 'Refund', gắn OrderID) — nếu đơn 0đ KHÔNG tạo dòng TRANSACTION.
+   * Hoàn tiền cho các game được chọn trong một đơn hàng.
    * @param {object} params
    */
   async guiYeuCauHoanTien(params = {}) {
@@ -358,91 +351,170 @@ class OrderService extends BaseService {
       ? params.orderId.trim()
       : typeof params.id === 'string' ? params.id.trim() : '';
     if (!orderId) throw new ValidationException('orderId là bắt buộc');
+    const rawGameIds = params.gameIds;
+    const gameIds = Array.isArray(rawGameIds)
+      ? [...new Set(rawGameIds.filter((gameId) => typeof gameId === 'string').map((gameId) => gameId.trim()).filter(Boolean))]
+      : [];
+    if (!Array.isArray(rawGameIds) || gameIds.length === 0 || rawGameIds.some((gameId) => typeof gameId !== 'string' || !gameId.trim())) {
+      throw new NghiepVuException(
+        'Vui lòng chọn ít nhất một trò chơi hợp lệ để hoàn tiền',
+        422,
+        'ERR_INVALID_REFUND_GAMES',
+        { invalidGameIds: [] },
+      );
+    }
     const reason = typeof params.reason === 'string' && params.reason.trim()
       ? params.reason.trim()
       : 'Yêu cầu hoàn tiền từ khách hàng';
+    if (reason.length > 500) throw new ValidationException('Lý do hoàn tiền tối đa 500 ký tự');
 
-    return this.transaction(async (conn) => {
-      // 1. Kiểm tra đơn thuộc khách
+    const result = await this.transaction(async (conn) => {
       const order = await this.orderDAO.layDonHangDeHoanTien({ orderId, customerId }, conn);
       if (!order) {
         throw new NotFoundException('Không tìm thấy đơn hàng của bạn');
       }
-      if (order.Status !== 'Completed') {
+      if (!['Completed', 'PartiallyRefunded'].includes(order.Status)) {
         throw new NghiepVuException('Đơn hàng không ở trạng thái có thể hoàn tiền', 422, 'ERR_INVALID_ORDER_STATUS');
       }
 
-      // 2. Lấy danh sách game trong đơn hàng
       const items = await this.orderDAO.layItemsDonHang({ orderId }, conn);
       if (!items.length) {
         throw new NghiepVuException('Đơn hàng không có sản phẩm hợp lệ', 422);
       }
-      const gameIds = items.map((i) => i.GameID);
-
-      // 3. Kiểm tra LICENSE đang Active
-      const activeLicenses = await this.orderDAO.kiemTraTokenBanQuyen({ customerId, gameIds }, conn);
-      if (activeLicenses.length < gameIds.length) {
-        throw new NghiepVuException('Bản quyền trò chơi của đơn hàng không còn hiệu lực để hoàn tiền', 422, 'ERR_LICENSE_NOT_ACTIVE');
+      const itemsByGameId = new Map(items.map((item) => [item.GameID, item]));
+      const invalidGameIds = gameIds.filter((gameId) => !itemsByGameId.has(gameId));
+      if (invalidGameIds.length) {
+        throw new NghiepVuException(
+          'Một số trò chơi không thuộc đơn hàng này',
+          422,
+          'ERR_INVALID_REFUND_GAMES',
+          { invalidGameIds },
+        );
       }
 
-      // 4. Tính thời gian theo giây và đọc cửa sổ hoàn tiền từ SYSTEM_PARAMETER.
+      const alreadyRefundedRows = await this.refundDAO.layGameDaHoanTien({
+        orderId,
+        gameIds: items.map((item) => item.GameID),
+      }, conn);
+      const alreadyRefundedGameIds = new Set(alreadyRefundedRows.map((row) => row.GameID));
+      const previouslyRefunded = gameIds.filter((gameId) => alreadyRefundedGameIds.has(gameId));
+      if (previouslyRefunded.length) {
+        throw new NghiepVuException(
+          'Một số trò chơi trong yêu cầu đã được hoàn tiền',
+          422,
+          'ERR_GAME_ALREADY_REFUNDED',
+          { invalidGameIds: previouslyRefunded },
+        );
+      }
+
+      const licenses = await this.refundDAO.layBanQuyenGame({ customerId, gameIds }, conn);
+      const licenseByGameId = new Map();
+      for (const license of licenses) {
+        const current = licenseByGameId.get(license.GameID);
+        if (!current || (license.Status === 'Active' && license.Source === 'Purchase')) {
+          licenseByGameId.set(license.GameID, license);
+        }
+      }
+      const ineligibleGames = gameIds.filter((gameId) => {
+        const license = licenseByGameId.get(gameId);
+        return !license || license.Status !== 'Active' || license.Source !== 'Purchase';
+      }).map((gameId) => {
+        const license = licenseByGameId.get(gameId);
+        return {
+          gameId,
+          reason: license?.RevokedReason === 'AccountSuspended'
+            ? 'Bản quyền đã bị thu hồi khi tài khoản bị tạm khóa'
+            : license?.RevokedReason === 'Refund'
+              ? 'Bản quyền đã bị thu hồi do hoàn tiền'
+              : 'Bản quyền Purchase của trò chơi không còn hoạt động',
+        };
+      });
+      if (ineligibleGames.length) {
+        throw new NghiepVuException(
+          'Một số trò chơi không còn bản quyền hợp lệ để hoàn tiền',
+          422,
+          'ERR_LICENSE_NOT_ACTIVE',
+          { ineligibleGames },
+        );
+      }
+
       const seconds = Number.isFinite(Number(order.SecondsSincePurchase))
         ? Number(order.SecondsSincePurchase)
-        : Number(order.HoursSincePurchase) * 3600;
+        : Number(order.HoursSincePurchase || 0) * 3600;
       const refundWindowHours = await this.refundDAO.layHanMucHoanTien(conn);
       const hours = seconds / 3600;
 
       if (seconds > refundWindowHours * 3600) {
-        await this.refundDAO.ghiYeuCauHoanTien({
-          orderId,
-          reason,
-          status: 'Rejected',
-          hoursSincePurchase: hours,
-        }, conn);
-        throw new NghiepVuException(
-          `Đã quá thời hạn ${refundWindowHours} giờ kể từ thời điểm thanh toán. Yêu cầu hoàn tiền bị từ chối.`,
-          422,
-          'ERR_REFUND_EXPIRED',
-          { hoursSincePurchase: hours, refundWindowHours, orderId },
-        );
+        for (const gameId of gameIds) {
+          await this.refundDAO.ghiYeuCauHoanTien({
+            orderId,
+            gameId,
+            reason,
+            status: 'Rejected',
+            hoursSincePurchase: hours,
+          }, conn);
+        }
+        return {
+          expired: true,
+          details: { hoursSincePurchase: hours, refundWindowHours, orderId, gameIds },
+        };
       }
 
-      // Nếu <= cửa sổ hoàn tiền:
-      // a. Ghi REFUNDREQUEST (Status = 'Approved')
-      await this.refundDAO.ghiYeuCauHoanTien({
-        orderId,
-        reason,
-        status: 'Approved',
-        hoursSincePurchase: hours,
-      }, conn);
+      const selectedItems = gameIds.map((gameId) => itemsByGameId.get(gameId));
+      const refundCents = selectedItems.reduce((sum, item) => sum + toCents(item.PriceAfterDiscount), 0n);
+      const refundedAmount = money(refundCents);
+      for (const gameId of gameIds) {
+        await this.refundDAO.ghiYeuCauHoanTien({
+          orderId,
+          gameId,
+          reason,
+          status: 'Approved',
+          hoursSincePurchase: hours,
+        }, conn);
+      }
 
-      // b. Cập nhật ORDERS.Status = 'Refunded'
-      await this.refundDAO.capNhatDonDaHoan({ orderId }, conn);
+      const refundedIds = new Set([...alreadyRefundedGameIds, ...gameIds]);
+      const status = items.every((item) => refundedIds.has(item.GameID))
+        ? 'Refunded'
+        : 'PartiallyRefunded';
+      await this.refundDAO.capNhatDonDaHoan({ orderId, status }, conn);
 
-      // c. Cập nhật LICENSE.Status = 'Revoked' + RevokedAt = NOW() và LICENSE_DEVICE.Status = 'Revoked'
-      const licenseIds = activeLicenses.map((l) => l.LicenseID);
+      const selectedLicenses = gameIds.map((gameId) => licenseByGameId.get(gameId));
+      const licenseIds = selectedLicenses.map((license) => license.LicenseID);
       await this.refundDAO.thuHoiBanQuyenGame({ licenseIds }, conn);
 
-      // d. Cộng lại TotalAmount vào WALLET.Balance & ghi TRANSACTION Type='Refund'
-      const totalRefund = Number(order.TotalAmount);
       if (this.walletService) {
         await this.walletService.congTienHoanTraVaoVi({
           accountId: customerId,
-          amount: totalRefund,
+          amount: refundedAmount,
           orderId,
+          detail: `Game hoàn tiền: ${selectedItems.map((item) => `${item.Title} (${item.GameID})`).join(', ')}`,
         }, conn);
       }
 
       return {
         orderId,
-        status: 'Refunded',
-        totalAmount: totalRefund,
-        refundedAmount: totalRefund,
+        status,
+        totalAmount: refundedAmount,
+        refundedAmount,
+        refundedGameIds: gameIds,
         hoursSincePurchase: hours,
         refundWindowHours,
-        message: 'Hoàn tiền thành công. Số tiền đã được hoàn trả về ví của bạn.',
+        message: status === 'Refunded'
+          ? 'Đã hoàn tiền toàn bộ các trò chơi còn lại trong đơn hàng.'
+          : 'Đã hoàn tiền cho các trò chơi đã chọn. Các trò chơi còn lại vẫn được giữ trong thư viện.',
       };
     });
+
+    if (result.expired) {
+      throw new NghiepVuException(
+        `Đã quá thời hạn ${result.details.refundWindowHours} giờ kể từ thời điểm thanh toán. Yêu cầu hoàn tiền bị từ chối.`,
+        422,
+        'ERR_REFUND_EXPIRED',
+        result.details,
+      );
+    }
+    return result;
   }
 }
 

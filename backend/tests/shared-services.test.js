@@ -113,6 +113,6 @@ test('wallet DAO debits safely and inserts Fee using the escaped transaction tab
   assert.match(queries[0].sql, /Balance = Balance - \?/);
   assert.deepEqual(queries[0].params, [100000, 'wallet-1', 100000]);
   assert.match(queries[1].sql, /INSERT INTO `TRANSACTION`/);
-  assert.deepEqual(queries[1].params, ['transaction-1', 'wallet-1', null, 'Fee', 100000]);
+  assert.deepEqual(queries[1].params, ['transaction-1', 'wallet-1', null, 'Fee', 100000, null]);
   assert.ok(queries.every((query) => query.transaction === conn));
 });

@@ -12,9 +12,9 @@ export const adminApi = {
 
   listAccounts: (params) => http.get('/admin/accounts', { params }),
   getAccountHistory: (accountId) => http.get(`/admin/accounts/${accountId}/history`),
-  setAccountStatus: (accountId, status, reason) => {
+  setAccountStatus: (accountId, status, reason, suspensionHours) => {
     const operation = { Active: 'unban', Suspended: 'suspend', Banned: 'ban' }[status];
-    return http.patch(`/admin/accounts/${accountId}/${operation}`, { reason });
+    return http.patch(`/admin/accounts/${accountId}/${operation}`, { reason, suspensionHours });
   },
   changeAccountStatus: (accountId, status, reason) => {
     const operation = { Active: 'unban', Suspended: 'suspend', Banned: 'ban' }[status];

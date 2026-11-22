@@ -21,11 +21,18 @@ class ReportDAO extends BaseDAO {
         g.GameID,
         g.Title,
         g.Price,
-        COUNT(CASE WHEN o.OrderID IS NOT NULL THEN oi.GameID END) AS UnitsSold,
+        COUNT(CASE WHEN o.OrderID IS NOT NULL AND NOT EXISTS (
+          SELECT 1
+            FROM REFUNDREQUEST refund
+           WHERE refund.OrderID = o.OrderID
+             AND refund.Status = 'Approved'
+             AND (refund.GameID = oi.GameID OR (refund.GameID IS NULL AND o.Status = 'Refunded'))
+        ) THEN oi.GameID END) AS UnitsSold,
         COALESCE(SUM(CASE WHEN o.OrderID IS NOT NULL THEN oi.PriceAfterDiscount ELSE 0 END), 0) AS GrossSales
       FROM GAME g
       LEFT JOIN ORDERITEM oi ON g.GameID = oi.GameID
-      LEFT JOIN ORDERS o ON oi.OrderID = o.OrderID AND o.Status = 'Completed' ${filterDate}
+      LEFT JOIN ORDERS o ON oi.OrderID = o.OrderID
+        AND o.Status IN ('Completed','PartiallyRefunded','Refunded') ${filterDate}
       WHERE g.DeveloperID = ?
       GROUP BY g.GameID, g.Title, g.Price
     `;
@@ -39,6 +46,7 @@ class ReportDAO extends BaseDAO {
       JOIN GAME g ON oi.GameID = g.GameID
       JOIN ORDERS o ON oi.OrderID = o.OrderID
       JOIN REFUNDREQUEST r ON o.OrderID = r.OrderID
+        AND (r.GameID = oi.GameID OR (r.GameID IS NULL AND o.Status = 'Refunded'))
       WHERE g.DeveloperID = ? AND r.Status = 'Approved'
     `;
     const row = await this.one(sql, [params.developerId], conn);
@@ -56,10 +64,11 @@ class ReportDAO extends BaseDAO {
         g.Title,
         (SELECT COUNT(*) FROM WISHLISTITEM w WHERE w.GameID = g.GameID) AS WishlistCount,
         (
-          SELECT COUNT(r.RequestID) 
+          SELECT COUNT(DISTINCT r.RequestID)
           FROM REFUNDREQUEST r 
           JOIN ORDERS o ON r.OrderID = o.OrderID 
-          JOIN ORDERITEM oi ON o.OrderID = oi.OrderID 
+          JOIN ORDERITEM oi ON o.OrderID = oi.OrderID
+            AND (r.GameID = oi.GameID OR (r.GameID IS NULL AND o.Status = 'Refunded'))
           WHERE oi.GameID = g.GameID AND r.Status = 'Approved'
         ) AS RefundCount
       FROM GAME g
@@ -70,14 +79,16 @@ class ReportDAO extends BaseDAO {
 
   async truyVanDuLieuTaiChinhRealTime(params = {}, conn = null) {
     const salesSql = `
-      SELECT COALESCE(SUM(TotalAmount), 0) AS TotalRevenue, COUNT(*) AS TotalCompletedOrders 
-      FROM ORDERS WHERE Status = 'Completed'
+      SELECT COALESCE(SUM(TotalAmount), 0) AS TotalRevenue,
+             SUM(CASE WHEN Status IN ('Completed','PartiallyRefunded') THEN 1 ELSE 0 END) AS TotalCompletedOrders
+      FROM ORDERS WHERE Status IN ('Completed','PartiallyRefunded','Refunded')
     `;
     const refundSql = `
       SELECT COALESCE(SUM(oi.PriceAfterDiscount), 0) AS TotalRefundAmount 
       FROM ORDERITEM oi 
       JOIN ORDERS o ON oi.OrderID = o.OrderID 
-      JOIN REFUNDREQUEST r ON o.OrderID = r.OrderID 
+      JOIN REFUNDREQUEST r ON o.OrderID = r.OrderID
+        AND (r.GameID = oi.GameID OR (r.GameID IS NULL AND o.Status = 'Refunded'))
       WHERE r.Status = 'Approved'
     `;
     const sales = await this.one(salesSql, [], conn);
@@ -92,11 +103,27 @@ class ReportDAO extends BaseDAO {
 
   async truyVanDonHangThanhCongTheoThoiGian(params = {}, conn = null) {
     const sql = `
-      SELECT DATE(OrderDate) AS OrderDate, COUNT(*) AS OrderCount, SUM(TotalAmount) AS DailyRevenue
-      FROM ORDERS
-      WHERE Status = 'Completed'
-      GROUP BY DATE(OrderDate)
-      ORDER BY OrderDate DESC
+      SELECT orders.OrderDay AS OrderDate,
+             SUM(CASE WHEN orders.Status IN ('Completed','PartiallyRefunded') THEN 1 ELSE 0 END) AS OrderCount,
+             SUM(orders.TotalAmount - COALESCE((
+               SELECT SUM(item.PriceAfterDiscount)
+                 FROM ORDERITEM item
+                WHERE item.OrderID = orders.OrderID
+                  AND EXISTS (
+                    SELECT 1
+                      FROM REFUNDREQUEST refund
+                     WHERE refund.OrderID = orders.OrderID
+                       AND refund.Status = 'Approved'
+                       AND (refund.GameID = item.GameID OR (refund.GameID IS NULL AND orders.Status = 'Refunded'))
+                  )
+             ), 0)) AS DailyRevenue
+      FROM (
+        SELECT OrderID, DATE(OrderDate) AS OrderDay, TotalAmount, Status
+          FROM ORDERS
+         WHERE Status IN ('Completed','PartiallyRefunded','Refunded')
+      ) AS orders
+      GROUP BY orders.OrderDay
+      ORDER BY orders.OrderDay DESC
       LIMIT 30
     `;
     return this.query(sql, [], conn);
@@ -124,13 +151,17 @@ class ReportDAO extends BaseDAO {
 
   async truyVanCacDonHangHoanTienThanhCong(params = {}, conn = null) {
     const sql = `
-      SELECT r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate,
+      SELECT r.RequestID, r.OrderID, r.GameID, game.Title AS GameTitle,
+             o.CustomerID, r.Reason, r.RequestDate,
              COALESCE(SUM(oi.PriceAfterDiscount), 0) AS RefundAmount
       FROM REFUNDREQUEST r
       JOIN ORDERS o ON r.OrderID = o.OrderID
       JOIN ORDERITEM oi ON oi.OrderID = o.OrderID
+        AND (r.GameID = oi.GameID OR (r.GameID IS NULL AND o.Status = 'Refunded'))
+      LEFT JOIN GAME game ON game.GameID = r.GameID
       WHERE r.Status = 'Approved'
-      GROUP BY r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate
+      GROUP BY r.RequestID, r.OrderID, r.GameID, game.Title,
+               o.CustomerID, r.Reason, r.RequestDate
       ORDER BY r.RequestDate DESC
     `;
     return this.query(sql, [], conn);
@@ -138,7 +169,7 @@ class ReportDAO extends BaseDAO {
 
   async truyVanNhatKyGiaoDichViToanSan(params = {}, conn = null) {
     return this.query(
-      `SELECT t.TransID, t.WalletID, w.CustomerID, t.OrderID, t.Type, t.Amount, t.TransDate, t.Status
+      `SELECT t.TransID, t.WalletID, w.CustomerID, t.OrderID, t.Type, t.Amount, t.TransDate, t.Status, t.Detail
        FROM \`TRANSACTION\` t
        INNER JOIN WALLET w ON w.WalletID = t.WalletID
        ORDER BY t.TransDate DESC

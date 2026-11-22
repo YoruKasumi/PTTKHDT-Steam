@@ -9,7 +9,8 @@ class WithdrawalDAO extends BaseDAO {
       FROM ORDERITEM oi
       JOIN GAME g ON oi.GameID = g.GameID
       JOIN ORDERS o ON oi.OrderID = o.OrderID
-      WHERE g.DeveloperID = ? AND o.Status = 'Completed'
+      WHERE g.DeveloperID = ?
+        AND o.Status IN ('Completed','PartiallyRefunded','Refunded')
     `;
     const salesRow = await this.one(salesSql, [developerId], conn);
     const grossSales = Number(salesRow?.GrossSales || 0);
@@ -19,8 +20,14 @@ class WithdrawalDAO extends BaseDAO {
       FROM ORDERITEM oi
       JOIN GAME g ON oi.GameID = g.GameID
       JOIN ORDERS o ON oi.OrderID = o.OrderID
-      JOIN REFUNDREQUEST r ON o.OrderID = r.OrderID
-      WHERE g.DeveloperID = ? AND r.Status = 'Approved'
+      WHERE g.DeveloperID = ?
+        AND EXISTS (
+          SELECT 1
+            FROM REFUNDREQUEST r
+           WHERE r.OrderID = o.OrderID
+             AND r.Status = 'Approved'
+             AND (r.GameID = oi.GameID OR (r.GameID IS NULL AND o.Status = 'Refunded'))
+        )
     `;
     const refundRow = await this.one(refundSql, [developerId], conn);
     const totalRefunds = Number(refundRow?.TotalRefunds || 0);

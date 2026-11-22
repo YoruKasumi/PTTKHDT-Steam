@@ -107,8 +107,14 @@ class AuthService extends BaseService {
     if (!account || !(await password.compare(plainPassword, account.PasswordHash))) {
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không chính xác');
     }
+    if (account.Status === 'Suspended') {
+      throw new NghiepVuException('Tài khoản đang bị tạm khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.', 403, 'ACCOUNT_SUSPENDED');
+    }
+    if (account.Status === 'Banned') {
+      throw new NghiepVuException('Tài khoản đã bị khóa vĩnh viễn và không thể đăng nhập.', 403, 'ACCOUNT_BANNED');
+    }
     if (account.Status !== 'Active') {
-      throw new NghiepVuException('Tài khoản đang bị khóa hoặc tạm ngưng', 403, 'ACCOUNT_INACTIVE');
+      throw new NghiepVuException('Tài khoản không thể đăng nhập ở trạng thái hiện tại', 403, 'ACCOUNT_INACTIVE');
     }
 
     const roles = [];

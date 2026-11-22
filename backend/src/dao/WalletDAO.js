@@ -44,14 +44,14 @@ class WalletDAO extends BaseDAO {
    * UC13. Nạp tiền vào ví (#7)
    * UC14. Rút tiền (#11)
    * Lưu lịch sử giao dịch vào bảng `TRANSACTION`.
-   * @param {{ transactionId: string, walletId: string, orderId?: string|null, type: string, amount: number, status?: string }} params
+   * @param {{ transactionId: string, walletId: string, orderId?: string|null, type: string, amount: number, status?: string, detail?: string|null }} params
    * @param {object} [conn]
    */
   async luuLichSuGiaoDich(params = {}, conn = null) {
     if (params.status && params.status !== 'Success') {
       await this.query(
-        `INSERT INTO \`TRANSACTION\` (TransID, WalletID, OrderID, Type, Amount, Status)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO \`TRANSACTION\` (TransID, WalletID, OrderID, Type, Amount, Status, Detail)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           params.transactionId,
           params.walletId,
@@ -59,19 +59,21 @@ class WalletDAO extends BaseDAO {
           params.type,
           params.amount,
           params.status,
+          params.detail || null,
         ],
         conn,
       );
     } else {
       await this.query(
-        `INSERT INTO \`TRANSACTION\` (TransID, WalletID, OrderID, Type, Amount, Status)
-         VALUES (?, ?, ?, ?, ?, 'Success')`,
+        `INSERT INTO \`TRANSACTION\` (TransID, WalletID, OrderID, Type, Amount, Status, Detail)
+         VALUES (?, ?, ?, ?, ?, 'Success', ?)`,
         [
           params.transactionId,
           params.walletId,
           params.orderId || null,
           params.type,
           params.amount,
+          params.detail || null,
         ],
         conn,
       );
@@ -191,10 +193,10 @@ class WalletDAO extends BaseDAO {
 
     const sql = `
       SELECT t.TransID, t.OrderID, t.Type, t.Amount, t.TransDate, t.Status,
-             (SELECT GROUP_CONCAT(g.Title SEPARATOR ', ')
+             COALESCE(t.Detail, (SELECT GROUP_CONCAT(g.Title SEPARATOR ', ')
               FROM ORDERITEM oi
               JOIN GAME g ON g.GameID = oi.GameID
-              WHERE oi.OrderID = t.OrderID) AS ProductNames
+              WHERE oi.OrderID = t.OrderID)) AS ProductNames
       FROM \`TRANSACTION\` t
       JOIN WALLET w ON w.WalletID = t.WalletID
       WHERE ${where.join(' AND ')}
@@ -213,10 +215,10 @@ class WalletDAO extends BaseDAO {
   async layChiTietGiaoDich(params = {}, conn = null) {
     return this.one(
       `SELECT t.TransID, t.OrderID, t.Type, t.Amount, t.TransDate, t.Status,
-              (SELECT GROUP_CONCAT(g.Title SEPARATOR ', ')
+              COALESCE(t.Detail, (SELECT GROUP_CONCAT(g.Title SEPARATOR ', ')
                FROM ORDERITEM oi
                JOIN GAME g ON g.GameID = oi.GameID
-               WHERE oi.OrderID = t.OrderID) AS ProductNames
+               WHERE oi.OrderID = t.OrderID)) AS ProductNames
        FROM \`TRANSACTION\` t
        JOIN WALLET w ON w.WalletID = t.WalletID
        WHERE t.TransID = ? AND w.CustomerID = ?`,

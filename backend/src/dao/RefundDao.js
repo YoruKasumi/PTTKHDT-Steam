@@ -1,29 +1,44 @@
 'use strict';
 const BaseDAO = require('./BaseDAO');
-// DAO bổ sung cho UC21 (hoàn tiền). Mọi hàm nhận (params, conn) và LUÔN chạy trong transaction do Service mở,
-// nên không phụ thuộc BaseDAO. Tên hàm lấy theo sơ đồ sequence (kiemTraTokenBanQuyen, thuHoiBanQuyenGame...).
+// DAO bổ sung cho UC21 (hoàn tiền); write operations receive the caller's transaction connection.
 
 class RefundDAO extends BaseDAO {
   /** Khóa đơn của khách; trả thêm số giây kể từ lúc mua (so sánh theo giây, không làm tròn giờ). */
   async layDonHangDeHoanTien({ orderId, customerId }, conn) {
-    const [rows] = await conn.query(
+    return this.one(
       `SELECT OrderID, TotalAmount, Status, TIMESTAMPDIFF(SECOND, OrderDate, NOW()) AS SecondsSincePurchase
          FROM ORDERS WHERE OrderID = ? AND CustomerID = ? FOR UPDATE`,
       [orderId, customerId],
+      conn,
     );
-    return rows[0] || null;
   }
 
-  /** Bản quyền Purchase còn Active ứng với từng game của đơn; `expected` = số dòng ORDERITEM. */
-  async kiemTraTokenBanQuyen({ orderId, customerId }, conn) {
-    const [items] = await conn.query('SELECT GameID FROM ORDERITEM WHERE OrderID = ?', [orderId]);
-    if (!items.length) return { licenseIds: [], expected: 0 };
-    const [licenses] = await conn.query(
-      `SELECT LicenseID FROM LICENSE
-        WHERE CustomerID = ? AND Status = 'Active' AND Source = 'Purchase' AND GameID IN (?) FOR UPDATE`,
-      [customerId, items.map((i) => i.GameID)],
+  /** Lấy các bản quyền của game đã chọn để xác nhận trạng thái và khóa các dòng trong transaction. */
+  async layBanQuyenGame({ customerId, gameIds }, conn) {
+    if (!Array.isArray(gameIds) || gameIds.length === 0) return [];
+    const placeholders = gameIds.map(() => '?').join(', ');
+    return this.query(
+      `SELECT LicenseID, GameID, Source, Status, RevokedReason, PurchaseDate
+         FROM LICENSE
+        WHERE CustomerID = ? AND GameID IN (${placeholders})
+        ORDER BY PurchaseDate DESC
+        FOR UPDATE`,
+      [customerId, ...gameIds],
+      conn,
     );
-    return { licenseIds: licenses.map((l) => l.LicenseID), expected: items.length };
+  }
+
+  /** Lấy các game đã được hoàn tiền trước đó trong đơn. */
+  async layGameDaHoanTien({ orderId, gameIds }, conn) {
+    if (!Array.isArray(gameIds) || gameIds.length === 0) return [];
+    const placeholders = gameIds.map(() => '?').join(', ');
+    return this.query(
+      `SELECT DISTINCT GameID
+         FROM REFUNDREQUEST
+        WHERE OrderID = ? AND Status = 'Approved' AND GameID IN (${placeholders})`,
+      [orderId, ...gameIds],
+      conn,
+    );
   }
 
   async layHanMucHoanTien(conn) {
@@ -46,24 +61,43 @@ class RefundDAO extends BaseDAO {
     return new Map(rows.map((r) => [r.OrderID, Number(r.Secs)]));
   }
 
-  async ghiYeuCauHoanTien({ orderId, reason, status, hours, hoursSincePurchase }, conn) {
+  async ghiYeuCauHoanTien({ orderId, gameId, reason, status, hours, hoursSincePurchase }, conn) {
     const recordedHours = Number.isFinite(Number(hoursSincePurchase))
       ? Number(hoursSincePurchase)
       : Number(hours);
-    await conn.query(
-      'INSERT INTO REFUNDREQUEST (OrderID, Reason, Status, HoursSincePurchase) VALUES (?, ?, ?, ?)',
-      [orderId, reason, status, recordedHours],
+    await this.query(
+      'INSERT INTO REFUNDREQUEST (OrderID, GameID, Reason, Status, HoursSincePurchase) VALUES (?, ?, ?, ?, ?)',
+      [orderId, gameId, reason, status, Math.floor(recordedHours)],
+      conn,
     );
   }
 
   /** Thu hồi bản quyền + vô hiệu hóa thiết bị gắn với bản quyền đó. */
   async thuHoiBanQuyenGame({ licenseIds }, conn) {
-    await conn.query(`UPDATE LICENSE SET Status = 'Revoked', RevokedAt = NOW() WHERE LicenseID IN (?)`, [licenseIds]);
-    await conn.query(`UPDATE LICENSE_DEVICE SET Status = 'Revoked' WHERE LicenseID IN (?)`, [licenseIds]);
+    if (!Array.isArray(licenseIds) || licenseIds.length === 0) return;
+    const placeholders = licenseIds.map(() => '?').join(', ');
+    await this.query(
+      `UPDATE LICENSE
+          SET Status = 'Revoked', RevokedAt = NOW(), RevokedReason = 'Refund'
+        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
+      licenseIds,
+      conn,
+    );
+    await this.query(
+      `UPDATE LICENSE_DEVICE
+          SET Status = 'Revoked', RevokedReason = 'Refund'
+        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
+      licenseIds,
+      conn,
+    );
   }
 
-  async capNhatDonDaHoan({ orderId }, conn) {
-    await conn.query(`UPDATE ORDERS SET Status = 'Refunded' WHERE OrderID = ?`, [orderId]);
+  async capNhatDonDaHoan({ orderId, status }, conn) {
+    await this.query(
+      `UPDATE ORDERS SET Status = ? WHERE OrderID = ?`,
+      [status, orderId],
+      conn,
+    );
   }
 }
 

@@ -197,7 +197,9 @@ describe('UC30/31 & UC50/51/53/55: Báo cáo doanh thu & Tài chính sàn', () =
       assert.doesNotMatch(sql, /r\.CustomerID/i, 'CustomerID phải từ bảng ORDERS o');
     }
     const sales = capturedQueries.find(({ sql }) => /UnitsSold/.test(sql));
-    assert.match(sales.sql, /COUNT\(CASE WHEN o\.OrderID IS NOT NULL THEN oi\.GameID END\)/);
+    assert.match(sales.sql, /COUNT\(CASE WHEN o\.OrderID IS NOT NULL AND NOT EXISTS/);
+    assert.match(sales.sql, /'PartiallyRefunded'/);
+    assert.match(sales.sql, /refund\.GameID = oi\.GameID/);
     assert.deepEqual(sales.params, ['2026-01-01', '2026-01-31', 'dev-1']);
     const refunds = capturedQueries.find(({ sql }) => /RequestDate/.test(sql));
     assert.match(refunds.sql, /r\.RequestDate/);

@@ -8,7 +8,7 @@ Tên phương thức trong `services/`, `dao/`, `integrations/` lấy đúng t�
 ```
 backend/
 ├─ package.json, .env.example, .gitignore
-├─ sql/                          steam_store_schema.sql, steam_store_sample_data.sql, extra_tables.sql
+├─ sql/                          schema, sample data, extra tables, and one-time migrations
 ├─ docs/                         sequence_method_map.md, frontend_handlers.md, needs_review.md
 ├─ storage/                      uploads/ (tạm), builds/ (file game khi dùng driver local)
 ├─ tests/
@@ -63,6 +63,10 @@ npm run db:sample
 `db:sample` là tùy chọn nếu cần dữ liệu mẫu. **Cẩn thận:** `sql/steam_store_schema.sql` xóa và tạo lại các bảng trong `steam_store`; chỉ chạy trên database mới hoặc sau khi đã sao lưu dữ liệu cần giữ. Các lệnh `db:*` dùng MySQL CLI (`mysql`) và cần MySQL `bin` có trong `PATH`. Có thể thay bằng Workbench: kết nối `localhost:3306` với user MySQL của bạn, mở file SQL tương ứng trong thư mục `sql/`, rồi Execute.
 
 Để nâng database đã tạo trước đó lên mức giảm giá tối đa 100%, chạy một lần `sql/migrate_sale_max_100_percent.sql`; không chạy lại `db:schema` trên database đang có dữ liệu.
+
+Để nâng database hiện có cho hoàn tiền theo từng game và khôi phục bản quyền khi mở khóa tài khoản, chạy một lần `sql/migration_refund_per_game_and_license_restore.sql` trước khi triển khai backend mới. Migration giữ các yêu cầu hoàn tiền cũ ở mức đơn hàng (`GameID = NULL`) và không tự khôi phục các license/thiết bị cũ không có lý do thu hồi xác định.
+
+Để bật tự động hết hạn tạm khóa trên database hiện có, chạy một lần `sql/migration_auto_expire_account_suspensions.sql` trước khi triển khai backend mới. Backend kiểm tra mỗi phút; thời hạn được chọn theo giờ khi Admin/Manager tạm khóa. Hết hạn sẽ mở lại tài khoản, ghi audit và thông báo, đồng thời áp dụng quy tắc khôi phục license hiện có. Worker chạy trong tiến trình backend liên tục (như service Docker trong `docker-compose.yml`); môi trường serverless không bảo đảm timer tồn tại và cần dùng cron/worker bên ngoài.
 
 Khởi động backend:
 

@@ -31,10 +31,9 @@ INSERT INTO `ROLE` (RoleID, RoleName, ManagedBy) VALUES
   ('R02', 'Support', 'A001');
 
 INSERT INTO ROLE_PERMISSION (RoleID, PermissionCode) VALUES
-  ('R01', 'game.approve'),
-  ('R01', 'game.delist'),
-  ('R01', 'withdrawal.approve'),
-  ('R02', 'review.moderate');
+  ('R01', 'finance.read'),
+  ('R01', 'community.moderate'),
+  ('R01', 'audit.read');
 
 INSERT INTO MANAGER (AccountID, RoleID) VALUES
   ('A002', 'R01');
@@ -95,11 +94,11 @@ INSERT INTO ORDERITEM (OrderID, GameID, UnitPrice, PriceAfterDiscount) VALUES
   ('O002', 'G002', 99000, 49500),
   ('O003', 'G002', 99000, 49500);
 
-INSERT INTO LICENSE (LicenseID, CustomerID, GameID, Source, PurchaseDate, AccessToken, Status, RevokedAt) VALUES
-  ('L001', 'A004', 'G001', 'Purchase', '2026-11-08 09:15:00', '668b2245fe89b82c883add46d887175478e14a1467e264169755830659ff4c4b', 'Active', NULL),
-  ('L002', 'A005', 'G002', 'Purchase', '2026-11-10 10:20:00', 'cb62aa9e04da6a47f9ffe7c42df84d7f3248d4645bab50dc88c65b73872d2091', 'Revoked', '2026-11-10 13:45:00'),
-  ('L003', 'A005', 'G001', 'Key', '2026-11-09 20:00:00', '47892b4437ca5f00bb92da7fd8873601bc276329ad05dd0dcd56ebdbaff1f00b', 'Active', NULL),
-  ('L004', 'A005', 'G002', 'Purchase', '2026-11-11 08:30:00', '1f26f7db509ed22b6292914e9e645e087137d0e99a9c3edb744ea57b709278d0', 'Active', NULL);
+INSERT INTO LICENSE (LicenseID, CustomerID, GameID, Source, PurchaseDate, AccessToken, Status, RevokedAt, RevokedReason) VALUES
+  ('L001', 'A004', 'G001', 'Purchase', '2026-11-08 09:15:00', '668b2245fe89b82c883add46d887175478e14a1467e264169755830659ff4c4b', 'Active', NULL, NULL),
+  ('L002', 'A005', 'G002', 'Purchase', '2026-11-10 10:20:00', 'cb62aa9e04da6a47f9ffe7c42df84d7f3248d4645bab50dc88c65b73872d2091', 'Revoked', '2026-11-10 13:45:00', 'Refund'),
+  ('L003', 'A005', 'G001', 'Key', '2026-11-09 20:00:00', '47892b4437ca5f00bb92da7fd8873601bc276329ad05dd0dcd56ebdbaff1f00b', 'Active', NULL, NULL),
+  ('L004', 'A005', 'G002', 'Purchase', '2026-11-11 08:30:00', '1f26f7db509ed22b6292914e9e645e087137d0e99a9c3edb744ea57b709278d0', 'Active', NULL, NULL);
 
 INSERT INTO LICENSE_DEVICE (DeviceID, LicenseID, DeviceFingerprint, DeviceName, FirstSeen, LastSeen, Status) VALUES
   ('D001', 'L001', '388c357c4f386995ab3ac6e47f0c40140309463860edde4bfbd12e28558be5e1', 'PC-Minh Anh', '2026-11-08 20:10:00', '2026-11-10 21:00:00', 'Active'),
@@ -115,9 +114,9 @@ INSERT INTO REVIEW (ReviewID, CustomerID, GameID, Rating, Content, ReviewDate, S
   ('RV02', 'A005', 'G001', 4, 'Hay nhưng hơi dài', '2026-11-10 20:00:00', 'Visible'),
   ('RV03', 'A005', 'G002', 1, 'Nội dung không phù hợp (đã bị ẩn)', '2026-11-11 09:00:00', 'Hidden');
 
-INSERT INTO REFUNDREQUEST (RequestID, OrderID, Reason, RequestDate, Status, HoursSincePurchase) VALUES
-  ('RF01', 'O002', 'Game không chạy được trên máy của tôi', '2026-11-10 13:40:00', 'Approved', 3),
-  ('RF02', 'O001', 'Đổi ý, không muốn chơi nữa', '2026-11-10 14:00:00', 'Rejected', 52);
+INSERT INTO REFUNDREQUEST (RequestID, OrderID, GameID, Reason, RequestDate, Status, HoursSincePurchase) VALUES
+  ('RF01', 'O002', 'G002', 'Game không chạy được trên máy của tôi', '2026-11-10 13:40:00', 'Approved', 3),
+  ('RF02', 'O001', 'G001', 'Đổi ý, không muốn chơi nữa', '2026-11-10 14:00:00', 'Rejected', 52);
 
 INSERT INTO WALLET (WalletID, CustomerID, Balance, Currency) VALUES
   ('W001', 'A003', 50000, 'VND'),

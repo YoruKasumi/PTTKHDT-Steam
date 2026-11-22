@@ -212,7 +212,7 @@ class AccountDAO extends BaseDAO {
   async truyVanThongTinVaLichSuTaiKhoan(params = {}, conn = null) {
     const accountId = params.accountId;
     const account = await this.one(
-      `SELECT AccountID, Username, Email, DisplayName, Status, CreatedAt
+      `SELECT AccountID, Username, Email, DisplayName, Status, SuspendUntil, CreatedAt
        FROM ACCOUNT WHERE AccountID = ? LIMIT 1`,
       [accountId],
       conn,
@@ -239,7 +239,7 @@ class AccountDAO extends BaseDAO {
       ),
       this.query(
         `SELECT license.LicenseID, license.GameID, game.Title, license.Source,
-                license.PurchaseDate, license.Status, license.RevokedAt
+                license.PurchaseDate, license.Status, license.RevokedAt, license.RevokedReason
          FROM LICENSE AS license
          INNER JOIN GAME AS game ON game.GameID = license.GameID
          WHERE license.CustomerID = ?
@@ -286,7 +286,7 @@ class AccountDAO extends BaseDAO {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = await this.query(
       `SELECT account.AccountID, account.Username, account.Email, account.DisplayName,
-              account.Status, account.CreatedAt,
+              account.Status, account.SuspendUntil, account.CreatedAt,
               GROUP_CONCAT(DISTINCT roleName.RoleName ORDER BY roleName.RoleName) AS RoleNames,
               wallet.Balance AS WalletBalance
        FROM ACCOUNT AS account
@@ -306,7 +306,7 @@ class AccountDAO extends BaseDAO {
        ) AS roleName ON roleName.accountId = account.AccountID
        ${where}
        GROUP BY account.AccountID, account.Username, account.Email, account.DisplayName,
-                account.Status, account.CreatedAt, wallet.Balance
+                account.Status, account.SuspendUntil, account.CreatedAt, wallet.Balance
        ORDER BY account.CreatedAt DESC
        LIMIT 500`,
       values,
@@ -318,6 +318,7 @@ class AccountDAO extends BaseDAO {
       email: row.Email,
       displayName: row.DisplayName,
       status: row.Status,
+      suspendUntil: row.SuspendUntil,
       createdAt: row.CreatedAt,
       roles: row.RoleNames ? row.RoleNames.split(',') : [],
       walletBalance: row.WalletBalance === null ? null : Number(row.WalletBalance),
@@ -330,19 +331,51 @@ class AccountDAO extends BaseDAO {
 
   async layTaiKhoanTheoId(params = {}, conn = null) {
     return this.one(
-      'SELECT AccountID, Status FROM ACCOUNT WHERE AccountID = ? LIMIT 1',
+      'SELECT AccountID, Status, SuspendUntil FROM ACCOUNT WHERE AccountID = ? LIMIT 1 FOR UPDATE',
       [params.accountId],
+      conn,
+    );
+  }
+
+  async layTaiKhoanTamKhoaDaHetHan(conn = null) {
+    return this.query(
+      `SELECT AccountID, SuspendUntil
+         FROM ACCOUNT
+        WHERE Status = 'Suspended'
+          AND SuspendUntil IS NOT NULL
+          AND SuspendUntil <= UTC_TIMESTAMP()
+        ORDER BY SuspendUntil ASC
+        LIMIT 50
+        FOR UPDATE`,
+      [],
       conn,
     );
   }
 
   async capNhatTrangThaiTaiKhoan(params = {}, conn = null) {
     const result = await this.query(
-      'UPDATE ACCOUNT SET Status = ? WHERE AccountID = ?',
-      [params.status, params.accountId],
+      `UPDATE ACCOUNT
+          SET Status = ?,
+              SuspendUntil = CASE
+                WHEN ? = 'Suspended' THEN TIMESTAMPADD(HOUR, ?, UTC_TIMESTAMP())
+                ELSE NULL
+              END
+        WHERE AccountID = ?`,
+      [params.status, params.status, params.suspensionHours || null, params.accountId],
       conn,
     );
     return result.affectedRows;
+  }
+
+  async kiemTraTaiKhoanTungBiKhoaVinhVien(params = {}, conn = null) {
+    return this.one(
+      `SELECT LogID
+         FROM AUDITLOG
+        WHERE Target = CONCAT('ACCOUNT:', ?) AND Action = 'ACCOUNT_BAN'
+        LIMIT 1`,
+      [params.accountId],
+      conn,
+    );
   }
 
   async taoThongBaoTaiKhoan(params = {}, conn = null) {

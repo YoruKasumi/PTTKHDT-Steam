@@ -82,13 +82,6 @@ class ModerationDAO extends BaseDAO {
   }
 
   /**
-   * UC38. Lưu trạng thái đã kiểm tra (#13) — Ghi GAMEREVIEW (pre-review note).
-   */
-  async luuTrangThaiDaKiemTra(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.luuTrangThaiDaKiemTra');
-  }
-
-  /**
    * UC39. Kiểm tra trạng thái game và file (#3).
    * @param {{ gameId: string }} params
    */

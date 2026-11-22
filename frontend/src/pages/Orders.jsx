@@ -44,10 +44,11 @@ function InvoiceDialog({ order, onClose }) {
   );
 }
 
-function RefundModal({ order, onClose, onSuccess }) {
+function RefundModal({ order, selectedItems, onClose, onSuccess }) {
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const refundAmount = selectedItems.reduce((total, item) => total + Number(item.priceAfterDiscount || 0), 0);
 
   const orderTime = new Date(order.orderDate).getTime();
   const diffHours = (Date.now() - orderTime) / (1000 * 60 * 60);
@@ -65,7 +66,11 @@ function RefundModal({ order, onClose, onSuccess }) {
     setError('');
 
     try {
-      const res = await orderApi.refund(order.orderId, reason.trim());
+      const res = await orderApi.refund(
+        order.orderId,
+        reason.trim(),
+        selectedItems.map((item) => item.gameId),
+      );
       onSuccess(res?.data || res);
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Yêu cầu hoàn tiền thất bại.';
@@ -89,7 +94,7 @@ function RefundModal({ order, onClose, onSuccess }) {
       >
         <div className="flex items-start justify-between gap-4">
           <h2 id="refund-title" className="m-0 text-lg font-bold text-white">
-            Yêu cầu hoàn tiền đơn hàng
+            Yêu cầu hoàn tiền trò chơi
           </h2>
           <button
             type="button"
@@ -115,12 +120,17 @@ function RefundModal({ order, onClose, onSuccess }) {
           </div>
           <div className="flex justify-between text-muted">
             <span>Số tiền hoàn trả:</span>
-            <span className="font-mono font-bold text-emerald-400">{formatVnd(order.totalAmount)}</span>
+            <span className="font-mono font-bold text-emerald-400">{formatVnd(refundAmount)}</span>
           </div>
           <div className="rounded-lg bg-white/5 p-3 text-xs text-zinc-300">
-            <strong>Trò chơi liên quan:</strong> {order.items.map((i) => i.title).join(', ')}
+            <strong>Trò chơi được chọn:</strong>
+            <ul className="mb-0 mt-2 list-disc space-y-1 pl-5">
+              {selectedItems.map((item) => (
+                <li key={item.gameId}>{item.title} — {formatVnd(item.priceAfterDiscount)}</li>
+              ))}
+            </ul>
             <p className="mb-0 mt-1 text-muted">
-              * Lưu ý: Bản quyền (LICENSE) và quyền khởi chạy trên các thiết bị đã liên kết sẽ bị thu hồi ngay sau khi hoàn tiền.
+              * Bản quyền và các thiết bị đã liên kết của trò chơi được chọn sẽ bị thu hồi sau khi hoàn tiền.
             </p>
           </div>
         </div>
@@ -135,7 +145,7 @@ function RefundModal({ order, onClose, onSuccess }) {
           ) : (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-300">
               <strong className="block text-sm font-bold text-emerald-400">✓ ĐỦ ĐIỀU KIỆN HOÀN TIỀN {refundWindowHours} GIỜ</strong>
-              Thời gian còn lại trong khung hoàn tiền hợp lệ: <strong>{(refundWindowHours - diffHours).toFixed(1)} giờ</strong>. Số tiền {formatVnd(order.totalAmount)} sẽ được cộng trực tiếp vào ví của bạn ngay sau khi hoàn tất.
+              Thời gian còn lại trong khung hoàn tiền hợp lệ: <strong>{(refundWindowHours - diffHours).toFixed(1)} giờ</strong>. Số tiền {formatVnd(refundAmount)} sẽ được cộng trực tiếp vào ví của bạn ngay sau khi hoàn tất.
             </div>
           )}
         </div>
@@ -172,7 +182,7 @@ function RefundModal({ order, onClose, onSuccess }) {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || selectedItems.length === 0}
               className={`rounded-lg px-5 py-2.5 text-sm font-bold text-white ${
                 isExpired
                   ? 'bg-red-600 hover:bg-red-700'
@@ -191,6 +201,7 @@ function RefundModal({ order, onClose, onSuccess }) {
 export default function Orders() {
   const { refreshShop } = useShop();
   const [orders, setOrders] = useState([]);
+  const [selectedGameIdsByOrder, setSelectedGameIdsByOrder] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [refundOrder, setRefundOrder] = useState(null);
   const [notice, setNotice] = useState('');
@@ -202,7 +213,14 @@ export default function Orders() {
     orderApi
       .list()
       .then((result) => {
-        setOrders(result || []);
+        const orderList = result || [];
+        setOrders(orderList);
+        setSelectedGameIdsByOrder(Object.fromEntries(
+          orderList.map((order) => [
+            order.orderId,
+            order.items.filter((item) => item.canRefund).map((item) => item.gameId),
+          ]),
+        ));
       })
       .catch((requestError) => {
         setError(requestError.message);
@@ -227,12 +245,25 @@ export default function Orders() {
     }
   };
 
+  const toggleRefundGame = (orderId, gameId) => {
+    setSelectedGameIdsByOrder((current) => {
+      const selected = current[orderId] || [];
+      const next = selected.includes(gameId)
+        ? selected.filter((id) => id !== gameId)
+        : [...selected, gameId];
+      return { ...current, [orderId]: next };
+    });
+  };
+  const selectedRefundItems = refundOrder
+    ? refundOrder.items.filter((item) => (selectedGameIdsByOrder[refundOrder.orderId] || []).includes(item.gameId))
+    : [];
+
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 pb-20 pt-10 md:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="m-0 text-2xl font-extrabold">Đơn hàng &amp; hoàn tiền</h1>
-          <p className="mb-0 mt-2 text-sm text-muted">Theo dõi đơn hàng, xem hóa đơn và yêu cầu hoàn tiền trong 24 giờ.</p>
+          <p className="mb-0 mt-2 text-sm text-muted">Theo dõi từng trò chơi trong đơn hàng, xem hóa đơn và yêu cầu hoàn tiền.</p>
         </div>
         <Link to="/wallet/transactions" className="text-sm font-bold text-accent-light hover:underline">Lịch sử Ví</Link>
       </div>
@@ -260,18 +291,50 @@ export default function Orders() {
           <tbody>
             {orders.map((order) => {
               const refunded = order.status === 'Refunded';
-              const statusTone = refunded
+              const selectedIds = selectedGameIdsByOrder[order.orderId] || [];
+              const selectedCount = order.items.filter((item) => selectedIds.includes(item.gameId)).length;
+              const statusTone = refunded || order.status === 'PartiallyRefunded'
                 ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
                 : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
               return (
                 <tr key={order.orderId} className="border-b border-white/5 align-top">
                   <td className="px-3 py-4 font-mono font-bold text-accent-light">#{order.orderId}</td>
                   <td className="whitespace-nowrap px-3 py-4 text-muted">{new Date(order.orderDate).toLocaleString('vi-VN')}</td>
-                  <td className="px-3 py-4">{order.items.map((item) => item.title).join(', ')}</td>
+                  <td className="px-3 py-4">
+                    <ul className="m-0 list-none space-y-2 p-0">
+                      {order.items.map((item) => (
+                        <li key={item.gameId} className="flex items-start gap-2">
+                          {item.canRefund ? (
+                            <input
+                              type="checkbox"
+                              aria-label={`Chọn hoàn tiền cho ${item.title}`}
+                              checked={selectedIds.includes(item.gameId)}
+                              onChange={() => toggleRefundGame(order.orderId, item.gameId)}
+                              className="mt-1 accent-indigo-500"
+                            />
+                          ) : (
+                            <span aria-hidden="true" className="mt-0.5 w-4 text-center text-xs text-muted">•</span>
+                          )}
+                          <span>
+                            <span className="block">{item.title}</span>
+                            <span className={`mt-0.5 block text-xs ${
+                              item.refunded ? 'text-amber-400' : item.canRefund ? 'text-emerald-400' : 'text-muted'
+                            }`}>
+                              {item.refunded
+                                ? 'Đã hoàn tiền'
+                                : item.canRefund
+                                  ? `Có thể hoàn · ${formatVnd(item.priceAfterDiscount)}`
+                                  : 'Không thể hoàn: bản quyền không còn hoạt động'}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
                   <td className="whitespace-nowrap px-3 py-4 font-bold">{formatVnd(order.totalAmount)}</td>
                   <td className="px-3 py-4">
                     <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusTone}`}>
-                      {refunded ? 'Đã hoàn tiền' : 'Đã thanh toán'}
+                      {refunded ? 'Đã hoàn tiền' : order.status === 'PartiallyRefunded' ? 'Hoàn tiền một phần' : 'Đã thanh toán'}
                     </span>
                   </td>
                   <td className="px-3 py-4">
@@ -283,13 +346,13 @@ export default function Orders() {
                       >
                         Hóa đơn
                       </button>
-                      {!refunded ? (
+                      {!refunded && order.items.some((item) => item.canRefund) ? (
                         <button
                           type="button"
                           onClick={() => setRefundOrder(order)}
                           className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-500/20"
                         >
-                          Hoàn tiền
+                          Hoàn {selectedCount} trò chơi
                         </button>
                       ) : null}
                     </div>
@@ -309,6 +372,7 @@ export default function Orders() {
       {refundOrder ? (
         <RefundModal
           order={refundOrder}
+          selectedItems={selectedRefundItems}
           onClose={() => setRefundOrder(null)}
           onSuccess={handleRefundSuccess}
         />

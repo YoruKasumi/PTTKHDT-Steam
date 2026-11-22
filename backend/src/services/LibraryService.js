@@ -358,11 +358,55 @@ class LibraryService extends BaseService {
     return { deviceId, message: 'Đã thu hồi quyền khởi chạy của thiết bị.' };
   }
 
-  // ─── Legacy methods (giữ nguyên khung) ──────────────────────────────────
+  // ─── Tải game về máy (mô phỏng luồng cài đặt thật) ───────────────────────
 
+  /**
+   * UC: Yêu cầu tải game — kiểm tra LICENSE Active rồi trả metadata gói build.zip
+   * cho Route stream file về máy người chơi (Content-Disposition: attachment).
+   *
+   * LƯU Ý QUAN TRỌNG:
+   *  - Tải file KHÔNG thay đổi trạng thái bản quyền. Người chơi tải lại bao nhiêu lần cũng được.
+   *  - Thu hồi bản quyền chỉ xảy ra server-side khi hoàn tiền (OrderService) hoặc
+   *    khóa/tạm khóa tài khoản (AccountService) — không bao giờ do yêu cầu "gỡ cài đặt" của khách.
+   */
   async yeuCauTaiGame(params = {}) {
-    throw new NghiepVuException('Chưa cài đặt: LibraryService.yeuCauTaiGame', 501);
+    const { gameId, user } = params;
+    if (!gameId) throw new ValidationException('Thiếu gameId.');
+
+    // Bản quyền phải Active — câu truy vấn đã lọc l.Status = 'Active' sẵn.
+    const license = await this.licenseDAO.kiemTraTokenBanQuyen({
+      customerId: user.accountId,
+      gameId,
+    });
+    if (!license) {
+      throw new ForbiddenException('Bạn chưa sở hữu game này hoặc bản quyền đã bị thu hồi.');
+    }
+
+    // Tìm gói build.zip: thư mục theo developerId (cấu trúc mới), không có thì thử cấu trúc cũ.
+    let buildPath = path.join(getGameVersionDir(license.DeveloperID, gameId, license.VersionNumber), 'build.zip');
+    if (!fs.existsSync(buildPath)) {
+      const legacyPath = path.join(getLegacyGameVersionDir(gameId, license.VersionNumber), 'build.zip');
+      if (fs.existsSync(legacyPath)) buildPath = legacyPath;
+    }
+    if (!fs.existsSync(buildPath)) {
+      throw new NotFoundException('Bản build chưa sẵn sàng trên máy chủ. Vui lòng thử lại sau.');
+    }
+
+    const stat = fs.statSync(buildPath);
+
+    return {
+      allowed: true,
+      gameId,
+      licenseId: license.LicenseID,
+      versionNumber: license.VersionNumber,
+      fileName: `game-${gameId}-v${license.VersionNumber}.zip`,
+      filePath: buildPath,
+      fileSize: stat.size,
+      sha256: license.Sha256 || null, // client dùng để xác minh tính toàn vẹn sau khi tải
+    };
   }
+
+  // ─── Legacy methods (còn lại chưa cài đặt) ──────────────────────────────
 
   async kiemTraPhienBanHienTai(params = {}) {
     throw new NghiepVuException('Chưa cài đặt: LibraryService.kiemTraPhienBanHienTai', 501);

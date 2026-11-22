@@ -33,9 +33,10 @@ class AuditLogDAO extends BaseDAO {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = Math.min(Math.max(Number(params.limit) || 100, 1), 500);
     return this.query(
-      `SELECT log.LogID, log.AccountID, account.Username, log.Action, log.Target, log.LogAt, log.Detail
+      `SELECT log.LogID, log.AccountID, COALESCE(account.Username, 'System') AS Username,
+              log.Action, log.Target, log.LogAt, log.Detail
        FROM AUDITLOG AS log
-       INNER JOIN ACCOUNT AS account ON account.AccountID = log.AccountID
+       LEFT JOIN ACCOUNT AS account ON account.AccountID = log.AccountID
        ${where}
        ORDER BY log.LogAt DESC
        LIMIT ?`,
@@ -46,9 +47,10 @@ class AuditLogDAO extends BaseDAO {
 
   async truyVanChiTietBanGhiLog(params = {}, conn = null) {
     return this.one(
-      `SELECT log.LogID, log.AccountID, account.Username, log.Action, log.Target, log.LogAt, log.Detail
+      `SELECT log.LogID, log.AccountID, COALESCE(account.Username, 'System') AS Username,
+              log.Action, log.Target, log.LogAt, log.Detail
        FROM AUDITLOG AS log
-       INNER JOIN ACCOUNT AS account ON account.AccountID = log.AccountID
+       LEFT JOIN ACCOUNT AS account ON account.AccountID = log.AccountID
        WHERE log.LogID = ?
        LIMIT 1`,
       [params.logId],

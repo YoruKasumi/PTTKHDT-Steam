@@ -14,7 +14,8 @@ class AuditLogService extends BaseService {
   }
 
   async recordLog(params = {}, conn = null) {
-    if (!params.accountId || !params.action || !params.target) {
+    const isSystemExpiry = params.system === true && params.action === 'ACCOUNT_SUSPENSION_EXPIRED';
+    if ((!params.accountId && !isSystemExpiry) || !params.action || !params.target) {
       throw new ValidationException('Cần có tài khoản, hành động và đối tượng để ghi nhật ký');
     }
     return this.auditLogDAO.recordLog(params, conn);

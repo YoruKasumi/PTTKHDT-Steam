@@ -55,6 +55,7 @@ test('Swagger UI and generated OpenAPI document are available in development', a
   assert.ok(spec.paths['/api/catalog/games/{gameId}']);
   assert.ok(spec.paths['/api/catalog/games/{gameId}/reviews']);
   assert.ok(spec.paths['/api/auth/guiThongTinDangNhap']);
+  assert.ok(spec.paths['/api/library/{gameId}/download']);
   assert.ok(spec.paths['/api/admin/roles']);
   assert.ok(spec.paths['/api/admin/accounts/{accountId}/history']);
   assert.ok(spec.paths['/api/moderation/reviews']);
@@ -62,6 +63,18 @@ test('Swagger UI and generated OpenAPI document are available in development', a
   assert.ok(spec.paths['/api/banners/active']);
   assert.deepEqual(spec.paths['/api/cart/yeuCauXemGioHang'].get.security, [{ bearerAuth: [] }]);
   assert.ok(spec.paths['/health/database']);
+});
+
+test('download metadata headers are readable by a cross-origin frontend', async () => {
+  const allowedOrigin = process.env.CORS_ORIGIN?.split(',')[0].trim() || 'http://localhost:5173';
+  const response = await fetch(`${baseUrl}/health`, {
+    headers: { Origin: allowedOrigin },
+  });
+
+  const exposedHeaders = response.headers.get('access-control-expose-headers')
+    .split(',')
+    .map((header) => header.trim());
+  assert.deepEqual(exposedHeaders, ['Content-Disposition', 'X-Game-Version', 'X-Game-Sha256']);
 });
 
 test('REST auth aliases apply the same validation as the legacy endpoints', async () => {

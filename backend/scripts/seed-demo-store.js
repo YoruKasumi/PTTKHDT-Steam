@@ -33,6 +33,8 @@ const DEMO_GAMES = demoGames.map((game) => ({
   versions: [{ versionNumber: '1.0.0' }],
 }));
 
+const DEMO_MANAGER_PERMISSIONS = ['finance.read', 'community.moderate', 'audit.read'];
+
 const DEMO_CUSTOMERS = Array.from({ length: 5 }, (_, index) => ({
   username: `demo_customer_0${index + 1}`,
   email: `demo_customer_0${index + 1}@example.test`,
@@ -128,6 +130,16 @@ async function checkDemoGameArchives() {
 async function queryOne(db, sql, values = []) {
   const [rows] = await db.execute(sql, values);
   return rows[0] || null;
+}
+
+async function setRolePermissions(conn, roleId, permissions) {
+  await conn.execute('DELETE FROM ROLE_PERMISSION WHERE RoleID = ?', [roleId]);
+  for (const permission of permissions) {
+    await conn.execute(
+      'INSERT INTO ROLE_PERMISSION (RoleID, PermissionCode) VALUES (?, ?)',
+      [roleId, permission],
+    );
+  }
 }
 
 async function ensureGameSlugColumn() {
@@ -382,10 +394,20 @@ async function ensureDemoAccounts(password) {
         [roleId, 'DemoGameModerator', accountIds.admin],
       );
     }
-    await conn.execute(
-      'INSERT IGNORE INTO ROLE_PERMISSION (RoleID, PermissionCode) VALUES (?, ?), (?, ?)',
-      [roleId, 'game.approve', roleId, 'community.moderate'],
-    );
+    await setRolePermissions(conn, roleId, DEMO_MANAGER_PERMISSIONS);
+    for (const sampleRole of [
+      { roleId: 'R01', roleName: 'GameModerator', permissions: DEMO_MANAGER_PERMISSIONS },
+      { roleId: 'R02', roleName: 'Support', permissions: [] },
+    ]) {
+      const existingRole = await queryOne(
+        conn,
+        'SELECT RoleName FROM `ROLE` WHERE RoleID = ? FOR UPDATE',
+        [sampleRole.roleId],
+      );
+      if (existingRole?.RoleName === sampleRole.roleName) {
+        await setRolePermissions(conn, sampleRole.roleId, sampleRole.permissions);
+      }
+    }
     await conn.execute(
       'INSERT INTO MANAGER (AccountID, RoleID) VALUES (?, ?) ON DUPLICATE KEY UPDATE RoleID = VALUES(RoleID)',
       [accountIds.manager, roleId],

@@ -14,6 +14,7 @@ Các thông điệp giữa tác nhân và Giao diện (UI/App), cùng các hàm 
 ## UC2. Đăng nhập hệ thống
 
 - #1 `nhapThongTinDangNhap()`
+- Hiển thị lý do riêng khi tài khoản Suspended (tạm khóa) hoặc Banned (khóa vĩnh viễn); cả hai trạng thái đều không được cấp JWT.
 - #6 `hienThiTrangChu()`
 - #8 `hienThiThongBaoDangNhapThatBai()`
 
@@ -118,11 +119,14 @@ Các thông điệp giữa tác nhân và Giao diện (UI/App), cùng các hàm 
 - #1 `chonTaiGame()`
 - #10 `hienThiThanhTienTrinhTai()`
 - #12 `hienThiThongBaoLoi()`
+- Chỉ khách có LICENSE Active mới tải được build hiện hành; hiển thị tiến trình và kiểm tra SHA-256 khi máy chủ cung cấp checksum.
+- Lưu gói tải về trong thư mục do khách chọn (Chrome/Edge); tải về Downloads ở trình duyệt không hỗ trợ File System Access API.
 
 ## UC19. Gỡ cài đặt game
 
 - #1 `chonGoCaiDatGame()`
 - #6 `hienThiXacNhanDaGoCaiDat()`
+- Chỉ xóa tệp cài đặt cục bộ; không thay đổi LICENSE hoặc quyền sở hữu game.
 
 ## UC20. Xem lịch sử giao dịch
 
@@ -135,6 +139,12 @@ Các thông điệp giữa tác nhân và Giao diện (UI/App), cùng các hàm 
 
 ## UC21. Yêu cầu hoàn tiền
 
+- Hiển thị từng game trong đơn cùng trạng thái bản quyền và trạng thái hoàn tiền; chỉ game có LICENSE `Active` mới được chọn.
+- Gửi `gameIds` của các game được chọn cùng lý do hoàn tiền.
+- Máy chủ xác nhận game thuộc đơn, chưa hoàn trước đó, LICENSE có nguồn `Purchase` và còn `Active`; game không hợp lệ trả về danh sách lý do theo `gameId`.
+- Ghi một REFUNDREQUEST cho mỗi game. Khi quá hạn, ghi từng yêu cầu `Rejected` rồi mới trả lỗi để các bản ghi vẫn được lưu.
+- Hoàn đúng tổng `ORDERITEM.PriceAfterDiscount` của game đã chọn, thu hồi riêng các LICENSE/thiết bị tương ứng và ghi giao dịch Refund có OrderID cùng danh sách game.
+- Đơn còn game chưa hoàn có trạng thái `PartiallyRefunded`; chỉ chuyển `Refunded` khi mọi game trong đơn đã được hoàn.
 - #1 `chonYeuCauHoanTien()`
 - #13 `hienThiKetQuaHoanTienThanhCong()`
 - #15 `hienThiLyDoHoanTienThatBai()`
@@ -296,6 +306,9 @@ Các thông điệp giữa tác nhân và Giao diện (UI/App), cùng các hàm 
 - #1 `chonTamKhoaTaiKhoan()`
 - #2 `hienThiBieuMauChonThoiGianVaLyDo()`
 - #3 `nhapThoiGianVaLyDoTamKhoa()`
+- Khi chuyển sang Suspended, yêu cầu thời hạn tính bằng giờ; backend tự mở khóa qua cron mỗi phút khi hết hạn.
+- Hết hạn sẽ ghi audit `ACCOUNT_SUSPENSION_EXPIRED`, gửi thông báo, khôi phục license/thiết bị bị thu hồi do tạm khóa; tài khoản từng bị khóa vĩnh viễn không tự khôi phục bản quyền.
+- Khi chuyển sang Suspended, thu hồi LICENSE Active và các LICENSE_DEVICE Active với lý do `AccountSuspended`.
 - #12 `hienThiThongBaoTamKhoaThanhCong()`
 
 ## UC45. Khóa vĩnh viễn tài khoản
@@ -303,6 +316,8 @@ Các thông điệp giữa tác nhân và Giao diện (UI/App), cùng các hàm 
 - #1 `chonKhoaVinhVienTaiKhoan()`
 - #2 `hienThiBieuMauNhapLyDoVaBangChung()`
 - #3 `nhapLyDoVaXacNhanKhoa()`
+- Chặn đăng nhập và thu hồi quyền chơi khi tài khoản bị Banned. Khi mở khóa, không tự khôi phục bản quyền cho tài khoản từng bị Banned; thông báo và audit phải nêu rõ.
+- Khi mở khóa tài khoản chỉ bị Suspended, chỉ khôi phục LICENSE có lý do `AccountSuspended` và tối đa ba thiết bị Active cho mỗi license; không khôi phục license đã hoàn tiền.
 - #12 `hienThiThongBaoKhoaVinhVienThanhCong()`
 
 ## UC47. Giám sát nội dung cộng đồng

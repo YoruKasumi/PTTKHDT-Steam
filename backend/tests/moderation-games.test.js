@@ -36,6 +36,52 @@ describe('Game moderation', () => {
     );
   });
 
+  it('records the reviewer and time in audit without changing the game decision', async () => {
+    const service = new ModerationService();
+    const transactionConnection = { transaction: true };
+    const auditEntries = [];
+    service.transaction = async (operation) => operation(transactionConnection);
+    service.moderationDAO.truyVanChiTietGame = async (params, conn) => {
+      assert.deepEqual(params, { gameId: 'game-1' });
+      assert.equal(conn, transactionConnection);
+      return { GameID: 'game-1', Title: 'Demo Game', Status: 'Pending' };
+    };
+    service.auditLogService = {
+      recordLog: async (params, conn) => auditEntries.push({ params, conn }),
+    };
+
+    const result = await service.capNhatTrangThaiDaKiemTra({
+      gameId: 'game-1',
+      user: { accountId: 'manager-1' },
+    });
+
+    assert.deepEqual(result, { gameId: 'game-1', auditLogged: true, reviewerId: 'manager-1' });
+    assert.equal(auditEntries.length, 1);
+    assert.equal(auditEntries[0].conn, transactionConnection);
+    assert.deepEqual(auditEntries[0].params, {
+      accountId: 'manager-1',
+      action: 'game.pre_review_completed',
+      target: 'GAME:game-1',
+      detail: JSON.stringify({
+        gameTitle: 'Demo Game',
+        gameStatus: 'Pending',
+        event: 'pre_review_completed',
+      }),
+    });
+  });
+
+  it('rejects a pre-review audit entry for a missing game', async () => {
+    const service = new ModerationService();
+    service.transaction = async (operation) => operation({});
+    service.moderationDAO.truyVanChiTietGame = async () => null;
+    service.auditLogService = { recordLog: async () => assert.fail('Unexpected audit write') };
+
+    await assert.rejects(
+      service.capNhatTrangThaiDaKiemTra({ gameId: 'missing-game', user: { accountId: 'manager-1' } }),
+      { status: 404 },
+    );
+  });
+
   it('binds requested game status in the moderation list query', async () => {
     const dao = new ModerationDAO();
     let captured;

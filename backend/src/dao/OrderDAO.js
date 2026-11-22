@@ -111,10 +111,28 @@ class OrderDAO extends BaseDAO {
       `SELECT orders.OrderID, orders.OrderDate, orders.TotalAmount, orders.Status,
               TIMESTAMPDIFF(HOUR, orders.OrderDate, NOW()) AS HoursSincePurchase,
               item.GameID, game.Title, game.CoverImage,
-              item.UnitPrice, item.PriceAfterDiscount
+              item.UnitPrice, item.PriceAfterDiscount,
+              license.Status AS LicenseStatus,
+              license.RevokedReason,
+              (orders.Status = 'Refunded' OR EXISTS (
+                SELECT 1
+                  FROM REFUNDREQUEST refund
+                 WHERE refund.OrderID = orders.OrderID
+                   AND refund.GameID = item.GameID
+                   AND refund.Status = 'Approved'
+              )) AS IsGameRefunded
        FROM ORDERS AS orders
        LEFT JOIN ORDERITEM AS item ON item.OrderID = orders.OrderID
        LEFT JOIN GAME AS game ON game.GameID = item.GameID
+       LEFT JOIN LICENSE AS license ON license.LicenseID = (
+         SELECT candidate.LicenseID
+           FROM LICENSE AS candidate
+          WHERE candidate.CustomerID = orders.CustomerID
+            AND candidate.GameID = item.GameID
+            AND candidate.Source = 'Purchase'
+          ORDER BY candidate.PurchaseDate DESC
+          LIMIT 1
+       )
        WHERE orders.CustomerID = ?
        ORDER BY orders.OrderDate DESC, orders.OrderID DESC, game.Title`,
       [params.customerId],
@@ -148,7 +166,11 @@ class OrderDAO extends BaseDAO {
    */
   async layItemsDonHang(params = {}, conn = null) {
     return this.query(
-      `SELECT GameID, PriceAfterDiscount FROM ORDERITEM WHERE OrderID = ?`,
+      `SELECT item.GameID, game.Title, item.PriceAfterDiscount
+         FROM ORDERITEM AS item
+         INNER JOIN GAME AS game ON game.GameID = item.GameID
+        WHERE item.OrderID = ?
+        FOR UPDATE`,
       [params.orderId],
       conn,
     );
@@ -197,9 +219,9 @@ class OrderDAO extends BaseDAO {
    */
   async ghiYeuCauHoanTien(params = {}, conn = null) {
     await this.query(
-      `INSERT INTO REFUNDREQUEST (OrderID, Reason, Status, HoursSincePurchase)
-       VALUES (?, ?, ?, ?)`,
-      [params.orderId, params.reason, params.status, params.hoursSincePurchase],
+      `INSERT INTO REFUNDREQUEST (OrderID, GameID, Reason, Status, HoursSincePurchase)
+       VALUES (?, ?, ?, ?, ?)`,
+      [params.orderId, params.gameId, params.reason, params.status, params.hoursSincePurchase],
       conn,
     );
   }
@@ -214,26 +236,30 @@ class OrderDAO extends BaseDAO {
     if (!Array.isArray(params.licenseIds) || params.licenseIds.length === 0) return;
     const placeholders = params.licenseIds.map(() => '?').join(', ');
     await this.query(
-      `UPDATE LICENSE SET Status = 'Revoked', RevokedAt = NOW() WHERE LicenseID IN (${placeholders})`,
+      `UPDATE LICENSE
+          SET Status = 'Revoked', RevokedAt = NOW(), RevokedReason = 'Refund'
+        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
       params.licenseIds,
       conn,
     );
     await this.query(
-      `UPDATE LICENSE_DEVICE SET Status = 'Revoked' WHERE LicenseID IN (${placeholders})`,
+      `UPDATE LICENSE_DEVICE
+          SET Status = 'Revoked', RevokedReason = 'Refund'
+        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
       params.licenseIds,
       conn,
     );
   }
 
   /**
-   * Cập nhật trạng thái đơn hàng sang Refunded.
-   * @param {{ orderId: string }} params
+   * Cập nhật trạng thái đơn hàng sau khi hoàn tiền.
+   * @param {{ orderId: string, status?: 'PartiallyRefunded'|'Refunded' }} params
    * @param {object} [conn]
    */
   async capNhatDonDaHoan(params = {}, conn = null) {
     await this.query(
-      `UPDATE ORDERS SET Status = 'Refunded' WHERE OrderID = ?`,
-      [params.orderId],
+      `UPDATE ORDERS SET Status = ? WHERE OrderID = ?`,
+      [params.status || 'Refunded', params.orderId],
       conn,
     );
   }

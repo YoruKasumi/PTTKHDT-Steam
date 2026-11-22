@@ -39,11 +39,11 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await moderationService.layChiTietHoSoGame({ user: req.user, ...req.body }))),
 );
 
-/** UC38. Lưu trạng thái đã kiểm tra */
+/** UC38. Ghi audit khi hoàn tất kiểm tra hồ sơ game */
 router.post(
   '/capNhatTrangThaiDaKiemTra',
   authenticate, authorize('Admin', 'Manager'), requirePermission('game.approve'),
-  asyncHandler(async (req, res) => ok(res, await moderationService.capNhatTrangThaiDaKiemTra({ user: req.user, ...req.body }))),
+  asyncHandler(async (req, res) => ok(res, await moderationService.capNhatTrangThaiDaKiemTra({ ...req.body, user: req.user }))),
 );
 
 /**

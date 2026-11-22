@@ -4,6 +4,18 @@ import { useShop } from '../context/ShopContext';
 import { libraryApi } from '../api/library';
 import { getDeviceFingerprint, getDeviceName } from '../utils/deviceFingerprint';
 import { formatVnd } from '../utils/format';
+import {
+  getInstalledMap,
+  markInstalled,
+  clearInstalled,
+  pickInstallFolder,
+  loadInstallFolder,
+  ensureWritePermission,
+  writeInstalledFile,
+  removeInstalledFile,
+  supportsFsAccess,
+} from '../utils/installedLibrary';
+import { downloadGameBuild } from '../utils/gameDownload';
 
 // ─── Helper: format byte → MB/KB ─────────────────────────────────────────────
 function formatSize(bytes) {
@@ -86,6 +98,12 @@ export default function Library() {
   const [showDevices, setShowDevices] = useState(false);
   const [devices, setDevices] = useState([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
+
+  // Cài đặt tại thư mục của người chơi (mô phỏng launcher: tải → cài → gỡ)
+  const [installed, setInstalled] = useState({});
+  const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState(null); // { received, total, percent }
+  const [uninstalling, setUninstalling] = useState(false);
 
   // Tải danh sách game từ API
   const fetchLibrary = useCallback(async (selectGameId = null) => {
@@ -197,6 +215,121 @@ export default function Library() {
     setNotice('Đã thu hồi thiết bị. Slot thiết bị đã được giải phóng.');
     setNoticeType('success');
   }, []);
+
+  // ─── Cài đặt / Gỡ cài đặt tại máy người chơi ──────────────────────────────
+  // Load trạng thái đã cài từ localStorage khi mở trang.
+  useEffect(() => {
+    setInstalled(getInstalledMap());
+  }, []);
+
+  const installInfo = selectedGame ? installed[selectedGame.gameId] : null;
+
+  const handleInstall = useCallback(async () => {
+    if (!selectedGame) return;
+    setInstalling(true);
+    setNotice('');
+    setProgress({ received: 0, total: 0, percent: 0 });
+    try {
+      // 1. Thư mục cài đặt trên máy người chơi (File System Access API)
+      const useFs = supportsFsAccess();
+      let dirHandle = null;
+      if (useFs) {
+        dirHandle = (await loadInstallFolder()) || (await pickInstallFolder());
+        if (!dirHandle) {
+          setNotice('Bạn chưa chọn thư mục cài đặt — đã hủy tải game.');
+          setNoticeType('error');
+          return;
+        }
+        dirHandle = await ensureWritePermission(dirHandle);
+        if (!dirHandle) {
+          setNotice('Không có quyền ghi vào thư mục đã chọn. Hãy chọn lại thư mục cài đặt.');
+          setNoticeType('error');
+          return;
+        }
+      }
+
+      // 2. Tải stream build.zip kèm tiến trình %
+      const result = await downloadGameBuild({ gameId: selectedGame.gameId, onProgress: setProgress });
+
+      // 3. Xác minh checksum như launcher thật
+      if (result.verified === false) {
+        setNotice('❌ Tệp tải về sai checksum SHA-256 — đã hủy cài đặt để đảm bảo an toàn. Vui lòng thử tải lại.');
+        setNoticeType('error');
+        return;
+      }
+
+      // 4. Ghi file vào thư mục của người chơi + ghi nhận trạng thái đã cài
+      if (useFs) {
+        await writeInstalledFile(dirHandle, result.fileName, result.blob);
+      } else {
+        // Trình duyệt không hỗ trợ chọn thư mục (Firefox/Safari): lưu về Downloads mặc định
+        const url = URL.createObjectURL(result.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      const info = markInstalled(selectedGame.gameId, {
+        fileName: result.fileName,
+        versionNumber: result.versionNumber,
+        sha256: result.sha256,
+        size: result.size,
+        folder: dirHandle?.name || null,
+        canAutoUninstall: useFs,
+        verified: result.verified,
+      });
+      setInstalled(getInstalledMap());
+      setNotice(
+        `✅ Đã tải và cài đặt "${selectedGame.title}" (v${result.versionNumber}, ${formatSize(result.size)})`
+        + `${info.folder ? ` vào thư mục "${info.folder}"` : ' vào thư mục Downloads của trình duyệt'}`
+        + `${result.verified === true ? ' — checksum SHA-256 khớp.' : '.'}`,
+      );
+      setNoticeType('success');
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        setNotice('Đã hủy chọn thư mục cài đặt.');
+        setNoticeType('info');
+      } else {
+        setNotice(`Lỗi tải game: ${err.message}`);
+        setNoticeType('error');
+      }
+    } finally {
+      setInstalling(false);
+      setProgress(null);
+    }
+  }, [selectedGame]);
+
+  // Gỡ cài đặt: CHỈ xóa tệp trong thư mục của người chơi — không gọi bất kỳ API
+  // bản quyền nào. Thu hồi bản quyền chỉ xảy ra khi hoàn tiền/khóa tài khoản (server-side).
+  const handleUninstall = useCallback(async () => {
+    if (!selectedGame || !installed[selectedGame.gameId]) return;
+    const info = installed[selectedGame.gameId];
+    if (!confirm(
+      `Gỡ cài đặt "${selectedGame.title}" khỏi máy?\n\n`
+      + 'Chỉ xóa tệp cài đặt trong thư mục của bạn — BẢN QUYỀN VẪN GIỮ NGUYÊN, có thể tải lại bất cứ lúc nào.',
+    )) return;
+    setUninstalling(true);
+    setNotice('');
+    try {
+      const manualOnly = info.canAutoUninstall === false;
+      let removed = false;
+      if (!manualOnly) {
+        const dirHandle = await ensureWritePermission(await loadInstallFolder());
+        if (dirHandle) removed = await removeInstalledFile(dirHandle, info.fileName);
+      }
+      clearInstalled(selectedGame.gameId);
+      setInstalled(getInstalledMap());
+      setNotice(manualOnly
+        ? `🗑 Đã gỡ cài đặt "${selectedGame.title}" khỏi danh sách. Tệp ${info.fileName} nằm trong thư mục Downloads — xóa thủ công nếu muốn. Bản quyền vẫn còn, có thể tải lại.`
+        : removed
+          ? `🗑 Đã xóa "${info.fileName}" khỏi thư mục "${info.folder}". Bản quyền vẫn còn trong thư viện — bấm "Tải lại" để cài đặt lại bất cứ lúc nào.`
+          : `🗑 Đã gỡ cài đặt "${selectedGame.title}". Không truy cập được thư mục "${info.folder}" — xóa thủ công tệp "${info.fileName}" nếu còn. Bản quyền vẫn còn.`);
+      setNoticeType('success');
+    } finally {
+      setUninstalling(false);
+    }
+  }, [selectedGame, installed]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
   if (!user?.roles?.includes('Customer')) {
@@ -337,6 +470,26 @@ export default function Library() {
                   </button>
                   <button
                     type="button"
+                    onClick={handleInstall}
+                    disabled={launching || installing || !selectedGame.versionNumber || selectedGame.licenseStatus !== 'Active'}
+                    className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-6 py-3 font-bold text-white shadow-lg shadow-emerald-600/20 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {installing
+                      ? `⬇ Đang tải...${progress?.percent != null ? ` ${progress.percent}%` : ''}`
+                      : (installInfo ? '⬇ Tải lại / Cập nhật' : '⬇ Tải xuống & Cài đặt')}
+                  </button>
+                  {installInfo && (
+                    <button
+                      type="button"
+                      onClick={handleUninstall}
+                      disabled={uninstalling || installing}
+                      className="rounded-lg border border-red-500/40 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-300 hover:bg-red-500/20 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {uninstalling ? '⏳ Đang gỡ...' : '🗑 Gỡ cài đặt'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
                     onClick={toggleDevices}
                     className="rounded-lg border border-indigo-950 bg-gray-900 px-5 py-3 text-sm font-semibold text-zinc-300 hover:bg-gray-800 transition-colors"
                   >
@@ -375,6 +528,45 @@ export default function Library() {
               value={selectedGame.licenseStatus === 'Active' ? '✅ Hợp lệ' : '❌ Thu hồi'}
               note={selectedGame.gameStatus === 'Approved' ? 'Game đang phát hành' : selectedGame.gameStatus}
             />
+          </div>
+
+          {/* Cài đặt trên máy người chơi (mô phỏng luồng tải thật) */}
+          <div className="rounded-2xl border border-white/10 bg-card p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="m-0 text-base font-bold">Cài đặt trên máy của bạn</h3>
+              {installInfo ? (
+                <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
+                  ● Đã cài đặt{installInfo.folder ? ` · ${installInfo.folder}` : ''}
+                </span>
+              ) : (
+                <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-zinc-400">○ Chưa cài đặt</span>
+              )}
+            </div>
+            {progress && (
+              <div className="mb-3">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+                  <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress.percent ?? 5}%` }} />
+                </div>
+                <p className="m-0 mt-1 text-xs text-zinc-400">
+                  {formatSize(progress.received)}{progress.total ? ` / ${formatSize(progress.total)}` : ''} · đang tải {installInfo?.fileName || `game-${selectedGame.gameId.slice(0, 8)}...`}
+                </p>
+              </div>
+            )}
+            {installInfo ? (
+              <p className="m-0 text-xs leading-relaxed text-zinc-400">
+                Tệp: <span className="font-mono">{installInfo.fileName}</span> · v{installInfo.versionNumber || '?'} · {formatSize(installInfo.size)}
+                {installInfo.sha256 ? ` · SHA-256: ${String(installInfo.sha256).slice(0, 12)}...` : ''}
+                {installInfo.verified === true ? ' · ✅ checksum khớp' : ''}
+              </p>
+            ) : (
+              <p className="m-0 text-xs leading-relaxed text-zinc-400">
+                Bấm "Tải xuống & Cài đặt" để tải gói build.zip vào thư mục bạn chọn trên máy — hệ thống tự xác minh checksum SHA-256 sau khi tải.
+              </p>
+            )}
+            <p className="m-0 mt-2 text-xs leading-relaxed text-amber-300/80">
+              ⚠ "Gỡ cài đặt" chỉ xóa tệp trong máy của bạn — bản quyền vẫn giữ nguyên, có thể tải lại bất cứ lúc nào.
+              Bản quyền chỉ bị thu hồi khi hoàn tiền hoặc tài khoản bị khóa (do server xử lý).
+            </p>
           </div>
 
           {/* Thông báo */}

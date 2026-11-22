@@ -173,6 +173,41 @@ router.get(
   }),
 );
 
+// ─── Tải game về máy (mô phỏng luồng cài đặt thật) ──────────────────────────
+
+/**
+ * GET /api/library/:gameId/download
+ * Stream gói build.zip của phiên bản hiện hành cho khách đang sở hữu (LICENSE Active).
+ * Headers trả thêm X-Game-Version / X-Game-Sha256 để client xác minh tệp sau khi tải.
+ * LƯU Ý: tải file không đổi trạng thái bản quyền — người chơi có thể tải lại bất cứ lúc nào.
+ * Bản quyền chỉ bị thu hồi khi hoàn tiền hoặc khóa tài khoản (server-side).
+ */
+router.get(
+  '/:gameId/download',
+  authenticate,
+  authorize('Customer'),
+  asyncHandler(async (req, res) => {
+    const meta = await libraryService.yeuCauTaiGame({ gameId: req.params.gameId, user: req.user });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Length', meta.fileSize);
+    res.setHeader('Content-Disposition', `attachment; filename="${meta.fileName}"`);
+    res.setHeader('X-Game-Version', meta.versionNumber || '');
+    res.setHeader('X-Game-Sha256', meta.sha256 || '');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    const stream = fs.createReadStream(meta.filePath);
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: 'Lỗi đọc tệp build trên máy chủ.' });
+      } else {
+        res.destroy();
+      }
+    });
+    return stream.pipe(res);
+  }),
+);
+
 // ─── Quản lý thiết bị ────────────────────────────────────────────────────────
 
 /**

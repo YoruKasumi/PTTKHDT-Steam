@@ -4,6 +4,6 @@ export const orderApi = {
   list: () => http.get('/orders'),
   preview: (couponCode = '') => http.post('/orders/preview', { couponCode }),
   checkout: (couponCode = '') => http.post('/orders/checkout', { couponCode }),
-  refund: (orderId, reason) =>
-    http.post(`/orders/${encodeURIComponent(orderId)}/refund`, { reason }),
+  refund: (orderId, reason, gameIds) =>
+    http.post(`/orders/${encodeURIComponent(orderId)}/refund`, { reason, gameIds }),
 };
