@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 314 140" fill="none">
+  <defs>
+    <linearGradient id="mark" x1="20" y1="18" x2="126" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A18DFF"/>
+      <stop offset="1" stop-color="#7053E1"/>
+    </linearGradient>
+  </defs>
+  <path d="M72 8 132 42v56l-60 34L12 98V42L72 8Z" fill="#15111F" stroke="url(#mark)" stroke-width="5"/>
+  <path d="M39 76c0-14 8-24 21-24h25c13 0 21 10 21 24v4c0 8-7 12-13 8l-11-8H63l-11 8c-6 4-13 0-13-8v-4Z" fill="url(#mark)"/>
+  <path d="M53 67v15m-7.5-7.5h15" stroke="#fff" stroke-linecap="round" stroke-width="4"/>
+  <circle cx="87" cy="68" r="3.5" fill="#fff"/>
+  <circle cx="97" cy="78" r="3.5" fill="#fff"/>
+  <text x="151" y="65" fill="#fff" font-family="Inter, Segoe UI, sans-serif" font-size="32" font-weight="800" letter-spacing="1.5">STEAM</text>
+  <text x="153" y="103" fill="#A18DFF" font-family="Inter, Segoe UI, sans-serif" font-size="25" font-weight="700" letter-spacing="5">STORE</text>
+</svg>

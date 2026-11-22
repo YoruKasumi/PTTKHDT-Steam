@@ -17,9 +17,9 @@ export default function Header() {
     <header className="flex min-h-[116px] items-center gap-3 bg-card px-4 py-3 md:gap-6 md:px-[66px] md:py-4">
       <Link
         to="/"
-        className="flex h-12 w-[90px] flex-none items-end justify-center border border-accent pb-1.5 text-sm md:h-[70px] md:w-[157px] md:pb-3 md:text-xl"
+        className="flex h-12 w-[90px] flex-none items-center justify-center border border-accent md:h-[70px] md:w-[157px]"
       >
-        LOGO
+        <img className="h-full w-full object-contain p-1" src="/assets/steam-store-logo.svg" alt="Steam Store" />
       </Link>
       <form className="relative mx-auto h-[57px] max-w-[733px] flex-1" onSubmit={submit} role="search">
         <img className="absolute inset-0 size-full" src="/assets/search-bg.svg" alt="" />
