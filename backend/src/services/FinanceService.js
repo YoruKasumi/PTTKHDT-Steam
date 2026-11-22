@@ -1,16 +1,26 @@
 'use strict';
 const BaseService = require('./BaseService');
 const ReportDAO = require('../dao/ReportDAO');
+const SystemConfigDAO = require('../dao/SystemConfigDAO');
+const { getPlatformCommissionRate } = require('../utils/platformCommission');
 
 class FinanceService extends BaseService {
-  constructor(reportDAO = new ReportDAO()) {
+  constructor(reportDAO = new ReportDAO(), systemConfigDAO = new SystemConfigDAO()) {
     super();
     this.reportDAO = reportDAO;
+    this.systemConfigDAO = systemConfigDAO;
+  }
+
+  async getPlatformCommissionRate() {
+    return getPlatformCommissionRate(this.systemConfigDAO);
   }
 
   async yeuCauLayDuLieuTongQuan(params = {}) {
-    const rawData = await this.reportDAO.truyVanDuLieuTaiChinhRealTime(params);
-    const metrics = this.tinhToanCacChiSoTaiChinh(rawData);
+    const [rawData, commissionRate] = await Promise.all([
+      this.reportDAO.truyVanDuLieuTaiChinhRealTime(params),
+      this.getPlatformCommissionRate(),
+    ]);
+    const metrics = this.tinhToanCacChiSoTaiChinh(rawData, commissionRate);
     return {
       success: true,
       data: metrics
@@ -30,8 +40,11 @@ class FinanceService extends BaseService {
   }
 
   async yeuCauThongKeHoaHong(params = {}) {
-    const rawData = await this.reportDAO.truyVanDoanhThuDonHangVaTyLeChietKhau(params);
-    const commissionData = this.tinhTongHoaHongNenTangThuVe(rawData);
+    const [rawData, commissionRate] = await Promise.all([
+      this.reportDAO.truyVanDoanhThuDonHangVaTyLeChietKhau(params),
+      this.getPlatformCommissionRate(),
+    ]);
+    const commissionData = this.tinhTongHoaHongNenTangThuVe({ ...rawData, commissionRate });
     return {
       success: true,
       data: commissionData
@@ -39,8 +52,11 @@ class FinanceService extends BaseService {
   }
 
   async yeuCauXuatBaoCaoTaiChinh(params = {}) {
-    const periodData = await this.reportDAO.truyVanDuLieuTaiChinhTheoKy(params);
-    const reportFile = this.ketXuatTepBaoCaoTaiChinh(periodData);
+    const [periodData, commissionRate] = await Promise.all([
+      this.reportDAO.truyVanDuLieuTaiChinhTheoKy(params),
+      this.getPlatformCommissionRate(),
+    ]);
+    const reportFile = this.ketXuatTepBaoCaoTaiChinh(periodData, commissionRate);
     return {
       success: true,
       report: reportFile
@@ -66,27 +82,31 @@ class FinanceService extends BaseService {
   }
 
   async yeuCauNhatKyBienDongSoDu(params = {}) {
-    const walletLogs = await this.reportDAO.truyVanNhatKyGiaoDichViToanSan(params);
-    const audited = this.kiemTraDoiSoatCanBangSoDu(walletLogs);
+    const [transactions, movementSummary, balanceSummary] = await Promise.all([
+      this.reportDAO.truyVanNhatKyGiaoDichViToanSan(params),
+      this.reportDAO.truyVanThongKeBienDongSoDu(params),
+      this.reportDAO.truyVanTongSoDuViToanSan(params),
+    ]);
+    const audited = this.kiemTraDoiSoatCanBangSoDu({ transactions, movementSummary, balanceSummary });
     return {
       success: true,
       data: audited
     };
   }
 
-  tinhToanCacChiSoTaiChinh(params = {}) {
+  tinhToanCacChiSoTaiChinh(params = {}, commissionRate = 0.3) {
     const totalGrossRevenue = Number(params.totalRevenue || 0);
     const totalRefunds = Number(params.totalRefundAmount || 0);
     const netSales = Math.max(0, totalGrossRevenue - totalRefunds);
-    const platformCommission = netSales * 0.3;
-    const developerPayoutPool = netSales * 0.7;
+    const platformCommission = netSales * commissionRate;
+    const developerPayoutPool = netSales * (1 - commissionRate);
 
     return {
       totalCompletedOrders: Number(params.totalCompletedOrders || 0),
       totalGrossRevenue,
       totalRefunds,
       netSales,
-      platformFeeRate: '30%',
+      platformFeeRate: `${Number((commissionRate * 100).toFixed(2))}%`,
       platformCommission,
       developerPayoutPool
     };
@@ -109,20 +129,22 @@ class FinanceService extends BaseService {
   }
 
   tinhTongHoaHongNenTangThuVe(params = {}) {
+    const commissionRate = Number(params.commissionRate ?? 0.3);
+    const netSales = Math.max(0, Number(params.netSales || 0));
     return {
-      netSales: params.netSales || 0,
-      commissionRate: '30%',
-      platformCommission: params.platformCommission || 0
+      netSales,
+      commissionRate: `${Number((commissionRate * 100).toFixed(2))}%`,
+      platformCommission: netSales * commissionRate
     };
   }
 
-  ketXuatTepBaoCaoTaiChinh(params = {}) {
+  ketXuatTepBaoCaoTaiChinh(params = {}, commissionRate = 0.3) {
     return {
       reportId: 'FIN_REP_' + Date.now(),
       generatedAt: new Date().toISOString(),
       period: 'Monthly',
       currency: 'VND',
-      figures: this.tinhToanCacChiSoTaiChinh(params)
+      figures: this.tinhToanCacChiSoTaiChinh(params, commissionRate)
     };
   }
 
@@ -147,20 +169,22 @@ class FinanceService extends BaseService {
   tinhTongGiaTriVaTyLeHoanTien(refundOrders = []) {
     return {
       totalRefundedOrders: refundOrders.length,
+      totalRefundedAmount: refundOrders.reduce((total, order) => total + Number(order.RefundAmount || 0), 0),
       recentRefunds: refundOrders.slice(0, 20)
     };
   }
 
-  kiemTraDoiSoatCanBangSoDu(walletLogs = []) {
-    let totalCirculatingBalance = 0;
-    for (const w of walletLogs) {
-      totalCirculatingBalance += Number(w.Balance || 0);
-    }
-
+  kiemTraDoiSoatCanBangSoDu({ transactions = [], movementSummary = {}, balanceSummary = {} } = {}) {
     return {
-      totalWalletsCount: walletLogs.length,
-      totalCirculatingBalance,
-      topWallets: walletLogs.slice(0, 10)
+      totalWalletsCount: Number(balanceSummary.TotalWalletsCount || 0),
+      totalCirculatingBalance: Number(balanceSummary.TotalCirculatingBalance || 0),
+      totalTransactions: Number(movementSummary.TotalTransactions || 0),
+      successfulTransactions: Number(movementSummary.SuccessfulTransactions || 0),
+      pendingTransactions: Number(movementSummary.PendingTransactions || 0),
+      failedTransactions: Number(movementSummary.FailedTransactions || 0),
+      totalInflows: Number(movementSummary.TotalInflows || 0),
+      totalOutflows: Number(movementSummary.TotalOutflows || 0),
+      recentTransactions: transactions.slice(0, 50)
     };
   }
 }

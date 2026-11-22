@@ -156,14 +156,19 @@ class ModerationDAO extends BaseDAO {
    * UC47. Giám sát nội dung cộng đồng (#3)
    */
   async truyVanNoiDungBiGanCo(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.truyVanNoiDungBiGanCo');
+    return this.listReviews(params, conn);
   }
 
   /**
    * UC47. Giám sát nội dung cộng đồng (#8)
    */
   async luuTrangThaiKiemDuyet(params = {}, conn = null) {
-    throw new NotImplementedException('ModerationDAO.luuTrangThaiKiemDuyet');
+    const result = await this.query(
+      'UPDATE REVIEW SET Status = ? WHERE ReviewID = ?',
+      [params.status, params.reviewId],
+      conn,
+    );
+    return result.affectedRows;
   }
 
   /**

@@ -6,6 +6,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+COPY scripts ./scripts
+COPY demo-games ./demo-games
 
 ENV NODE_ENV=development
 EXPOSE 3000

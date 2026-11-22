@@ -105,11 +105,7 @@ class ReportDAO extends BaseDAO {
   async truyVanDoanhThuDonHangVaTyLeChietKhau(params = {}, conn = null) {
     const data = await this.truyVanDuLieuTaiChinhRealTime(params, conn);
     const netSales = data.totalRevenue - data.totalRefundAmount;
-    return {
-      netSales,
-      commissionRate: 0.3,
-      platformCommission: netSales * 0.3
-    };
+    return { netSales };
   }
 
   async truyVanDuLieuTaiChinhTheoKy(params = {}, conn = null) {
@@ -128,17 +124,52 @@ class ReportDAO extends BaseDAO {
 
   async truyVanCacDonHangHoanTienThanhCong(params = {}, conn = null) {
     const sql = `
-      SELECT r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate
+      SELECT r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate,
+             COALESCE(SUM(oi.PriceAfterDiscount), 0) AS RefundAmount
       FROM REFUNDREQUEST r
       JOIN ORDERS o ON r.OrderID = o.OrderID
+      JOIN ORDERITEM oi ON oi.OrderID = o.OrderID
       WHERE r.Status = 'Approved'
+      GROUP BY r.RequestID, r.OrderID, o.CustomerID, r.Reason, r.RequestDate
       ORDER BY r.RequestDate DESC
     `;
     return this.query(sql, [], conn);
   }
 
   async truyVanNhatKyGiaoDichViToanSan(params = {}, conn = null) {
-    return this.query('SELECT WalletID, CustomerID, Balance, Currency FROM WALLET ORDER BY Balance DESC LIMIT 50', [], conn);
+    return this.query(
+      `SELECT t.TransID, t.WalletID, w.CustomerID, t.OrderID, t.Type, t.Amount, t.TransDate, t.Status
+       FROM \`TRANSACTION\` t
+       INNER JOIN WALLET w ON w.WalletID = t.WalletID
+       ORDER BY t.TransDate DESC
+       LIMIT 50`,
+      [],
+      conn,
+    );
+  }
+
+  async truyVanThongKeBienDongSoDu(params = {}, conn = null) {
+    return this.one(
+      `SELECT COUNT(*) AS TotalTransactions,
+              SUM(CASE WHEN Status = 'Success' THEN 1 ELSE 0 END) AS SuccessfulTransactions,
+              SUM(CASE WHEN Status = 'Pending' THEN 1 ELSE 0 END) AS PendingTransactions,
+              SUM(CASE WHEN Status = 'Failed' THEN 1 ELSE 0 END) AS FailedTransactions,
+              COALESCE(SUM(CASE WHEN Status = 'Success' AND Type IN ('Deposit', 'Refund') THEN Amount ELSE 0 END), 0) AS TotalInflows,
+              COALESCE(SUM(CASE WHEN Status = 'Success' AND Type IN ('Withdraw', 'Purchase', 'Fee') THEN Amount ELSE 0 END), 0) AS TotalOutflows
+       FROM \`TRANSACTION\``,
+      [],
+      conn,
+    );
+  }
+
+  async truyVanTongSoDuViToanSan(params = {}, conn = null) {
+    return this.one(
+      `SELECT COUNT(*) AS TotalWalletsCount,
+              COALESCE(SUM(Balance), 0) AS TotalCirculatingBalance
+       FROM WALLET`,
+      [],
+      conn,
+    );
   }
 }
 
