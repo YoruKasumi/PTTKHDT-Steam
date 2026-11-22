@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo đăng ký với mã OTP</title>
+  <style>
+    :root { --accent:#2563eb; --ok:#16a34a; --err:#dc2626; --bg:#eef2f7; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: var(--bg); color: #0f172a; padding: clamp(12px, 4vw, 32px);
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    }
+    .card {
+      width: 100%; max-width: 430px; background: #fff; border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(15,23,42,.08); padding: clamp(20px, 5vw, 32px);
+    }
+    h1 { font-size: clamp(1.25rem, 5vw, 1.55rem); margin: 0 0 4px; }
+    p.sub { margin: 0 0 18px; color: #64748b; font-size: clamp(.85rem, 3vw, .95rem); line-height: 1.5; }
+    label { display: block; font-size: .85rem; font-weight: 600; margin: 12px 0 6px; }
+    input {
+      width: 100%; padding: 11px 12px; font-size: 1rem; border: 1px solid #cbd5e1; border-radius: 10px;
+    }
+    input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+    button {
+      width: 100%; margin-top: 14px; padding: 12px; font-size: 1rem; font-weight: 700;
+      color: #fff; background: var(--accent); border: 0; border-radius: 10px; cursor: pointer;
+    }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    button.gray { background: #64748b; }
+    .otp-input { text-align: center; font-size: clamp(1.3rem, 6vw, 1.6rem); letter-spacing: .35em; font-weight: 700; }
+    .msg {
+      margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: .9rem;
+      display: none; word-break: break-word; line-height: 1.5;
+    }
+    .msg.ok { display: block; background: #dcfce7; color: #166534; }
+    .msg.err { display: block; background: #fee2e2; color: #991b1b; }
+    .hint { margin-top: 18px; font-size: .8rem; color: #64748b; line-height: 1.6; }
+    .hidden { display: none; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main class="card">
+
+  <!-- Bước 1: form đăng ký -->
+  <section id="step-register">
+    <h1>Đăng ký tài khoản</h1>
+    <p class="sub">Nhập thông tin — hệ thống sẽ gửi mã OTP 6 số tới email của bạn (hiệu lực 5 phút).</p>
+    <form id="form-register">
+      <label for="fullName">Họ và tên</label>
+      <input id="fullName" name="fullName" placeholder="Nguyễn Văn A" autocomplete="name">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required placeholder="ban@vidu.com" autocomplete="email">
+      <label for="password">Mật khẩu (tối thiểu 6 ký tự)</label>
+      <input id="password" name="password" type="password" required minlength="6" autocomplete="new-password">
+      <button type="submit" id="btn-register">Gửi mã OTP</button>
+    </form>
+  </section>
+
+  <!-- Bước 2: nhập OTP -->
+  <section id="step-otp" class="hidden">
+    <h1>Nhập mã OTP</h1>
+    <p class="sub">Mã 6 số đã được gửi tới <b id="otp-email"></b>. Nếu sai quá 5 lần, email sẽ bị khóa và bạn phải yêu cầu gửi lại mã.</p>
+    <form id="form-otp">
+      <label for="otp">Mã OTP</label>
+      <input id="otp" class="otp-input" inputmode="numeric" pattern="\d{6}" maxlength="6" required placeholder="••••••" autocomplete="one-time-code">
+      <button type="submit" id="btn-verify">Xác thực</button>
+      <button type="button" id="btn-resend" disabled>Gửi lại mã (10s)</button>
+      <button type="button" id="btn-back" class="gray">← Quay lại đăng ký</button>
+    </form>
+  </section>
+
+  <!-- Bước 3: thành công -->
+  <section id="step-success" class="hidden">
+    <h1>✅ Xác thực thành công</h1>
+    <p class="sub">Tài khoản <b id="success-email"></b> đã được tạo và lưu trong danh sách người dùng.</p>
+    <button type="button" id="btn-again">Đăng ký tài khoản khác</button>
+  </section>
+
+  <div id="msg" class="msg"></div>
+
+  <div class="hint">
+    Hộp thư test (MailDev): <a href="http://localhost:1080" target="_blank" rel="noreferrer">http://localhost:1080</a><br>
+    Danh sách tài khoản đã tạo: <a href="/api/users" target="_blank">/api/users</a>
+  </div>
+
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let email = '';
+  let countdownTimer = null;
+
+  function showMsg(text, ok) {
+    const m = $('msg');
+    m.textContent = text;
+    m.className = 'msg ' + (ok ? 'ok' : 'err');
+  }
+  function hideMsg() { $('msg').className = 'msg'; }
+
+  // Đếm ngược cooldown cho nút "Gửi lại mã" (khớp với 10 giây phía server)
+  function startCountdown(seconds) {
+    clearInterval(countdownTimer);
+    const btn = $('btn-resend');
+    btn.disabled = true;
+    let left = seconds;
+    const tick = () => {
+      btn.textContent = left > 0 ? 'Gửi lại mã (' + left + 's)' : 'Gửi lại mã';
+      if (left <= 0) { btn.disabled = false; clearInterval(countdownTimer); return; }
+      left -= 1;
+    };
+    tick();
+    countdownTimer = setInterval(tick, 1000);
+  }
+
+  // Bước 1: gửi form đăng ký -> server sinh OTP và gửi mail
+  $('form-register').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideMsg();
+    const btn = $('btn-register');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: $('email').value.trim(),
+          password: $('password').value,
+          fullName: $('fullName').value.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Gửi OTP thất bại.', false); return; }
+      email = $('email').value.trim();
+      $('otp-email').textContent = email;
+      $('otp').value = '';
+      $('step-register').classList.add('hidden');
+      $('step-otp').classList.remove('hidden');
+      $('otp').focus();
+      showMsg(data.message, true);
+      startCountdown(data.retryAfterSeconds || 10);
+    } catch {
+      showMsg('Không kết nối được server. Bạn đã chạy "npm start" chưa?', false);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Bước 2: xác thực OTP
+  $('form-otp').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideMsg();
+    const btn = $('btn-verify');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: $('otp').value.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showMsg(data.message || 'Xác thực thất bại.', false);
+        if (data.reason === 'LOCKED') startCountdown(10); // gợi ý người dùng bấm gửi lại
+        return;
+      }
+      $('success-email').textContent = data.user.email +
+        (data.user.fullName ? ' (' + data.user.fullName + ')' : '');
+      $('step-otp').classList.add('hidden');
+      $('step-success').classList.remove('hidden');
+      hideMsg();
+    } catch {
+      showMsg('Không kết nối được server.', false);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Gửi lại mã OTP (server vẫn kiểm tra cooldown 10 giây)
+  $('btn-resend').addEventListener('click', async () => {
+    hideMsg();
+    $('btn-resend').disabled = true;
+    try {
+      const res = await fetch('/auth/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      showMsg(data.message || (res.ok ? 'Đã gửi lại mã.' : 'Gửi lại mã thất bại.'), res.ok);
+      startCountdown(res.ok ? 10 : (data.retryAfterSeconds || 10));
+    } catch {
+      showMsg('Không kết nối được server.', false);
+      startCountdown(10);
+    }
+  });
+
+  $('btn-back').addEventListener('click', () => {
+    clearInterval(countdownTimer);
+    hideMsg();
+    $('step-otp').classList.add('hidden');
+    $('step-register').classList.remove('hidden');
+  });
+
+  $('btn-again').addEventListener('click', () => location.reload());
+</script>
+</body>
+</html>
