@@ -43,7 +43,7 @@ function DeviceRow({ device, gameId, onRevoke }) {
     if (!confirm(`Thu hồi thiết bị "${device.deviceName || device.deviceId.slice(0, 8)}"?`)) return;
     setLoading(true);
     try {
-      await libraryApi.revokeDevice(gameId, device.deviceId);
+      await libraryApi.removeDevice(gameId, device.deviceId);
       onRevoke(device.deviceId);
     } catch (err) {
       alert(err.message || 'Lỗi khi thu hồi thiết bị.');
@@ -173,7 +173,7 @@ export default function Library() {
     try {
       const fingerprint = await getDeviceFingerprint();
       const deviceName = getDeviceName();
-      const result = await libraryApi.launch(selectedGame.gameId, fingerprint, deviceName);
+      const result = await libraryApi.launch(selectedGame.gameId, { deviceFingerprint: fingerprint, deviceName });
       // Mở tab mới với playUrl
       window.open(result.playUrl, '_blank', 'noopener,noreferrer');
       setNotice(`Đang mở ${selectedGame.title}... Nếu tab không mở tự động, hãy kiểm tra trình chặn cửa sổ bật lên (popup blocker).`);
