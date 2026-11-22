@@ -35,7 +35,7 @@ test('registration rejects the simulated failure OTP without creating an account
   assert.equal(created.length, 0);
 });
 
-test('registration does not allow the simulated OTP in production', async () => {
+test('registration requires a valid OTP in production instead of blocking with 503', async () => {
   const { service, created } = createService();
   const previousNodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
@@ -45,9 +45,9 @@ test('registration does not allow the simulated OTP in production', async () => 
         username: 'test_user',
         email: 'test@example.test',
         password: 'strong-password-123',
-        otp: '1234',
+        otp: '9999',
       }),
-      (error) => error.code === 'OTP_NOT_CONFIGURED' && error.status === 503,
+      (error) => error.code === 'OTP_EXPIRED' && error.status === 400,
     );
     assert.equal(created.length, 0);
   } finally {

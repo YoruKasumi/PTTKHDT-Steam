@@ -1,21 +1,13 @@
 -- =====================================================================
--- STEAM STORE - Lược đồ MySQL 8.0.16+  (cần 8.0.16 trở lên để CHECK có hiệu lực)
--- Dựa trên MoTaThietKeDuLieu (bản gốc 28 bảng); bản này có 28 bảng và 38 khóa ngoại.
--- BANNER và SYSTEM_PARAMETER được tạo bởi extra_tables.sql.
--- Các chỗ sửa / bổ sung được đánh dấu [SỬA] và [THÊM].
--- Chạy:  mysql -u root -p < steam_store_schema.sql
+-- STEAM STORE - LƯỢC ĐỒ CƠ SỞ DỮ LIỆU CHUẨN (MySQL 8.0.16+)
+-- Kiến trúc 3 tầng: Route -> Service -> DAO
+-- Bao gồm đầy đủ 30 bảng, views, khóa ngoại, ràng buộc toàn vẹn và chỉ mục.
 -- =====================================================================
-CREATE DATABASE IF NOT EXISTS steam_store
+SET FOREIGN_KEY_CHECKS = 0;
+DROP DATABASE IF EXISTS steam_store;
+CREATE DATABASE steam_store
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE steam_store;
-
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS SYSTEM_PARAMETER, BANNER, GAMEREVIEW, AUDITLOG, NOTIFICATION, WITHDRAWALREQUEST, `TRANSACTION`, WALLET,
-  REFUNDREQUEST, REVIEW, WISHLISTITEM, LICENSE, ORDERITEM, ORDERS, COUPON, CARTITEM, CART,
-  SALECAMPAIGN, ACTIVATIONKEY, GAMEVERSION, GAME_GENRE, GENRE, GAME, MANAGER, ROLE_PERMISSION, `ROLE`,
-  ADMIN, DEVELOPER, CUSTOMER, ACCOUNT;
-DROP VIEW IF EXISTS V_GAME_PRICE;
-SET FOREIGN_KEY_CHECKS = 1;
 
 -- ---------------------------------------------------------------------
 -- CỤM 1: TÀI KHOẢN VÀ PHÂN QUYỀN
@@ -23,7 +15,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE ACCOUNT (
   AccountID     CHAR(36)     NOT NULL DEFAULT (UUID()),
   Username      VARCHAR(30)  NOT NULL,
-  PasswordHash  VARCHAR(255) NOT NULL,                -- bcrypt
+  PasswordHash  VARCHAR(255) NOT NULL,
   Email         VARCHAR(100) NOT NULL,
   DisplayName   VARCHAR(50)  NOT NULL,
   AvatarUrl     VARCHAR(255) NULL,
@@ -37,13 +29,10 @@ CREATE TABLE ACCOUNT (
   KEY idx_account_suspension_expiry (Status, SuspendUntil)
 ) ENGINE=InnoDB;
 
--- [SỬA] Một tài khoản ĐƯỢC PHÉP có cả dòng CUSTOMER lẫn DEVELOPER (khách hàng đăng ký làm nhà
--- phát hành, trả phí bằng ví). Bảng không cấm điều này; việc "đúng một vai trò" chỉ áp cho nhóm nội bộ
--- (MANAGER / ADMIN) và do tầng BLL kiểm tra.
 CREATE TABLE CUSTOMER (
   AccountID CHAR(36) NOT NULL,
   PRIMARY KEY (AccountID),
-  CONSTRAINT fk_customer_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID)
+  CONSTRAINT fk_customer_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE DEVELOPER (
@@ -53,13 +42,13 @@ CREATE TABLE DEVELOPER (
   FeePaid      TINYINT(1)   NOT NULL DEFAULT 0,
   VerifyStatus ENUM('Pending','Verified','Rejected') NOT NULL DEFAULT 'Pending',
   PRIMARY KEY (AccountID),
-  CONSTRAINT fk_developer_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID)
+  CONSTRAINT fk_developer_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE ADMIN (
   AccountID CHAR(36) NOT NULL,
   PRIMARY KEY (AccountID),
-  CONSTRAINT fk_admin_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID)
+  CONSTRAINT fk_admin_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE `ROLE` (
@@ -73,24 +62,30 @@ CREATE TABLE `ROLE` (
 
 CREATE TABLE ROLE_PERMISSION (
   RoleID         CHAR(36)    NOT NULL,
-  PermissionCode VARCHAR(50) NOT NULL,                -- ví dụ game.approve
+  PermissionCode VARCHAR(50) NOT NULL,
   PRIMARY KEY (RoleID, PermissionCode),
   CONSTRAINT fk_roleperm_role FOREIGN KEY (RoleID) REFERENCES `ROLE`(RoleID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- [SỬA] Thêm RoleID: bản gốc có ROLE và ROLE_PERMISSION nhưng không có khóa ngoại nào gán vai trò cho
--- ai, nên phân quyền RBAC không dùng được. Đây là một trong 6 khóa ngoại mới (33 -> 39).
 CREATE TABLE MANAGER (
   AccountID CHAR(36) NOT NULL,
   RoleID    CHAR(36) NOT NULL,
   PRIMARY KEY (AccountID),
-  CONSTRAINT fk_manager_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID),
+  CONSTRAINT fk_manager_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID) ON DELETE CASCADE,
   CONSTRAINT fk_manager_role    FOREIGN KEY (RoleID)    REFERENCES `ROLE`(RoleID)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- CỤM 2: DANH MỤC GAME
+-- CỤM 2: DANH MỤC GAME VÀ PHIÊN BẢN
 -- ---------------------------------------------------------------------
+CREATE TABLE GENRE (
+  GenreID     CHAR(36)     NOT NULL DEFAULT (UUID()),
+  GenreName   VARCHAR(80)  NOT NULL,
+  Description VARCHAR(500) NULL,
+  PRIMARY KEY (GenreID),
+  UNIQUE KEY uq_genre_name (GenreName)
+) ENGINE=InnoDB;
+
 CREATE TABLE GAME (
   GameID      CHAR(36)      NOT NULL DEFAULT (UUID()),
   DeveloperID CHAR(36)      NOT NULL,
@@ -112,14 +107,6 @@ CREATE TABLE GAME (
   CONSTRAINT ck_game_price CHECK (Price >= 0)
 ) ENGINE=InnoDB;
 
-CREATE TABLE GENRE (
-  GenreID     CHAR(36)    NOT NULL DEFAULT (UUID()),
-  GenreName   VARCHAR(80) NOT NULL,
-  Description VARCHAR(500) NULL,
-  PRIMARY KEY (GenreID),
-  UNIQUE KEY uq_genre_name (GenreName)
-) ENGINE=InnoDB;
-
 CREATE TABLE GAME_GENRE (
   GameID  CHAR(36) NOT NULL,
   GenreID CHAR(36) NOT NULL,
@@ -129,22 +116,20 @@ CREATE TABLE GAME_GENRE (
 ) ENGINE=InnoDB;
 
 CREATE TABLE GAMEVERSION (
-  VersionID     CHAR(36)    NOT NULL DEFAULT (UUID()),
-  GameID        CHAR(36)    NOT NULL,
-  VersionNumber VARCHAR(20) NOT NULL,
-  BuildFile     VARCHAR(255) NOT NULL,                -- object key private: developers/<DeveloperID>/games/<GameID>/<version>/build.zip
-  FileSize      BIGINT      NULL,                     -- [THÊM] byte, để hiện dung lượng và kiểm tra tải đủ
-  Sha256        CHAR(64)    NULL,                     -- [THÊM] checksum để client kiểm tra tệp không bị sửa
-  ChangeLog     TEXT        NULL,
-  UploadDate    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  IsCurrent     TINYINT(1)  NOT NULL DEFAULT 0,
-  -- [SỬA] ép "mỗi game chỉ một bản hiện hành": cột sinh tự động mang GameID khi IsCurrent=1, NULL khi =0;
-  -- UNIQUE bỏ qua NULL nên chỉ có tối đa một dòng IsCurrent=1 mỗi game. Khi đổi bản: UPDATE bản cũ = 0 TRƯỚC.
-  CurrentGameID CHAR(36) GENERATED ALWAYS AS (IF(IsCurrent = 1, GameID, NULL)) STORED,
+  VersionID     CHAR(36)     NOT NULL DEFAULT (UUID()),
+  GameID        CHAR(36)     NOT NULL,
+  VersionNumber VARCHAR(20)  NOT NULL,
+  BuildFile     VARCHAR(255) NOT NULL,
+  FileSize      BIGINT       NULL,
+  Sha256        CHAR(64)     NULL,
+  ChangeLog     TEXT         NULL,
+  UploadDate    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  IsCurrent     TINYINT(1)   NOT NULL DEFAULT 0,
+  CurrentGameID CHAR(36) GENERATED ALWAYS AS (IF(IsCurrent = 1, GameID, NULL)) VIRTUAL,
   PRIMARY KEY (VersionID),
-  UNIQUE KEY uq_version_per_game (GameID, VersionNumber),   -- [SỬA] bản gốc UNIQUE toàn cục là sai
+  UNIQUE KEY uq_version_per_game (GameID, VersionNumber),
   UNIQUE KEY uq_one_current_per_game (CurrentGameID),
-  CONSTRAINT fk_version_game FOREIGN KEY (GameID) REFERENCES GAME(GameID)
+  CONSTRAINT fk_version_game FOREIGN KEY (GameID) REFERENCES GAME(GameID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE ACTIVATIONKEY (
@@ -154,7 +139,7 @@ CREATE TABLE ACTIVATIONKEY (
   Status        ENUM('Unused','Used','Revoked') NOT NULL DEFAULT 'Unused',
   CreatedDate   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ActivatedDate DATETIME    NULL,
-  RedeemedBy    CHAR(36)    NULL,                     -- [THÊM] ai đã đổi mã (để đối soát / chống khiếu nại)
+  RedeemedBy    CHAR(36)    NULL,
   PRIMARY KEY (KeyID),
   UNIQUE KEY uq_key_code (KeyCode),
   KEY idx_key_game_status (GameID, Status),
@@ -170,18 +155,18 @@ CREATE TABLE SALECAMPAIGN (
   EndDate    DATETIME NOT NULL,
   PRIMARY KEY (CampaignID),
   KEY idx_sale_window (GameID, StartDate, EndDate),
-  CONSTRAINT fk_sale_game FOREIGN KEY (GameID) REFERENCES GAME(GameID),
+  CONSTRAINT fk_sale_game    FOREIGN KEY (GameID) REFERENCES GAME(GameID) ON DELETE CASCADE,
   CONSTRAINT ck_sale_percent CHECK (PercentOff BETWEEN 1 AND 100),
   CONSTRAINT ck_sale_dates   CHECK (EndDate > StartDate)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- CỤM 3: MUA BÁN VÀ SỞ HỮU
+-- CỤM 3: MUA BÁN VÀ SỞ HỮU BẢN QUYỀN
 -- ---------------------------------------------------------------------
 CREATE TABLE CART (
   CustomerID CHAR(36) NOT NULL,
   PRIMARY KEY (CustomerID),
-  CONSTRAINT fk_cart_customer FOREIGN KEY (CustomerID) REFERENCES CUSTOMER(AccountID)
+  CONSTRAINT fk_cart_customer FOREIGN KEY (CustomerID) REFERENCES CUSTOMER(AccountID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE CARTITEM (
@@ -194,8 +179,6 @@ CREATE TABLE CARTITEM (
   CONSTRAINT ck_ci_price CHECK (PriceAtAdd >= 0)
 ) ENGINE=InnoDB;
 
--- [SỬA] Bản gốc COUPON không có chủ sở hữu, nên chức năng "Developer tạo mã khuyến mãi" không thể
--- liệt kê / giới hạn mã theo nhà phát triển. Thêm DeveloperID, GameID (NULL = mọi game của developer).
 CREATE TABLE COUPON (
   CouponID      CHAR(36)      NOT NULL DEFAULT (UUID()),
   Code          VARCHAR(30)   NOT NULL,
@@ -203,7 +186,7 @@ CREATE TABLE COUPON (
   ExpiryDate    DATETIME      NOT NULL,
   UsageLimit    INT           NOT NULL,
   UsedCount     INT           NOT NULL DEFAULT 0,
-  DeveloperID   CHAR(36)      NULL,                   -- NULL = mã do sàn phát hành
+  DeveloperID   CHAR(36)      NULL,
   GameID        CHAR(36)      NULL,
   PRIMARY KEY (CouponID),
   UNIQUE KEY uq_coupon_code (Code),
@@ -219,7 +202,7 @@ CREATE TABLE ORDERS (
   CustomerID  CHAR(36)      NOT NULL,
   CouponID    CHAR(36)      NULL,
   OrderDate   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  TotalAmount DECIMAL(15,2) NOT NULL,                 -- = SUM(ORDERITEM.PriceAfterDiscount); coupon đã được chia vào từng dòng
+  TotalAmount DECIMAL(15,2) NOT NULL,
   Status      ENUM('Completed','PartiallyRefunded','Refunded') NOT NULL DEFAULT 'Completed',
   PRIMARY KEY (OrderID),
   KEY idx_orders_customer_date (CustomerID, OrderDate),
@@ -235,27 +218,24 @@ CREATE TABLE ORDERITEM (
   PriceAfterDiscount DECIMAL(15,2) NOT NULL,
   PRIMARY KEY (OrderID, GameID),
   KEY idx_oi_game (GameID),
-  CONSTRAINT fk_oi_order FOREIGN KEY (OrderID) REFERENCES ORDERS(OrderID),
+  CONSTRAINT fk_oi_order FOREIGN KEY (OrderID) REFERENCES ORDERS(OrderID) ON DELETE CASCADE,
   CONSTRAINT fk_oi_game  FOREIGN KEY (GameID)  REFERENCES GAME(GameID),
   CONSTRAINT ck_oi_unit  CHECK (UnitPrice >= 0),
   CONSTRAINT ck_oi_after CHECK (PriceAfterDiscount >= 0 AND PriceAfterDiscount <= UnitPrice)
 ) ENGINE=InnoDB;
 
--- [SỬA] Bản gốc UNIQUE(CustomerID, GameID) khiến khách KHÔNG mua lại được game sau khi hoàn tiền
--- (dòng Revoked vẫn chiếm chỗ). Thay bằng ràng buộc chỉ áp lên bản quyền đang Active.
--- AccessToken: lưu SHA-256 (hex) của chuỗi ngẫu nhiên, không lưu bản rõ.
 CREATE TABLE LICENSE (
-  LicenseID    CHAR(36)     NOT NULL DEFAULT (UUID()),
-  CustomerID   CHAR(36)     NOT NULL,
-  GameID       CHAR(36)     NOT NULL,
-  Source       ENUM('Purchase','Key') NOT NULL DEFAULT 'Purchase',  -- [THÊM] mua hay đổi mã
-  PurchaseDate DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  AccessToken  VARCHAR(255) NOT NULL,
-  Status       ENUM('Active','Revoked') NOT NULL DEFAULT 'Active',
-  RevokedAt    DATETIME     NULL,                     -- [THÊM]
+  LicenseID     CHAR(36)     NOT NULL DEFAULT (UUID()),
+  CustomerID    CHAR(36)     NOT NULL,
+  GameID        CHAR(36)     NOT NULL,
+  Source        ENUM('Purchase','Key') NOT NULL DEFAULT 'Purchase',
+  PurchaseDate  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  AccessToken   VARCHAR(255) NOT NULL,
+  Status        ENUM('Active','Revoked') NOT NULL DEFAULT 'Active',
+  RevokedAt     DATETIME     NULL,
   RevokedReason ENUM('Refund','AccountSuspended') NULL,
-  ActiveKey    VARCHAR(80) GENERATED ALWAYS AS
-               (IF(Status = 'Active', CONCAT(CustomerID, '|', GameID), NULL)) STORED,
+  ActiveKey     VARCHAR(80) GENERATED ALWAYS AS
+                (IF(Status = 'Active', CONCAT(CustomerID, '|', GameID), NULL)) VIRTUAL,
   PRIMARY KEY (LicenseID),
   UNIQUE KEY uq_license_token (AccessToken),
   UNIQUE KEY uq_license_active (ActiveKey),
@@ -282,15 +262,13 @@ CREATE TABLE REVIEW (
   ReviewDate DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   Status     ENUM('Visible','Hidden','Removed') NOT NULL DEFAULT 'Visible',
   PRIMARY KEY (ReviewID),
-  UNIQUE KEY uq_review_once (CustomerID, GameID),     -- [SỬA] mỗi khách một đánh giá cho mỗi game
+  UNIQUE KEY uq_review_once (CustomerID, GameID),
   KEY idx_review_game (GameID, Status),
   CONSTRAINT fk_review_customer FOREIGN KEY (CustomerID) REFERENCES CUSTOMER(AccountID),
   CONSTRAINT fk_review_game     FOREIGN KEY (GameID)     REFERENCES GAME(GameID),
   CONSTRAINT ck_review_rating CHECK (Rating BETWEEN 1 AND 5)
 ) ENGINE=InnoDB;
 
--- [SỬA] Bỏ CHECK (HoursSincePurchase <= 24): với CHECK đó không thể lưu yêu cầu bị TỪ CHỐI vì quá 24 giờ.
--- BLL tự kiểm tra 24 giờ và ghi Rejected.
 CREATE TABLE REFUNDREQUEST (
   RequestID          CHAR(36)     NOT NULL DEFAULT (UUID()),
   OrderID            CHAR(36)     NOT NULL,
@@ -302,13 +280,13 @@ CREATE TABLE REFUNDREQUEST (
   PRIMARY KEY (RequestID),
   KEY idx_refund_order (OrderID),
   KEY idx_refund_order_game_status (OrderID, GameID, Status),
-  CONSTRAINT fk_refund_order FOREIGN KEY (OrderID) REFERENCES ORDERS(OrderID),
-  CONSTRAINT fk_refund_game FOREIGN KEY (GameID) REFERENCES GAME(GameID),
+  CONSTRAINT fk_refund_order FOREIGN KEY (OrderID) REFERENCES ORDERS(OrderID) ON DELETE CASCADE,
+  CONSTRAINT fk_refund_game  FOREIGN KEY (GameID)  REFERENCES GAME(GameID),
   CONSTRAINT ck_refund_hours CHECK (HoursSincePurchase >= 0)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- CỤM 4: TÀI CHÍNH
+-- CỤM 4: TÀI CHÍNH VÀ VÍ
 -- ---------------------------------------------------------------------
 CREATE TABLE WALLET (
   WalletID   CHAR(36)      NOT NULL DEFAULT (UUID()),
@@ -317,12 +295,10 @@ CREATE TABLE WALLET (
   Currency   CHAR(3)       NOT NULL DEFAULT 'VND',
   PRIMARY KEY (WalletID),
   UNIQUE KEY uq_wallet_customer (CustomerID),
-  CONSTRAINT fk_wallet_customer FOREIGN KEY (CustomerID) REFERENCES CUSTOMER(AccountID),
+  CONSTRAINT fk_wallet_customer FOREIGN KEY (CustomerID) REFERENCES CUSTOMER(AccountID) ON DELETE CASCADE,
   CONSTRAINT ck_wallet_balance CHECK (Balance >= 0)
 ) ENGINE=InnoDB;
 
--- [SỬA] Thêm loại 'Fee' (phí Steam Direct) và OrderID để biết giao dịch Purchase / Refund thuộc đơn nào.
--- Đơn 0 đồng không tạo giao dịch vì Amount phải > 0.
 CREATE TABLE `TRANSACTION` (
   TransID   CHAR(36)      NOT NULL DEFAULT (UUID()),
   WalletID  CHAR(36)      NOT NULL,
@@ -334,15 +310,11 @@ CREATE TABLE `TRANSACTION` (
   Detail    TEXT          NULL,
   PRIMARY KEY (TransID),
   KEY idx_trans_wallet_date (WalletID, TransDate),
-  CONSTRAINT fk_trans_wallet FOREIGN KEY (WalletID) REFERENCES WALLET(WalletID),
+  CONSTRAINT fk_trans_wallet FOREIGN KEY (WalletID) REFERENCES WALLET(WalletID) ON DELETE CASCADE,
   CONSTRAINT fk_trans_order  FOREIGN KEY (OrderID)  REFERENCES ORDERS(OrderID),
   CONSTRAINT ck_trans_amount CHECK (Amount > 0)
 ) ENGINE=InnoDB;
 
--- Doanh thu khả dụng của developer KHÔNG lưu cột riêng, tính bằng:
---   SUM(ORDERITEM.PriceAfterDiscount của game do dev phát hành, đơn đã thanh toán)
---   - SUM(ORDERITEM.PriceAfterDiscount của game có REFUNDREQUEST Approved)
---   - SUM(WITHDRAWALREQUEST.Amount với Status IN ('Pending','Approved'))   -- Pending = tiền đang tạm giữ
 CREATE TABLE WITHDRAWALREQUEST (
   RequestID   CHAR(36)      NOT NULL DEFAULT (UUID()),
   DeveloperID CHAR(36)      NOT NULL,
@@ -357,7 +329,7 @@ CREATE TABLE WITHDRAWALREQUEST (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
--- CỤM 5: VẬN HÀNH VÀ KIỂM DUYỆT
+-- CỤM 5: VẬN HÀNH, KIỂM DUYỆT VÀ QUẢN TRỊ HỆ THỐNG
 -- ---------------------------------------------------------------------
 CREATE TABLE NOTIFICATION (
   NotificationID CHAR(36)      NOT NULL DEFAULT (UUID()),
@@ -368,7 +340,7 @@ CREATE TABLE NOTIFICATION (
   IsRead         TINYINT(1)    NOT NULL DEFAULT 0,
   PRIMARY KEY (NotificationID),
   KEY idx_notif_account (AccountID, IsRead),
-  CONSTRAINT fk_notif_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID)
+  CONSTRAINT fk_notif_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE AUDITLOG (
@@ -380,11 +352,9 @@ CREATE TABLE AUDITLOG (
   Detail    TEXT         NULL,
   PRIMARY KEY (LogID),
   KEY idx_audit_account (AccountID, LogAt),
-  CONSTRAINT fk_audit_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID)
+  CONSTRAINT fk_audit_account FOREIGN KEY (AccountID) REFERENCES ACCOUNT(AccountID) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Ánh xạ Decision -> GAME.Status: Approved->Approved, Rejected->Rejected, EmergencyDelist->Delisted.
--- Gợi ý: nên đổi tên GAMEREVIEW thành GAMEMODERATION để khỏi lẫn với REVIEW (đánh giá của khách).
 CREATE TABLE GAMEREVIEW (
   CheckID   CHAR(36)     NOT NULL DEFAULT (UUID()),
   GameID    CHAR(36)     NOT NULL,
@@ -394,13 +364,39 @@ CREATE TABLE GAMEREVIEW (
   CheckedAt DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (CheckID),
   KEY idx_gr_game (GameID, CheckedAt),
-  CONSTRAINT fk_gr_game    FOREIGN KEY (GameID)    REFERENCES GAME(GameID),
+  CONSTRAINT fk_gr_game    FOREIGN KEY (GameID)    REFERENCES GAME(GameID) ON DELETE CASCADE,
   CONSTRAINT fk_gr_manager FOREIGN KEY (ManagerID) REFERENCES MANAGER(AccountID),
   CONSTRAINT ck_gr_reason CHECK (Decision <> 'Rejected' OR (Reason IS NOT NULL AND Reason <> ''))
 ) ENGINE=InnoDB;
 
+CREATE TABLE BANNER (
+  BannerID   CHAR(36)     NOT NULL DEFAULT (UUID()),
+  ImageUrl   VARCHAR(255) NOT NULL,
+  LinkUrl    VARCHAR(255) NULL,
+  Title      VARCHAR(150) NULL,
+  StartDate  DATETIME     NOT NULL,
+  EndDate    DATETIME     NOT NULL,
+  SortOrder  INT          NOT NULL DEFAULT 0,
+  IsActive   TINYINT(1)   NOT NULL DEFAULT 1,
+  CreatedBy  CHAR(36)     NOT NULL,
+  CreatedAt  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (BannerID),
+  CONSTRAINT fk_banner_creator FOREIGN KEY (CreatedBy) REFERENCES ACCOUNT(AccountID),
+  CONSTRAINT ck_banner_dates CHECK (EndDate > StartDate)
+) ENGINE=InnoDB;
+
+CREATE TABLE SYSTEM_PARAMETER (
+  ParamKey    VARCHAR(80)  NOT NULL,
+  ParamValue  VARCHAR(500) NOT NULL,
+  Description VARCHAR(255) NULL,
+  UpdatedBy   CHAR(36)     NULL,
+  UpdatedAt   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (ParamKey),
+  CONSTRAINT fk_param_updater FOREIGN KEY (UpdatedBy) REFERENCES ACCOUNT(AccountID) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------
--- VIEW: giá hiện hành (đã trừ sale đang chạy). Dùng cho tìm kiếm / chi tiết / thanh toán.
+-- VIEW: Giá bán hiện hành sau khi áp dụng chiến dịch giảm giá (Sale)
 -- ---------------------------------------------------------------------
 CREATE VIEW V_GAME_PRICE AS
 SELECT g.GameID,
@@ -412,4 +408,5 @@ LEFT JOIN SALECAMPAIGN s
        ON s.GameID = g.GameID AND NOW() BETWEEN s.StartDate AND s.EndDate
 GROUP BY g.GameID, g.Price;
 
--- Dữ liệu mẫu (thể loại, tài khoản, game, đơn hàng...) nằm trong steam_store_sample_data.sql.
+SET FOREIGN_KEY_CHECKS = 1;
+

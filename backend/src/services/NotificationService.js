@@ -44,6 +44,18 @@ class NotificationService extends BaseService {
   }
 
   /**
+   * Tạo thông báo cho Developer (chức năng rút tiền/kiểm duyệt game)
+   */
+  async taoThongBaoChoDeveloper(params = {}, conn = null) {
+    const developerId = params.developerId || params.accountId;
+    return this.createNotification({
+      accountId: developerId,
+      type: params.type || 'SYSTEM',
+      content: params.content,
+    }, conn);
+  }
+
+  /**
    * Lấy danh sách thông báo và số lượng chưa đọc của tài khoản hiện tại.
    * GET /api/notifications
    */

@@ -2,6 +2,38 @@
 const BaseDAO = require('./BaseDAO');
 
 class WithdrawalDAO extends BaseDAO {
+  async khoaDeveloper(params = {}, conn = null) {
+    return this.one(
+      'SELECT AccountID, VerifyStatus, BankAccount FROM DEVELOPER WHERE AccountID = ? FOR UPDATE',
+      [params.developerId],
+      conn,
+    );
+  }
+
+  async khoaLenhRutTien(params = {}, conn = null) {
+    return this.one(
+      'SELECT * FROM WITHDRAWALREQUEST WHERE RequestID = ? FOR UPDATE',
+      [params.requestId],
+      conn,
+    );
+  }
+
+  async timViCustomer(developerId, conn = null) {
+    return this.one(
+      'SELECT WalletID, Balance FROM WALLET WHERE CustomerID = ? LIMIT 1',
+      [developerId],
+      conn,
+    );
+  }
+
+  async ghiNhanGiaoDichVi(params = {}, conn = null) {
+    const sql = `
+      INSERT INTO \`TRANSACTION\` (TransID, WalletID, Type, Amount, Status, Detail)
+      VALUES (UUID(), ?, 'Withdraw', ?, 'Success', ?)
+    `;
+    return this.query(sql, [params.walletId, params.amount, params.detail || 'Rút doanh thu NPH'], conn);
+  }
+
   async kiemTraSoTienKhaDung(params = {}, conn = null) {
     const developerId = params.developerId;
     const salesSql = `
@@ -40,7 +72,11 @@ class WithdrawalDAO extends BaseDAO {
     const withRow = await this.one(withdrawalSql, [developerId], conn);
     const totalWithdrawn = Number(withRow?.TotalWithdrawn || 0);
 
-    const devShare = (grossSales - totalRefunds) * 0.7;
+    const commissionRate = typeof params.commissionRate === 'number' && Number.isFinite(params.commissionRate)
+      ? params.commissionRate
+      : 0.3;
+    const devShareRate = Math.max(0, 1 - commissionRate);
+    const devShare = (grossSales - totalRefunds) * devShareRate;
     const availableRevenue = Math.max(0, devShare - totalWithdrawn);
 
     return {

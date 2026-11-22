@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const AccountDAO = require('../dao/AccountDAO');
+const { isTokenRevoked } = require('../utils/tokenRevocation');
 const { UnauthorizedException, ForbiddenException } = require('../exceptions');
 
 const accountDAO = new AccountDAO();
@@ -20,6 +21,10 @@ async function authenticate(req, res, next) {
 
   if (!claims.accountId) return next(new UnauthorizedException());
 
+  if (claims.jti && isTokenRevoked(claims.jti)) {
+    return next(new UnauthorizedException('Phiên đăng nhập đã được đăng xuất'));
+  }
+
   try {
     const identity = await accountDAO.layDanhTinhVaQuyen({ accountId: claims.accountId });
     if (!identity || identity.Status !== 'Active') {
@@ -37,6 +42,8 @@ async function authenticate(req, res, next) {
       username: identity.Username,
       roles,
       permissions: identity.PermissionCodes ? identity.PermissionCodes.split(',') : [],
+      jti: claims.jti || null,
+      exp: claims.exp || null,
     };
     return next();
   } catch (error) {

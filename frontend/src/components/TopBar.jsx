@@ -1,8 +1,9 @@
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { formatVnd } from '../utils/format';
 import { notificationApi } from '../api/notification';
+import { authApi } from '../api/auth';
 
 const links = [
   { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
@@ -32,13 +33,25 @@ function timeAgo(dateString) {
 
 /** Thanh điều hướng đen phía trên (Figma: node 1:319). */
 export default function TopBar() {
-  const { cart, balance, user, shopError } = useShop();
+  const navigate = useNavigate();
+  const { cart, balance, user, shopError, logout } = useShop();
   const [openMenu, setOpenMenu] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
 
   const toggleMenu = (menu) => setOpenMenu((current) => current === menu ? '' : menu);
+
+  const handleLogout = async () => {
+    setOpenMenu('');
+    try {
+      await authApi.logout();
+    } catch (_) {
+      // Bỏ qua lỗi kết nối
+    }
+    await logout();
+    navigate('/login');
+  };
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.accountId) {
@@ -196,17 +209,33 @@ export default function TopBar() {
           </button>
           {openMenu === 'account' ? (
             <nav aria-label="Menu tài khoản" className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-stone-900 bg-zinc-950 p-1 shadow-2xl">
-              {[
-                ['/profile', 'Thông tin cá nhân'],
-                ['/wallet', 'Ví'],
-                ['/settings', 'Cài đặt'],
-                ['/register', 'Đăng ký'],
-                ['/login', 'Đăng nhập'],
-              ].map(([to, label]) => (
-                <Link key={to} to={to} onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
-                  {label}
-                </Link>
-              ))}
+              <Link to="/profile" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
+                Thông tin cá nhân
+              </Link>
+              <Link to="/wallet" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
+                Ví
+              </Link>
+              <Link to="/settings" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
+                Cài đặt
+              </Link>
+              {user ? (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full text-left block rounded px-3 py-3 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+                >
+                  Đăng xuất
+                </button>
+              ) : (
+                <>
+                  <Link to="/register" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
+                    Đăng ký
+                  </Link>
+                  <Link to="/login" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
+                    Đăng nhập
+                  </Link>
+                </>
+              )}
             </nav>
           ) : null}
         </div>

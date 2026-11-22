@@ -9,6 +9,15 @@ const { authService } = require('../services');
 
 const router = express.Router();
 
+/** Gửi mã OTP xác thực (Đăng ký hoặc Quên mật khẩu) */
+router.post('/send-otp', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.sendOtp(requestContext(req)))));
+router.post('/guiMaOtp', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.sendOtp(requestContext(req)))));
+
+/** Quên mật khẩu */
+router.post('/forgot-password/send-otp', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.sendOtp({ ...requestContext(req), purpose: 'forgot_password' }))));
+router.post('/forgot-password/reset', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiYeuCauDatLaiMatKhau(requestContext(req)))));
+router.post('/datLaiMatKhau', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiYeuCauDatLaiMatKhau(requestContext(req)))));
+
 /** UC1. Đăng ký tài khoản (#4)  | quyền: Guest */
 router.post('/guiThongTinDangKy', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangKy(requestContext(req)), 201, 'Account created')));
 router.post('/register', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.guiThongTinDangKy(requestContext(req)), 201, 'Account created')));

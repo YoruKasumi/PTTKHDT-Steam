@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 import Field from '../../components/auth/Field';
@@ -22,15 +22,50 @@ export default function Register() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // OTP state
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [otpNotice, setOtpNotice] = useState('');
+  const [otpNoticeType, setOtpNoticeType] = useState('info');
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const strength = passwordStrength(form.password);
+
+  useEffect(() => {
+    if (otpCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setOtpCountdown((c) => c - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCountdown]);
+
+  const handleSendOtp = async () => {
+    setOtpNotice('');
+    if (!form.email.trim() || !/^\S+@\S+\.\S+$/.test(form.email.trim())) {
+      setErrors((prev) => ({ ...prev, email: 'Vui lòng nhập địa chỉ email hợp lệ trước khi gửi mã OTP' }));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, email: '' }));
+    setSendingOtp(true);
+    try {
+      await authApi.sendOtp({ email: form.email.trim(), purpose: 'register' });
+      setOtpNotice('Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư đến (và mục Spam).');
+      setOtpNoticeType('success');
+      setOtpCountdown(60);
+    } catch (err) {
+      setOtpNotice(err.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
+      setOtpNoticeType('error');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
 
   // Kiểm tra định dạng ở GUI: không rỗng, email đúng mẫu, mật khẩu khớp.
   const validate = () => {
     const e = {};
     if (!form.gamertag.trim()) e.gamertag = 'Vui lòng nhập tên hiển thị';
     if (!/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Email chưa đúng định dạng';
-    if (!/^\d{4}$/.test(form.otp)) e.otp = 'Nhập mã OTP gồm 4 chữ số';
+    if (!/^\d{4,6}$/.test(form.otp.trim())) e.otp = 'Nhập mã OTP gồm 4 đến 6 chữ số';
     if (form.password.length < 8) e.password = 'Mật khẩu cần ít nhất 8 ký tự';
     if (form.confirm !== form.password) e.confirm = 'Mật khẩu nhập lại không khớp';
     if (!agree) e.agree = 'Bạn cần đồng ý với Điều khoản Dịch vụ';
@@ -49,7 +84,7 @@ export default function Register() {
         username: form.gamertag.trim(),
         displayName: form.gamertag.trim(),
         email: form.email.trim(),
-        otp: form.otp,
+        otp: form.otp.trim(),
         password: form.password,
       });
       navigate('/login');
@@ -68,11 +103,31 @@ export default function Register() {
       <form className="w-full max-w-[739px]" onSubmit={submit} noValidate>
         <Field id="gamertag" label="Tên hiển thị trong game (Gamertag)" icon="🎮" value={form.gamertag} onChange={set('gamertag')}
           placeholder="Ví dụ: ShadowHunter99" autoComplete="nickname" error={errors.gamertag} />
-        <Field id="email" className="mt-5" label="Địa chỉ Email" icon="✉️" type="email" value={form.email} onChange={set('email')}
-          placeholder="tentaikhoan@gmail.com" autoComplete="email" error={errors.email} />
-        <Field id="otp" className="mt-5" label="Mã OTP xác minh (mô phỏng)" icon="🔐" inputMode="numeric" maxLength={4}
-          value={form.otp} onChange={set('otp')} placeholder="Nhập 4 chữ số" autoComplete="one-time-code" error={errors.otp} />
-        <p className="mb-0 mt-2 text-[11px] text-muted">Demo: nhập <span className="font-mono text-accent-light">0000</span> để kiểm tra thất bại; OTP 4 chữ số khác để đăng ký thành công.</p>
+
+        <div className="mt-5">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_130px] sm:items-end">
+            <Field id="email" label="Địa chỉ Email" icon="✉️" type="email" value={form.email} onChange={set('email')}
+              placeholder="tentaikhoan@gmail.com" autoComplete="email" error={errors.email} />
+            <button
+              type="button"
+              onClick={handleSendOtp}
+              disabled={sendingOtp || otpCountdown > 0}
+              className="h-[54px] rounded-[10px] bg-indigo-600 hover:bg-indigo-700 px-3 text-xs font-bold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {sendingOtp ? 'Đang gửi...' : otpCountdown > 0 ? `Gửi lại (${otpCountdown}s)` : 'Gửi mã OTP'}
+            </button>
+          </div>
+          {otpNotice && (
+            <p className={`mt-2 text-xs font-medium ${otpNoticeType === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+              {otpNotice}
+            </p>
+          )}
+        </div>
+
+        <Field id="otp" className="mt-5" label="Mã OTP xác minh email" icon="🔐" inputMode="numeric" maxLength={6}
+          value={form.otp} onChange={set('otp')} placeholder="Nhập mã OTP 6 chữ số" autoComplete="one-time-code" error={errors.otp} />
+        <p className="mb-0 mt-2 text-[11px] text-muted">Nhấn "Gửi mã OTP" để nhận mã xác minh 6 chữ số gửi về email của bạn (hết hạn sau 5 phút).</p>
+
         <div className="mt-5 grid gap-5 md:grid-cols-2">
           <Field id="password" label="Mật khẩu" icon="🔒" type="password" value={form.password} onChange={set('password')}
             placeholder="Ít nhất 8 ký tự" autoComplete="new-password" error={errors.password} />

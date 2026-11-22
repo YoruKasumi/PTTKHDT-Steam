@@ -68,8 +68,8 @@ export default function Library() {
       setGames(list);
       if (selectGameId) {
         setSelectedId(selectGameId);
-      } else if (list.length > 0 && !selectedId) {
-        setSelectedId(list[0].gameId);
+      } else {
+        setSelectedId((current) => (current && list.some((g) => g.gameId === current) ? current : (list[0]?.gameId || '')));
       }
     } catch (err) {
       setNotice(`Lỗi tải thư viện: ${err.message}`);
@@ -77,7 +77,7 @@ export default function Library() {
     } finally {
       setLoading(false);
     }
-  }, [user, selectedId]);
+  }, [user?.accountId]);
 
   useEffect(() => {
     fetchLibrary();
