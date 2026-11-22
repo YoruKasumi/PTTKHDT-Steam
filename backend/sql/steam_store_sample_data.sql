@@ -6,6 +6,7 @@
 -- Cột sinh tự động (GAMEVERSION.CurrentGameID, LICENSE.ActiveKey) không có trong INSERT.
 -- =====================================================================
 USE steam_store;
+SET NAMES utf8mb4;
 
 INSERT INTO ACCOUNT (AccountID, Username, PasswordHash, Email, DisplayName, AvatarUrl, Status, NotifyEnabled, CreatedAt) VALUES
   ('A001', 'admin01', 'SAMPLE_ADMIN_DISABLED', 'admin@steamstore.vn', 'Quản trị viên', NULL, 'Active', 1, '2026-10-20 08:00:00'),

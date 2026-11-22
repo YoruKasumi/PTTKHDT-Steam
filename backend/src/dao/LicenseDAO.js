@@ -42,8 +42,10 @@ class LicenseDAO extends BaseDAO {
   async kiemTraTokenBanQuyen(params = {}, conn = null) {
     return this.one(
       `SELECT l.LicenseID, l.CustomerID, l.GameID, l.Status AS LicenseStatus,
+              g.DeveloperID,
               gv.VersionID, gv.VersionNumber, gv.BuildFile
        FROM LICENSE l
+       INNER JOIN GAME g ON g.GameID = l.GameID
        INNER JOIN GAMEVERSION gv ON gv.GameID = l.GameID AND gv.IsCurrent = 1
        WHERE l.CustomerID = ? AND l.GameID = ? AND l.Status = 'Active'
        LIMIT 1`,

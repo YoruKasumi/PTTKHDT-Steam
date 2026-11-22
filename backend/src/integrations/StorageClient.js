@@ -1,70 +1,129 @@
 'use strict';
-const path = require('path');
-const fs = require('fs');
-const { NotImplementedException } = require('../exceptions');
 
-const BUILDS_ROOT = path.resolve(__dirname, '../../storage/builds');
+const fs = require('node:fs');
+const path = require('node:path');
+const { ConflictException, NotImplementedException } = require('../exceptions');
+const { normalizeGameSlug } = require('../utils/gameSlug');
+const {
+  DEFAULT_DEVELOPER_ID,
+  PRIVATE_STORAGE_ROOT,
+  PUBLIC_STORAGE_ROOT,
+  getGameBuildKey,
+  getGameVersionDir,
+  resolveStorageKey,
+  safeStorageSegment,
+} = require('../utils/storagePaths');
+
+const ASSET_EXTENSIONS = {
+  cover: new Set(['.jpg', '.jpeg', '.png', '.webp']),
+  trailer: new Set(['.mp4', '.webm', '.mov']),
+};
+
+function buildPublicAssetName(slug, assetType, originalName) {
+  if (!Object.prototype.hasOwnProperty.call(ASSET_EXTENSIONS, assetType)) {
+    throw new Error('Loại media game không hợp lệ.');
+  }
+  const normalizedSlug = normalizeGameSlug(slug);
+  safeStorageSegment(normalizedSlug, 'slug');
+  const extension = path.extname(originalName || '').toLowerCase();
+  if (!ASSET_EXTENSIONS[assetType].has(extension)) {
+    throw new Error(`Định dạng ${assetType === 'cover' ? 'ảnh bìa' : 'trailer'} không được hỗ trợ.`);
+  }
+  return `${normalizedSlug}-${assetType}${extension}`;
+}
+
+function moveFile(sourcePath, destinationPath) {
+  fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+  fs.copyFileSync(sourcePath, destinationPath);
+  fs.unlinkSync(sourcePath);
+}
 
 /**
- * Kho lưu trữ file (ảnh, gói cài đặt game). Driver local hoặc Cloudflare R2 (S3) - xem config/storage.js.
- * Tên hàm lấy từ sơ đồ sequence.
+ * Local storage adapter. Public media and private developer builds have
+ * separate roots so a future object-store adapter can preserve this contract.
  */
 class StorageClient {
-  /**
-   * UC4. Cập nhật hồ sơ cá nhân (#10)
-   */
   async luuAnhDaiDien(params = {}) {
     throw new NotImplementedException('StorageClient.luuAnhDaiDien');
   }
 
-  /**
-   * UC24. Cập nhật Patch & Changelog (#10)
-   * Lưu build.zip tại đường dẫn games/<gameId>/<versionNumber>/build.zip
-   * và trả về object key (không phải path tuyệt đối).
-   * @param {object} params
-   * @param {string} params.tempFilePath  - Đường dẫn tạm (multer)
-   * @param {string} params.gameId
-   * @param {string} params.versionNumber
-   * @returns {Promise<{ buildFileKey: string, localPath: string }>}
-   */
   async luuTruBanVa(params = {}) {
-    const { tempFilePath, gameId, versionNumber } = params;
-    const versionDir = path.join(BUILDS_ROOT, 'games', gameId, versionNumber);
-    fs.mkdirSync(versionDir, { recursive: true });
+    const {
+      tempFilePath,
+      developerId = DEFAULT_DEVELOPER_ID,
+      gameId,
+      versionNumber,
+    } = params;
+    if (!tempFilePath || !fs.existsSync(tempFilePath)) {
+      throw new Error('Không tìm thấy tệp build tạm để lưu trữ.');
+    }
+
+    const versionDir = getGameVersionDir(developerId, gameId, versionNumber);
     const dest = path.join(versionDir, 'build.zip');
-    fs.copyFileSync(tempFilePath, dest);
-    fs.unlinkSync(tempFilePath);
+    moveFile(tempFilePath, dest);
     return {
-      buildFileKey: `games/${gameId}/${versionNumber}/build.zip`,
+      buildFileKey: getGameBuildKey(developerId, gameId, versionNumber),
       localPath: dest,
     };
   }
 
-  /**
-   * UC25. Khởi tạo dự án game mới (#7)
-   * Upload tạm: giữ nguyên tại vị trí multer để BLL xử lý tiếp.
-   */
+  async luuAnhGame(params = {}) {
+    return this.savePublicGameAsset({ ...params, assetType: 'cover' });
+  }
+
+  async luuTrailerGame(params = {}) {
+    return this.savePublicGameAsset({ ...params, assetType: 'trailer' });
+  }
+
+  async savePublicGameAsset(params = {}) {
+    const { tempFilePath, assetType } = params;
+    if (!tempFilePath || !fs.existsSync(tempFilePath)) {
+      throw new Error('Không tìm thấy tệp media tạm để lưu trữ.');
+    }
+    const slug = normalizeGameSlug(params.slug, params.title);
+    const filename = buildPublicAssetName(slug, assetType, params.originalName || tempFilePath);
+    let maxSize = 10 * 1024 * 1024;
+    if (assetType === 'trailer') {
+      const maxTrailerSizeMb = Number(process.env.MAX_TRAILER_SIZE_MB || 500);
+      if (!Number.isFinite(maxTrailerSizeMb) || maxTrailerSizeMb <= 0) {
+        throw new Error('MAX_TRAILER_SIZE_MB phải là số dương hợp lệ.');
+      }
+      maxSize = maxTrailerSizeMb * 1024 * 1024;
+    }
+    if (fs.statSync(tempFilePath).size > maxSize) {
+      throw new Error(`Tệp ${assetType === 'cover' ? 'ảnh bìa' : 'trailer'} vượt quá giới hạn dung lượng.`);
+    }
+
+    const key = path.posix.join('games', slug, filename);
+    const localPath = resolveStorageKey(PUBLIC_STORAGE_ROOT, key);
+    if (fs.existsSync(localPath) && params.replace !== true) {
+      throw new ConflictException('Tệp media công khai đã tồn tại; hãy dùng một slug game khác.');
+    }
+    moveFile(tempFilePath, localPath);
+    return {
+      key,
+      localPath,
+      publicUrl: `/api/media/${key}`,
+      filename,
+    };
+  }
+
   async taiLenTepCaiDatTam(params = {}) {
-    // BLL (GameService) gọi validateAndProcessBuildZip trực tiếp từ tempFilePath
-    // nên hàm này chỉ cần pass-through.
     return { tempFilePath: params.tempFilePath };
   }
 
-  /**
-   * UC49. Cấu hình banner trang chủ (#6)
-   */
   async luuTepAnhBanner(params = {}) {
     throw new NotImplementedException('StorageClient.luuTepAnhBanner');
   }
 
-  /**
-   * Lấy đường dẫn vật lý từ object key.
-   * @param {string} objectKey  - VD: games/<gameId>/<version>/build.zip
-   * @returns {string}
-   */
   localPathFromKey(objectKey) {
-    return path.join(BUILDS_ROOT, objectKey);
+    return resolveStorageKey(PRIVATE_STORAGE_ROOT, objectKey);
+  }
+
+  publicPathFromKey(objectKey) {
+    return resolveStorageKey(PUBLIC_STORAGE_ROOT, objectKey);
   }
 }
 
 module.exports = StorageClient;
+module.exports.buildPublicAssetName = buildPublicAssetName;

@@ -93,6 +93,7 @@ CREATE TABLE GAME (
   GameID      CHAR(36)      NOT NULL DEFAULT (UUID()),
   DeveloperID CHAR(36)      NOT NULL,
   Title       VARCHAR(200)  NOT NULL,
+  Slug        VARCHAR(120)  NULL,
   Description TEXT          NOT NULL,
   Price       DECIMAL(15,2) NOT NULL,
   CoverImage  VARCHAR(255)  NOT NULL,
@@ -103,6 +104,7 @@ CREATE TABLE GAME (
   ReleaseDate DATETIME      NULL,
   PRIMARY KEY (GameID),
   UNIQUE KEY uq_game_title (Title),
+  UNIQUE KEY uq_game_slug (Slug),
   KEY idx_game_status (Status),
   CONSTRAINT fk_game_developer FOREIGN KEY (DeveloperID) REFERENCES DEVELOPER(AccountID),
   CONSTRAINT ck_game_price CHECK (Price >= 0)
@@ -128,7 +130,7 @@ CREATE TABLE GAMEVERSION (
   VersionID     CHAR(36)    NOT NULL DEFAULT (UUID()),
   GameID        CHAR(36)    NOT NULL,
   VersionNumber VARCHAR(20) NOT NULL,
-  BuildFile     VARCHAR(255) NOT NULL,                -- KHÓA ĐỐI TƯỢNG trên kho lưu trữ, vd games/<GameID>/1.0.0/build.zip
+  BuildFile     VARCHAR(255) NOT NULL,                -- object key private: developers/<DeveloperID>/games/<GameID>/<version>/build.zip
   FileSize      BIGINT      NULL,                     -- [THÊM] byte, để hiện dung lượng và kiểm tra tải đủ
   Sha256        CHAR(64)    NULL,                     -- [THÊM] checksum để client kiểm tra tệp không bị sửa
   ChangeLog     TEXT        NULL,
