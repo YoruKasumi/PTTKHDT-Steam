@@ -228,7 +228,7 @@ class OrderDAO extends BaseDAO {
 
   /**
    * UC21. Yêu cầu hoàn tiền (#7)
-   * Thu hồi bản quyền game (LICENSE) và thiết bị liên kết (LICENSE_DEVICE).
+   * Thu hồi bản quyền game (LICENSE).
    * @param {{ licenseIds: string[] }} params
    * @param {object} [conn]
    */
@@ -238,13 +238,6 @@ class OrderDAO extends BaseDAO {
     await this.query(
       `UPDATE LICENSE
           SET Status = 'Revoked', RevokedAt = NOW(), RevokedReason = 'Refund'
-        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
-      params.licenseIds,
-      conn,
-    );
-    await this.query(
-      `UPDATE LICENSE_DEVICE
-          SET Status = 'Revoked', RevokedReason = 'Refund'
         WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
       params.licenseIds,
       conn,

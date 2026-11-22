@@ -140,20 +140,14 @@ class LibraryService extends BaseService {
   }
 
   /**
-   * UC17. Khởi chạy game — Sinh Launch Token, ghi nhận thiết bị.
+   * UC17. Khởi chạy game — Sinh Launch Token.
    *
    * POST /api/library/:gameId/launch
-   * Body: { deviceFingerprint, deviceName }
    */
   async yeuCauKhoiChay(params = {}) {
     const { gameId, user } = params;
-    const deviceFingerprint = params.deviceFingerprint || params.body?.deviceFingerprint;
-    const deviceName = params.deviceName || params.body?.deviceName || 'Unknown Device';
 
     if (!gameId) throw new ValidationException('Thiếu gameId.');
-    if (!deviceFingerprint || !/^[0-9a-f]{64}$/.test(deviceFingerprint)) {
-      throw new ValidationException('deviceFingerprint phải là chuỗi SHA-256 64 ký tự hex.');
-    }
 
     // Kiểm tra LICENSE tồn tại + Active + có phiên bản hiện hành
     const license = await this.licenseDAO.kiemTraTokenBanQuyen({ customerId: user.accountId, gameId });
@@ -167,28 +161,6 @@ class LibraryService extends BaseService {
       VersionNumber: versionNumber,
     } = license;
 
-    // Kiểm tra LICENSE_DEVICE
-    const existingDevice = await this.licenseDAO.timThietBi({ licenseId, deviceFingerprint });
-
-    if (existingDevice) {
-      if (existingDevice.Status === 'Revoked') {
-        throw new ForbiddenException('Thiết bị này đã bị thu hồi quyền khởi chạy.');
-      }
-      // Active → cập nhật LastSeen
-      await this.licenseDAO.capNhatLastSeen({ licenseId, deviceFingerprint });
-    } else {
-      // Thiết bị mới → kiểm tra giới hạn 3 thiết bị
-      const activeCount = await this.licenseDAO.demThietBiActive({ licenseId });
-      if (activeCount >= 3) {
-        throw new NghiepVuException(
-          'Đã đạt giới hạn tối đa 3 thiết bị. Vui lòng gỡ bớt thiết bị cũ.',
-          422,
-          'DEVICE_LIMIT_EXCEEDED',
-        );
-      }
-      await this.licenseDAO.themThietBiMoi({ licenseId, deviceFingerprint, deviceName });
-    }
-
     // Ký Launch Token (10 phút)
     const launchToken = jwt.sign(
       {
@@ -197,7 +169,6 @@ class LibraryService extends BaseService {
         customerId: user.accountId,
         gameId,
         developerId,
-        deviceFingerprint,
       },
       env.jwtSecret,
       { expiresIn: LAUNCH_TOKEN_TTL },
@@ -217,13 +188,13 @@ class LibraryService extends BaseService {
   /**
    * Xác thực Launch Token theo thời gian thực (gọi từ drm.js trong game).
    * POST /api/library/verify-launch (Public)
-   * Body: { launchToken, gameId, deviceFingerprint }
+   * Body: { launchToken, gameId }
    */
   async verifyLaunch(params = {}) {
-    const { launchToken, gameId, deviceFingerprint } = params;
+    const { launchToken, gameId } = params;
 
-    if (!launchToken || !gameId || !deviceFingerprint) {
-      return { valid: false, reason: 'Thiếu tham số bắt buộc (launchToken, gameId, deviceFingerprint).' };
+    if (!launchToken || !gameId) {
+      return { valid: false, reason: 'Thiếu tham số bắt buộc (launchToken, gameId).' };
     }
 
     // Xác thực chữ ký JWT
@@ -234,22 +205,18 @@ class LibraryService extends BaseService {
       return { valid: false, reason: 'Token không hợp lệ hoặc đã hết hạn.' };
     }
 
-    // Kiểm tra type, gameId, deviceFingerprint khớp
+    // Kiểm tra type, gameId khớp
     if (claims.type !== 'GAME_LAUNCH') {
       return { valid: false, reason: 'Token không thuộc loại GAME_LAUNCH.' };
     }
     if (claims.gameId !== gameId) {
       return { valid: false, reason: 'Token không khớp với game này.' };
     }
-    if (claims.deviceFingerprint !== deviceFingerprint) {
-      return { valid: false, reason: 'Token không khớp với thiết bị này.' };
-    }
 
-    // Truy vấn thời gian thực: LICENSE + ACCOUNT + LICENSE_DEVICE
+    // Truy vấn thời gian thực: LICENSE + ACCOUNT
     const check = await this.licenseDAO.kiemTraHopLeTheoThoiGianThuc({
       licenseId: claims.licenseId,
       customerId: claims.customerId,
-      deviceFingerprint,
     });
 
     if (!check) {
@@ -261,11 +228,13 @@ class LibraryService extends BaseService {
     if (check.AccountStatus !== 'Active') {
       return { valid: false, reason: 'Tài khoản đã bị tạm khóa hoặc cấm.' };
     }
-    if (!check.DeviceStatus || check.DeviceStatus !== 'Active') {
-      return { valid: false, reason: 'Thiết bị này không còn được phép chơi.' };
-    }
 
-    return { valid: true, licenseId: claims.licenseId };
+    return {
+      valid: true,
+      licenseId: claims.licenseId,
+      customerId: claims.customerId,
+      gameId: claims.gameId,
+    };
   }
 
   /**
@@ -319,43 +288,6 @@ class LibraryService extends BaseService {
       launchToken: token,
       gameId,
     };
-  }
-
-  /**
-   * Danh sách thiết bị của một bản quyền.
-   * GET /api/library/:gameId/devices
-   */
-  async layDanhSachThietBi(params = {}) {
-    const { gameId, user } = params;
-    const license = await this.licenseDAO.layLicenseCuaKhach({ customerId: user.accountId, gameId });
-    if (!license) throw new ForbiddenException('Bạn không sở hữu game này.');
-
-    const devices = await this.licenseDAO.layDanhSachThietBi({ licenseId: license.LicenseID });
-    return devices.map((d) => ({
-      deviceId: d.DeviceID,
-      deviceFingerprint: d.DeviceFingerprint.slice(0, 8) + '...',  // ẩn bớt fingerprint
-      deviceName: d.DeviceName,
-      firstSeen: d.FirstSeen,
-      lastSeen: d.LastSeen,
-      status: d.Status,
-    }));
-  }
-
-  /**
-   * Thu hồi thiết bị.
-   * DELETE /api/library/:gameId/devices/:deviceId
-   */
-  async thuHoiThietBi(params = {}) {
-    const { gameId, deviceId, user } = params;
-    if (!deviceId) throw new ValidationException('Thiếu deviceId.');
-
-    const license = await this.licenseDAO.layLicenseCuaKhach({ customerId: user.accountId, gameId });
-    if (!license) throw new ForbiddenException('Bạn không sở hữu game này.');
-
-    const affected = await this.licenseDAO.thuHoiThietBi({ deviceId, licenseId: license.LicenseID });
-    if (!affected) throw new NotFoundException('Không tìm thấy thiết bị hoặc thiết bị đã bị thu hồi.');
-
-    return { deviceId, message: 'Đã thu hồi quyền khởi chạy của thiết bị.' };
   }
 
   // ─── Tải game về máy (mô phỏng luồng cài đặt thật) ───────────────────────

@@ -100,11 +100,6 @@ INSERT INTO LICENSE (LicenseID, CustomerID, GameID, Source, PurchaseDate, Access
   ('L003', 'A005', 'G001', 'Key', '2026-11-09 20:00:00', '47892b4437ca5f00bb92da7fd8873601bc276329ad05dd0dcd56ebdbaff1f00b', 'Active', NULL, NULL),
   ('L004', 'A005', 'G002', 'Purchase', '2026-11-11 08:30:00', '1f26f7db509ed22b6292914e9e645e087137d0e99a9c3edb744ea57b709278d0', 'Active', NULL, NULL);
 
-INSERT INTO LICENSE_DEVICE (DeviceID, LicenseID, DeviceFingerprint, DeviceName, FirstSeen, LastSeen, Status) VALUES
-  ('D001', 'L001', '388c357c4f386995ab3ac6e47f0c40140309463860edde4bfbd12e28558be5e1', 'PC-Minh Anh', '2026-11-08 20:10:00', '2026-11-10 21:00:00', 'Active'),
-  ('D002', 'L003', 'd0bcbea8c0c64cc6af300c1a81b99285d4c4583bb60ff98eacd93b812f8b981d', 'Laptop-Bảo Trân', '2026-11-09 20:05:00', '2026-11-11 07:50:00', 'Active'),
-  ('D003', 'L004', 'd0bcbea8c0c64cc6af300c1a81b99285d4c4583bb60ff98eacd93b812f8b981d', 'Laptop-Bảo Trân', '2026-11-11 08:40:00', '2026-11-11 08:40:00', 'Active');
-
 INSERT INTO WISHLISTITEM (CustomerID, GameID, AddedDate) VALUES
   ('A004', 'G003', '2026-11-09 18:00:00'),
   ('A005', 'G003', '2026-11-10 22:15:00');

@@ -43,8 +43,6 @@ JOIN (
 ) AS sampleLedger ON sampleLedger.WalletID = wallet.WalletID
 SET wallet.Balance = wallet.Balance + sampleLedger.BalanceAdjustment;
 
-DELETE FROM LICENSE_DEVICE
-WHERE LicenseID IN (SELECT LicenseID FROM LICENSE WHERE GameID IN (SELECT GameID FROM _sample_game_ids));
 DELETE FROM REFUNDREQUEST WHERE OrderID IN (SELECT OrderID FROM _sample_order_ids);
 DELETE FROM `TRANSACTION` WHERE OrderID IN (SELECT OrderID FROM _sample_order_ids);
 DELETE FROM ORDERITEM WHERE OrderID IN (SELECT OrderID FROM _sample_order_ids);

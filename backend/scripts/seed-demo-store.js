@@ -225,12 +225,6 @@ async function resetLegacySampleGames() {
       await conn.query('DELETE FROM ORDERS WHERE OrderID IN (?)', [orderIds]);
     }
 
-    await conn.query(
-      `DELETE device FROM LICENSE_DEVICE AS device
-       INNER JOIN LICENSE AS license ON license.LicenseID = device.LicenseID
-       WHERE license.GameID IN (?)`,
-      [gameIds],
-    );
     for (const table of [
       'CARTITEM',
       'WISHLISTITEM',

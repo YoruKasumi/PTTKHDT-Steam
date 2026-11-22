@@ -3,9 +3,8 @@
  * File này được copy vào unpacked/drm.js khi hệ thống tự động bọc DRM cho gói game thô.
  *
  * Chức năng:
- *  1. Sinh DeviceFingerprint SHA-256 (64 ký tự hex) duy nhất cho trình duyệt/thiết bị, lưu localStorage.
- *  2. Gọi POST /api/library/verify-launch khi game khởi động.
- *  3. Hiển thị màn hình khóa nếu bị từ chối, hoặc nạp game vào iframe nếu hợp lệ.
+ *  1. Gọi POST /api/library/verify-launch khi game khởi động.
+ *  2. Hiển thị màn hình khóa nếu bị từ chối, hoặc nạp game vào iframe nếu hợp lệ.
  *
  * API công khai:
  *   window.SteamStoreDRM.bootWithDRM(onAuthorized)
@@ -13,76 +12,6 @@
  */
 (function (global) {
   'use strict';
-
-  // ───────────────────────────────── Sinh DeviceFingerprint ──────────────────────────────────
-
-  /**
-   * Băm chuỗi thành SHA-256 hex 64 ký tự.
-   * Ưu tiên dùng SubtleCrypto (HTTPS / localhost), fallback về FNV-1a 256-bit thuần JS khi
-   * chạy trên HTTP LAN (không có SubtleCrypto).
-   * @param {string} str
-   * @returns {Promise<string>} Chuỗi hex 64 ký tự
-   */
-  async function sha256Hex(str) {
-    if (global.crypto && global.crypto.subtle) {
-      const encoded = new TextEncoder().encode(str);
-      const hashBuffer = await global.crypto.subtle.digest('SHA-256', encoded);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-    }
-    // Fallback: FNV-1a-like 256-bit (8 × 32-bit words)
-    const fnv = (data, offset, prime) => {
-      let h = offset;
-      for (let i = 0; i < data.length; i++) {
-        h ^= data.charCodeAt(i);
-        // Multiply with 32-bit truncation
-        const lo = (h & 0xffff) * prime;
-        const hi = ((h >>> 16) * prime + ((lo >>> 16) & 0xffff)) & 0xffff;
-        h = ((hi << 16) | (lo & 0xffff)) >>> 0;
-      }
-      return (h >>> 0).toString(16).padStart(8, '0');
-    };
-    const seeds = [
-      [2166136261, 16777619], [2246822519, 2246822519],
-      [3266489909, 374761393], [668265263, 668265263],
-      [2246822519, 3266489909], [668265263, 2246822519],
-      [374761393, 2246822519], [2166136261, 374761393],
-    ];
-    return seeds.map(([offset, prime]) => fnv(str, offset, prime)).join('');
-  }
-
-  /**
-   * Tạo (hoặc lấy từ cache) DeviceFingerprint duy nhất và bền vững.
-   * Lưu vào localStorage['__sstore_dfp'] để khớp với LICENSE_DEVICE.DeviceFingerprint.
-   * @returns {Promise<string>} Fingerprint 64 ký tự hex
-   */
-  async function getDeviceFingerprint() {
-    const STORAGE_KEY = '__sstore_dfp';
-    const cached = localStorage.getItem(STORAGE_KEY);
-    if (cached && /^[0-9a-f]{64}$/.test(cached)) return cached;
-
-    // Thu thập các thuộc tính nhận dạng thiết bị (không dùng API nhạy cảm)
-    const traits = [
-      navigator.userAgent,
-      navigator.language,
-      String(screen.width) + 'x' + String(screen.height),
-      String(screen.colorDepth),
-      Intl.DateTimeFormat().resolvedOptions().timeZone || '',
-      navigator.hardwareConcurrency ? String(navigator.hardwareConcurrency) : '',
-      navigator.deviceMemory ? String(navigator.deviceMemory) : '',
-      String(new Date().getTimezoneOffset()),
-      // Thêm salt ngẫu nhiên để tránh đụng độ giữa nhiều người dùng cùng thiết bị
-      Math.random().toString(36).slice(2),
-    ].join('|');
-
-    const fingerprint = await sha256Hex(traits);
-    try {
-      localStorage.setItem(STORAGE_KEY, fingerprint);
-    } catch (_) {
-      // localStorage bị block (private mode): dùng session-only
-    }
-    return fingerprint;
-  }
 
   // ───────────────────────────────── Lấy launchToken từ URL ──────────────────────────────────
 
@@ -150,16 +79,15 @@
    * Gọi POST /api/library/verify-launch để xác thực bản quyền.
    * @param {string} launchToken
    * @param {string} gameId
-   * @param {string} deviceFingerprint
    * @returns {Promise<{ valid: boolean, licenseId?: string, reason?: string }>}
    */
-  async function verifyLaunch(launchToken, gameId, deviceFingerprint) {
+  async function verifyLaunch(launchToken, gameId) {
     const verifyEndpoint = '/api/library/verify-launch';
     try {
       const response = await fetch(verifyEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ launchToken, gameId, deviceFingerprint }),
+        body: JSON.stringify({ launchToken, gameId }),
         credentials: 'include',
       });
 
@@ -194,18 +122,9 @@
       return;
     }
 
-    // 2. Lấy deviceFingerprint nhất quán với lúc gọi /launch
-    let deviceFingerprint;
-    try {
-      deviceFingerprint = await getDeviceFingerprint();
-    } catch (_) {
-      showDenied('Không thể xác định thiết bị. Thử lại hoặc kiểm tra cài đặt trình duyệt.');
-      return;
-    }
-
-    // 3. Gọi verify-launch
+    // 2. Gọi verify-launch
     showOverlay('Đang kiểm tra bản quyền...');
-    const result = await verifyLaunch(launchToken, gameId, deviceFingerprint);
+    const result = await verifyLaunch(launchToken, gameId);
 
     if (result.valid) {
       hideOverlayAndShowGame(result.licenseId, onAuthorized);
@@ -218,7 +137,5 @@
 
   global.SteamStoreDRM = {
     bootWithDRM,
-    getDeviceFingerprint,
-    sha256Hex,
   };
 })(typeof window !== 'undefined' ? window : global);

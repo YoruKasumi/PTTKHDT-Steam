@@ -72,20 +72,13 @@ class RefundDAO extends BaseDAO {
     );
   }
 
-  /** Thu hồi bản quyền + vô hiệu hóa thiết bị gắn với bản quyền đó. */
+  /** Thu hồi bản quyền. */
   async thuHoiBanQuyenGame({ licenseIds }, conn) {
     if (!Array.isArray(licenseIds) || licenseIds.length === 0) return;
     const placeholders = licenseIds.map(() => '?').join(', ');
     await this.query(
       `UPDATE LICENSE
           SET Status = 'Revoked', RevokedAt = NOW(), RevokedReason = 'Refund'
-        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
-      licenseIds,
-      conn,
-    );
-    await this.query(
-      `UPDATE LICENSE_DEVICE
-          SET Status = 'Revoked', RevokedReason = 'Refund'
         WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
       licenseIds,
       conn,

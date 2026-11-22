@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShop } from '../context/ShopContext';
 import { libraryApi } from '../api/library';
-import { getDeviceFingerprint, getDeviceName } from '../utils/deviceFingerprint';
 import { formatVnd } from '../utils/format';
 import {
   getInstalledMap,
@@ -36,47 +35,6 @@ function LibraryStat({ label, value, note }) {
   );
 }
 
-// ─── Device row ──────────────────────────────────────────────────────────────
-function DeviceRow({ device, gameId, onRevoke }) {
-  const [loading, setLoading] = useState(false);
-  const revoke = async () => {
-    if (!confirm(`Thu hồi thiết bị "${device.deviceName || device.deviceId.slice(0, 8)}"?`)) return;
-    setLoading(true);
-    try {
-      await libraryApi.removeDevice(gameId, device.deviceId);
-      onRevoke(device.deviceId);
-    } catch (err) {
-      alert(err.message || 'Lỗi khi thu hồi thiết bị.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-page px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="m-0 truncate text-sm font-semibold">{device.deviceName || 'Không rõ thiết bị'}</p>
-        <p className="m-0 mt-0.5 font-mono text-xs text-zinc-500">
-          ID: {device.deviceFingerprint} · Lần cuối: {device.lastSeen ? new Date(device.lastSeen).toLocaleString('vi-VN') : '—'}
-        </p>
-      </div>
-      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${device.status === 'Active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
-        {device.status === 'Active' ? '● Đang hoạt động' : '○ Đã thu hồi'}
-      </span>
-      {device.status === 'Active' && (
-        <button
-          type="button"
-          onClick={revoke}
-          disabled={loading}
-          className="shrink-0 rounded-lg border border-red-500/40 px-3 py-1 text-xs font-bold text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-        >
-          {loading ? '...' : 'Thu hồi'}
-        </button>
-      )}
-    </li>
-  );
-}
-
 // ─── Main component ──────────────────────────────────────────────────────────
 export default function Library() {
   const { user } = useShop();
@@ -93,11 +51,6 @@ export default function Library() {
   const [keyCode, setKeyCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
   const [redeemError, setRedeemError] = useState('');
-
-  // Devices panel
-  const [showDevices, setShowDevices] = useState(false);
-  const [devices, setDevices] = useState([]);
-  const [devicesLoading, setDevicesLoading] = useState(false);
 
   // Cài đặt tại thư mục của người chơi (mô phỏng launcher: tải → cài → gỡ)
   const [installed, setInstalled] = useState({});
@@ -171,50 +124,18 @@ export default function Library() {
     setLaunching(true);
     setNotice('');
     try {
-      const fingerprint = await getDeviceFingerprint();
-      const deviceName = getDeviceName();
-      const result = await libraryApi.launch(selectedGame.gameId, { deviceFingerprint: fingerprint, deviceName });
+      const result = await libraryApi.launch(selectedGame.gameId);
       // Mở tab mới với playUrl
       window.open(result.playUrl, '_blank', 'noopener,noreferrer');
       setNotice(`Đang mở ${selectedGame.title}... Nếu tab không mở tự động, hãy kiểm tra trình chặn cửa sổ bật lên (popup blocker).`);
       setNoticeType('info');
     } catch (err) {
       setNoticeType('error');
-      if (err.code === 'DEVICE_LIMIT_EXCEEDED') {
-        setNotice(`⚠ ${err.message} Hãy thu hồi thiết bị cũ trong mục Quản lý thiết bị.`);
-      } else {
-        setNotice(`Lỗi khởi chạy: ${err.message}`);
-      }
+      setNotice(`Lỗi khởi chạy: ${err.message}`);
     } finally {
       setLaunching(false);
     }
   }, [selectedGame]);
-
-  // ─── Load devices ──────────────────────────────────────────────────────────
-  const loadDevices = useCallback(async () => {
-    if (!selectedGame) return;
-    setDevicesLoading(true);
-    try {
-      const data = await libraryApi.listDevices(selectedGame.gameId);
-      setDevices(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setNotice(`Lỗi tải thiết bị: ${err.message}`);
-      setNoticeType('error');
-    } finally {
-      setDevicesLoading(false);
-    }
-  }, [selectedGame]);
-
-  const toggleDevices = useCallback(() => {
-    if (!showDevices) loadDevices();
-    setShowDevices((v) => !v);
-  }, [showDevices, loadDevices]);
-
-  const handleRevokeDevice = useCallback((deviceId) => {
-    setDevices((current) => current.map((d) => d.deviceId === deviceId ? { ...d, status: 'Revoked' } : d));
-    setNotice('Đã thu hồi thiết bị. Slot thiết bị đã được giải phóng.');
-    setNoticeType('success');
-  }, []);
 
   // ─── Cài đặt / Gỡ cài đặt tại máy người chơi ──────────────────────────────
   // Load trạng thái đã cài từ localStorage khi mở trang.
@@ -416,7 +337,7 @@ export default function Library() {
                 <li key={game.gameId}>
                   <button
                     type="button"
-                    onClick={() => { setSelectedId(game.gameId); setShowDevices(false); setNotice(''); }}
+                    onClick={() => { setSelectedId(game.gameId); setNotice(''); }}
                     aria-pressed={selected}
                     className={`w-full rounded-lg border px-4 py-3 text-left transition-all ${selected ? 'border-indigo-500/70 bg-indigo-500/25 shadow-md' : 'border-line bg-card hover:border-accent/50'}`}
                   >
@@ -488,13 +409,7 @@ export default function Library() {
                       {uninstalling ? '⏳ Đang gỡ...' : '🗑 Gỡ cài đặt'}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={toggleDevices}
-                    className="rounded-lg border border-indigo-950 bg-gray-900 px-5 py-3 text-sm font-semibold text-zinc-300 hover:bg-gray-800 transition-colors"
-                  >
-                    {showDevices ? '✕ Đóng thiết bị' : '⚙ Quản lý thiết bị'}
-                  </button>
+
                   <Link
                     to={`/games/${selectedGame.gameId}`}
                     className="rounded-lg border border-white/10 px-5 py-3 text-sm font-semibold text-white hover:border-accent transition-colors"
@@ -603,35 +518,7 @@ export default function Library() {
             </div>
           )}
 
-          {/* Quản lý thiết bị */}
-          {showDevices && (
-            <div className="rounded-2xl border border-white/10 bg-card p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="m-0 text-base font-bold">Thiết bị đang kích hoạt DRM</h3>
-                <span className="text-xs text-muted">Tối đa 3 thiết bị Active</span>
-              </div>
-              {devicesLoading ? (
-                <p className="text-sm text-muted">Đang tải...</p>
-              ) : devices.length === 0 ? (
-                <p className="text-sm text-muted">Chưa có thiết bị nào được ghi nhận. Bấm "CHƠI NGAY" để kích hoạt thiết bị đầu tiên.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {devices.map((device) => (
-                    <DeviceRow
-                      key={device.deviceId}
-                      device={device}
-                      gameId={selectedGame.gameId}
-                      onRevoke={handleRevokeDevice}
-                    />
-                  ))}
-                </ul>
-              )}
-              <p className="mt-3 text-xs text-zinc-500">
-                Thu hồi thiết bị cũ để giải phóng slot cho thiết bị mới.
-                Mỗi bản quyền chỉ cho phép tối đa 3 thiết bị hoạt động đồng thời.
-              </p>
-            </div>
-          )}
+
         </section>
       ) : (
         !loading && (

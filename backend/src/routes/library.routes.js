@@ -73,7 +73,6 @@ router.get(
 
 /**
  * POST /api/library/:gameId/launch
- * Body: { deviceFingerprint, deviceName }
  * Trả về: { allowed, gameId, versionNumber, launchToken, playUrl }
  */
 router.post(
@@ -83,8 +82,6 @@ router.post(
   asyncHandler(async (req, res) => {
     const result = await libraryService.yeuCauKhoiChay({
       gameId: req.params.gameId,
-      deviceFingerprint: req.body.deviceFingerprint,
-      deviceName: req.body.deviceName,
       user: req.user,
     });
     return ok(res, result, 200, 'Khởi chạy game thành công.');
@@ -98,8 +95,6 @@ router.post(
   authorize('Customer'),
   asyncHandler(async (req, res) => ok(res, await libraryService.yeuCauKhoiChay({
     gameId: req.body.gameId,
-    deviceFingerprint: req.body.deviceFingerprint,
-    deviceName: req.body.deviceName,
     user: req.user,
   }))),
 );
@@ -108,7 +103,7 @@ router.post(
 
 /**
  * POST /api/library/verify-launch
- * Body: { launchToken, gameId, deviceFingerprint }
+ * Body: { launchToken, gameId }
  * Public (không cần authenticate — drm.js gọi từ trong iframe)
  */
 router.post(
@@ -117,7 +112,6 @@ router.post(
     const result = await libraryService.verifyLaunch({
       launchToken: req.body.launchToken,
       gameId: req.body.gameId,
-      deviceFingerprint: req.body.deviceFingerprint,
     });
 
     if (!result.valid) {
@@ -205,41 +199,6 @@ router.get(
       }
     });
     return stream.pipe(res);
-  }),
-);
-
-// ─── Quản lý thiết bị ────────────────────────────────────────────────────────
-
-/**
- * GET /api/library/:gameId/devices — Danh sách thiết bị
- */
-router.get(
-  '/:gameId/devices',
-  authenticate,
-  authorize('Customer'),
-  asyncHandler(async (req, res) => {
-    const devices = await libraryService.layDanhSachThietBi({
-      gameId: req.params.gameId,
-      user: req.user,
-    });
-    return ok(res, devices);
-  }),
-);
-
-/**
- * DELETE /api/library/:gameId/devices/:deviceId — Thu hồi thiết bị
- */
-router.delete(
-  '/:gameId/devices/:deviceId',
-  authenticate,
-  authorize('Customer'),
-  asyncHandler(async (req, res) => {
-    const result = await libraryService.thuHoiThietBi({
-      gameId: req.params.gameId,
-      deviceId: req.params.deviceId,
-      user: req.user,
-    });
-    return ok(res, result, 200, 'Thu hồi thiết bị thành công.');
   }),
 );
 

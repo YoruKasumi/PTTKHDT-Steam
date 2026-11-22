@@ -1,6 +1,6 @@
 -- =====================================================================
 -- STEAM STORE - Lược đồ MySQL 8.0.16+  (cần 8.0.16 trở lên để CHECK có hiệu lực)
--- Dựa trên MoTaThietKeDuLieu (bản gốc 28 bảng); bản này có 29 bảng (thêm LICENSE_DEVICE) và 39 khóa ngoại.
+-- Dựa trên MoTaThietKeDuLieu (bản gốc 28 bảng); bản này có 28 bảng và 38 khóa ngoại.
 -- BANNER và SYSTEM_PARAMETER được tạo bởi extra_tables.sql.
 -- Các chỗ sửa / bổ sung được đánh dấu [SỬA] và [THÊM].
 -- Chạy:  mysql -u root -p < steam_store_schema.sql
@@ -11,7 +11,7 @@ USE steam_store;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS SYSTEM_PARAMETER, BANNER, GAMEREVIEW, AUDITLOG, NOTIFICATION, WITHDRAWALREQUEST, `TRANSACTION`, WALLET,
-  REFUNDREQUEST, REVIEW, WISHLISTITEM, LICENSE_DEVICE, LICENSE, ORDERITEM, ORDERS, COUPON, CARTITEM, CART,
+  REFUNDREQUEST, REVIEW, WISHLISTITEM, LICENSE, ORDERITEM, ORDERS, COUPON, CARTITEM, CART,
   SALECAMPAIGN, ACTIVATIONKEY, GAMEVERSION, GAME_GENRE, GENRE, GAME, MANAGER, ROLE_PERMISSION, `ROLE`,
   ADMIN, DEVELOPER, CUSTOMER, ACCOUNT;
 DROP VIEW IF EXISTS V_GAME_PRICE;
@@ -262,21 +262,6 @@ CREATE TABLE LICENSE (
   KEY idx_license_game (GameID),
   CONSTRAINT fk_license_customer FOREIGN KEY (CustomerID) REFERENCES CUSTOMER(AccountID),
   CONSTRAINT fk_license_game     FOREIGN KEY (GameID)     REFERENCES GAME(GameID)
-) ENGINE=InnoDB;
-
--- [THÊM] Ràng buộc bản quyền với thiết bị để hạn chế chia sẻ tài khoản / sao chép game (xem giải thích DRM).
-CREATE TABLE LICENSE_DEVICE (
-  DeviceID          CHAR(36)    NOT NULL DEFAULT (UUID()),
-  LicenseID         CHAR(36)    NOT NULL,
-  DeviceFingerprint CHAR(64)    NOT NULL,             -- SHA-256 của mã máy do launcher sinh
-  DeviceName        VARCHAR(100) NULL,
-  FirstSeen         DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  LastSeen          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  Status            ENUM('Active','Revoked') NOT NULL DEFAULT 'Active',
-  RevokedReason     ENUM('Refund','AccountSuspended','User') NULL,
-  PRIMARY KEY (DeviceID),
-  UNIQUE KEY uq_license_device (LicenseID, DeviceFingerprint),
-  CONSTRAINT fk_ld_license FOREIGN KEY (LicenseID) REFERENCES LICENSE(LicenseID)
 ) ENGINE=InnoDB;
 
 CREATE TABLE WISHLISTITEM (

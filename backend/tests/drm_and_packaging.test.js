@@ -316,11 +316,10 @@ describe('Scenario 4 — Launch Token: ký/xác thực & bảo vệ file tĩnh',
   const TEST_JWT_SECRET = 'test-secret-drm-2026';
   const GAME_ID = 'game-abc-123';
   const LICENSE_ID = 'lic-xyz-456';
-  const DEVICE_FP = crypto.createHash('sha256').update('test-device').digest('hex');
 
   it('4a. Ký Launch Token hợp lệ — verify giải mã thành công', () => {
     const token = jwt.sign(
-      { type: 'GAME_LAUNCH', licenseId: LICENSE_ID, customerId: 'cus-001', gameId: GAME_ID, deviceFingerprint: DEVICE_FP },
+      { type: 'GAME_LAUNCH', licenseId: LICENSE_ID, customerId: 'cus-001', gameId: GAME_ID },
       TEST_JWT_SECRET,
       { expiresIn: '10m' },
     );
@@ -329,14 +328,13 @@ describe('Scenario 4 — Launch Token: ký/xác thực & bảo vệ file tĩnh',
     assert.equal(payload.type, 'GAME_LAUNCH');
     assert.equal(payload.gameId, GAME_ID);
     assert.equal(payload.licenseId, LICENSE_ID);
-    assert.equal(payload.deviceFingerprint, DEVICE_FP);
     // Token còn hạn (exp > iat)
     assert.ok(payload.exp > payload.iat);
   });
 
   it('4b. Token hết hạn → jwt.verify ném lỗi TokenExpiredError', () => {
     const expiredToken = jwt.sign(
-      { type: 'GAME_LAUNCH', gameId: GAME_ID, deviceFingerprint: DEVICE_FP },
+      { type: 'GAME_LAUNCH', gameId: GAME_ID },
       TEST_JWT_SECRET,
       { expiresIn: '-1s' }, // đã hết hạn ngay lập tức
     );
@@ -348,7 +346,7 @@ describe('Scenario 4 — Launch Token: ký/xác thực & bảo vệ file tĩnh',
 
   it('4c. Token bị giả mạo (sai secret) → JsonWebTokenError', () => {
     const fakeToken = jwt.sign(
-      { type: 'GAME_LAUNCH', gameId: GAME_ID, deviceFingerprint: DEVICE_FP },
+      { type: 'GAME_LAUNCH', gameId: GAME_ID },
       'wrong-secret',
       { expiresIn: '10m' },
     );
@@ -360,7 +358,7 @@ describe('Scenario 4 — Launch Token: ký/xác thực & bảo vệ file tĩnh',
 
   it('4d. Token payload.type sai → không phải GAME_LAUNCH', () => {
     const wrongToken = jwt.sign(
-      { type: 'USER_SESSION', gameId: GAME_ID, deviceFingerprint: DEVICE_FP },
+      { type: 'USER_SESSION', gameId: GAME_ID },
       TEST_JWT_SECRET,
       { expiresIn: '10m' },
     );
@@ -371,7 +369,7 @@ describe('Scenario 4 — Launch Token: ký/xác thực & bảo vệ file tĩnh',
 
   it('4e. verify-launch: payload.gameId không khớp → phải trả valid: false', () => {
     const token = jwt.sign(
-      { type: 'GAME_LAUNCH', licenseId: LICENSE_ID, customerId: 'cus-001', gameId: 'other-game', deviceFingerprint: DEVICE_FP },
+      { type: 'GAME_LAUNCH', licenseId: LICENSE_ID, customerId: 'cus-001', gameId: 'other-game' },
       TEST_JWT_SECRET,
       { expiresIn: '10m' },
     );
@@ -379,97 +377,44 @@ describe('Scenario 4 — Launch Token: ký/xác thực & bảo vệ file tĩnh',
     // Mô phỏng logic verify-launch: kiểm tra gameId khớp
     const requestedGameId = GAME_ID;
     const isValid = payload.type === 'GAME_LAUNCH'
-      && payload.gameId === requestedGameId
-      && payload.deviceFingerprint === DEVICE_FP;
+      && payload.gameId === requestedGameId;
     assert.equal(isValid, false, 'Phải từ chối khi gameId không khớp');
   });
 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCENARIO 5: Giới hạn 3 thiết bị + thu hồi bản quyền
+// SCENARIO 5: Xác thực bản quyền thời gian thực (LICENSE & ACCOUNT status)
 // ─────────────────────────────────────────────────────────────────────────────
-describe('Scenario 5 — Giới hạn thiết bị & thu hồi bản quyền (logic thuần túy)', () => {
+describe('Scenario 5 — Xác thực bản quyền thời gian thực (LICENSE & ACCOUNT status)', () => {
 
-  /**
-   * Mô phỏng logic kiểm tra giới hạn thiết bị của LibraryService.yeuCauKhoiChay
-   * mà không cần kết nối DB.
-   */
-  function checkDeviceLimit({ activeDeviceCount, deviceExists, deviceStatus }) {
-    const MAX_DEVICES = 3;
-
-    if (deviceExists) {
-      if (deviceStatus === 'Revoked') {
-        return { allowed: false, reason: 'Thiết bị này đã bị thu hồi quyền khởi chạy.', code: 'DEVICE_REVOKED' };
-      }
-      return { allowed: true }; // Active → cập nhật LastSeen
-    }
-
-    // Thiết bị mới
-    if (activeDeviceCount >= MAX_DEVICES) {
-      return { allowed: false, reason: 'Đã đạt giới hạn tối đa 3 thiết bị. Vui lòng gỡ bớt thiết bị cũ.', code: 'DEVICE_LIMIT_EXCEEDED' };
-    }
-    return { allowed: true }; // INSERT thiết bị mới
-  }
-
-  it('5a. Thiết bị thứ 1 (mới, 0 active) → allowed', () => {
-    const result = checkDeviceLimit({ activeDeviceCount: 0, deviceExists: false });
-    assert.equal(result.allowed, true);
-  });
-
-  it('5b. Thiết bị thứ 3 (mới, 2 active) → allowed', () => {
-    const result = checkDeviceLimit({ activeDeviceCount: 2, deviceExists: false });
-    assert.equal(result.allowed, true);
-  });
-
-  it('5c. Thiết bị thứ 4 (mới, 3 active) → DEVICE_LIMIT_EXCEEDED', () => {
-    const result = checkDeviceLimit({ activeDeviceCount: 3, deviceExists: false });
-    assert.equal(result.allowed, false);
-    assert.equal(result.code, 'DEVICE_LIMIT_EXCEEDED');
-    assert.ok(result.reason.includes('3 thiết bị'));
-  });
-
-  it('5d. Thiết bị đã có, Status=Active → allowed (cập nhật LastSeen)', () => {
-    const result = checkDeviceLimit({ activeDeviceCount: 2, deviceExists: true, deviceStatus: 'Active' });
-    assert.equal(result.allowed, true);
-  });
-
-  it('5e. Thiết bị đã có, Status=Revoked → DEVICE_REVOKED', () => {
-    const result = checkDeviceLimit({ activeDeviceCount: 1, deviceExists: true, deviceStatus: 'Revoked' });
-    assert.equal(result.allowed, false);
-    assert.equal(result.code, 'DEVICE_REVOKED');
-  });
-
-  it('5f. Sau khi license bị thu hồi, verify-launch phải trả valid: false', () => {
+  it('5. Sau khi license bị thu hồi hoặc tài khoản bị khóa, verify-launch phải trả valid: false', () => {
     // Mô phỏng kiểm tra thời gian thực
-    function verifyLaunchRealtime({ licenseStatus, accountStatus, deviceStatus }) {
+    function verifyLaunchRealtime({ licenseStatus, accountStatus }) {
       if (licenseStatus !== 'Active') return { valid: false, reason: 'Bản quyền đã bị thu hồi.' };
       if (accountStatus !== 'Active') return { valid: false, reason: 'Tài khoản bị khóa.' };
-      if (deviceStatus !== 'Active') return { valid: false, reason: 'Thiết bị đã bị thu hồi.' };
       return { valid: true };
     }
 
     // Trường hợp bình thường
     assert.deepEqual(
-      verifyLaunchRealtime({ licenseStatus: 'Active', accountStatus: 'Active', deviceStatus: 'Active' }),
+      verifyLaunchRealtime({ licenseStatus: 'Active', accountStatus: 'Active' }),
       { valid: true },
     );
 
-    // License bị Revoked
+    // License bị Revoked (do Refund hoặc thu hồi)
     assert.equal(
-      verifyLaunchRealtime({ licenseStatus: 'Revoked', accountStatus: 'Active', deviceStatus: 'Active' }).valid,
+      verifyLaunchRealtime({ licenseStatus: 'Revoked', accountStatus: 'Active' }).valid,
       false,
     );
 
     // Tài khoản bị khóa (Banned/Suspended)
     assert.equal(
-      verifyLaunchRealtime({ licenseStatus: 'Active', accountStatus: 'Suspended', deviceStatus: 'Active' }).valid,
+      verifyLaunchRealtime({ licenseStatus: 'Active', accountStatus: 'Suspended' }).valid,
       false,
     );
-
-    // Thiết bị bị thu hồi
     assert.equal(
-      verifyLaunchRealtime({ licenseStatus: 'Active', accountStatus: 'Active', deviceStatus: 'Revoked' }).valid,
+      verifyLaunchRealtime({ licenseStatus: 'Active', accountStatus: 'Banned' }).valid,
       false,
     );
   });

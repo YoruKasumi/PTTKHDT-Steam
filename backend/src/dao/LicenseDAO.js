@@ -144,13 +144,6 @@ class LicenseDAO extends BaseDAO {
       licenseIds,
       conn,
     );
-    await this.query(
-      `UPDATE LICENSE_DEVICE
-          SET Status = 'Revoked', RevokedReason = 'AccountSuspended'
-        WHERE LicenseID IN (${placeholders}) AND Status = 'Active'`,
-      licenseIds,
-      conn,
-    );
     return licenses.length;
   }
 
@@ -176,138 +169,22 @@ class LicenseDAO extends BaseDAO {
       conn,
     );
 
-    for (const licenseId of licenseIds) {
-      const activeDeviceCount = await this.demThietBiActive({ licenseId }, conn);
-      const remainingSlots = Math.max(0, 3 - activeDeviceCount);
-      if (!remainingSlots) continue;
-
-      const devices = await this.query(
-        `SELECT DeviceID
-           FROM LICENSE_DEVICE
-          WHERE LicenseID = ? AND Status = 'Revoked' AND RevokedReason = 'AccountSuspended'
-          ORDER BY LastSeen DESC, FirstSeen DESC
-          LIMIT ?`,
-        [licenseId, remainingSlots],
-        conn,
-      );
-      if (!devices.length) continue;
-
-      const deviceIds = devices.map((device) => device.DeviceID);
-      const devicePlaceholders = deviceIds.map(() => '?').join(', ');
-      await this.query(
-        `UPDATE LICENSE_DEVICE
-            SET Status = 'Active', RevokedReason = NULL
-          WHERE DeviceID IN (${devicePlaceholders})
-            AND Status = 'Revoked' AND RevokedReason = 'AccountSuspended'`,
-        deviceIds,
-        conn,
-      );
-    }
-
     return licenses.length;
   }
 
-  // ─── LICENSE_DEVICE operations ───
-
   /**
-   * Tìm thiết bị theo LicenseID + DeviceFingerprint.
-   * @param {{ licenseId: string, deviceFingerprint: string }} params
-   */
-  async timThietBi(params = {}, conn = null) {
-    return this.one(
-      `SELECT DeviceID, LicenseID, DeviceFingerprint, DeviceName, Status
-       FROM LICENSE_DEVICE
-       WHERE LicenseID = ? AND DeviceFingerprint = ?
-       LIMIT 1`,
-      [params.licenseId, params.deviceFingerprint],
-      conn,
-    );
-  }
-
-  /**
-   * Cập nhật LastSeen cho thiết bị đang Active.
-   * @param {{ licenseId: string, deviceFingerprint: string }} params
-   */
-  async capNhatLastSeen(params = {}, conn = null) {
-    await this.query(
-      `UPDATE LICENSE_DEVICE SET LastSeen = NOW()
-       WHERE LicenseID = ? AND DeviceFingerprint = ?`,
-      [params.licenseId, params.deviceFingerprint],
-      conn,
-    );
-  }
-
-  /**
-   * Đếm số thiết bị Active của một LicenseID.
-   * @param {{ licenseId: string }} params
-   */
-  async demThietBiActive(params = {}, conn = null) {
-    const row = await this.one(
-      `SELECT COUNT(*) AS cnt FROM LICENSE_DEVICE WHERE LicenseID = ? AND Status = 'Active'`,
-      [params.licenseId],
-      conn,
-    );
-    return row ? Number(row.cnt) : 0;
-  }
-
-  /**
-   * Thêm thiết bị mới vào LICENSE_DEVICE.
-   * @param {{ licenseId: string, deviceFingerprint: string, deviceName: string }} params
-   */
-  async themThietBiMoi(params = {}, conn = null) {
-    await this.query(
-      `INSERT INTO LICENSE_DEVICE (LicenseID, DeviceFingerprint, DeviceName)
-       VALUES (?, ?, ?)`,
-      [params.licenseId, params.deviceFingerprint, params.deviceName || null],
-      conn,
-    );
-  }
-
-  /**
-   * Lấy danh sách thiết bị của một bản quyền (để hiển thị trong UI).
-   * @param {{ licenseId: string }} params
-   */
-  async layDanhSachThietBi(params = {}, conn = null) {
-    return this.query(
-      `SELECT DeviceID, DeviceFingerprint, DeviceName, FirstSeen, LastSeen, Status
-       FROM LICENSE_DEVICE
-       WHERE LicenseID = ?
-       ORDER BY LastSeen DESC`,
-      [params.licenseId],
-      conn,
-    );
-  }
-
-  /**
-   * Thu hồi một thiết bị.
-   * @param {{ deviceId: string, licenseId: string }} params
-   */
-  async thuHoiThietBi(params = {}, conn = null) {
-    const result = await this.query(
-      `UPDATE LICENSE_DEVICE SET Status = 'Revoked', RevokedReason = 'User'
-       WHERE DeviceID = ? AND LicenseID = ?`,
-      [params.deviceId, params.licenseId],
-      conn,
-    );
-    return result.affectedRows;
-  }
-
-  /**
-   * verify-launch: Kiểm tra đồng thời LICENSE + ACCOUNT + LICENSE_DEVICE đều Active.
-   * @param {{ licenseId: string, customerId: string, deviceFingerprint: string }} params
+   * verify-launch: Kiểm tra đồng thời LICENSE + ACCOUNT đều Active.
+   * @param {{ licenseId: string, customerId: string }} params
    */
   async kiemTraHopLeTheoThoiGianThuc(params = {}, conn = null) {
     return this.one(
       `SELECT l.LicenseID, l.Status AS LicenseStatus,
-              a.Status AS AccountStatus,
-              ld.Status AS DeviceStatus
+              a.Status AS AccountStatus
        FROM LICENSE l
        INNER JOIN ACCOUNT a ON a.AccountID = l.CustomerID
-       LEFT JOIN LICENSE_DEVICE ld
-         ON ld.LicenseID = l.LicenseID AND ld.DeviceFingerprint = ?
        WHERE l.LicenseID = ? AND l.CustomerID = ?
        LIMIT 1`,
-      [params.deviceFingerprint, params.licenseId, params.customerId],
+      [params.licenseId, params.customerId],
       conn,
     );
   }
