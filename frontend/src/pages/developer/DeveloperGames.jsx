@@ -59,7 +59,7 @@ function DrmBadge({ hasDrmJs, hasManifest, status }) {
 }
 
 // ─── Modal Upload Patch ───────────────────────────────────────────────────────
-function UploadPatchModal({ game, onClose, onSuccess }) {
+export function UploadPatchModal({ game, onClose, onSuccess }) {
   const [versionNumber, setVersionNumber] = useState('');
   const [changeLog, setChangeLog] = useState('');
   const [file, setFile] = useState(null);
@@ -145,7 +145,7 @@ function UploadPatchModal({ game, onClose, onSuccess }) {
 }
 
 // ─── Modal Rollback ───────────────────────────────────────────────────────────
-function RollbackModal({ game, onClose, onSuccess }) {
+export function RollbackModal({ game, onClose, onSuccess }) {
   const gameId = game.id ?? game.GameID;
   const [versions, setVersions] = useState([]);
   const [loading, setLoading] = useState(true);

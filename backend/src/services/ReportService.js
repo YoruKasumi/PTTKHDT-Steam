@@ -1,12 +1,15 @@
 'use strict';
 const BaseService = require('./BaseService');
 const ReportDAO = require('../dao/ReportDAO');
+const SystemConfigDAO = require('../dao/SystemConfigDAO');
+const { getPlatformCommissionRate } = require('../utils/platformCommission');
 const { ValidationException } = require('../exceptions');
 
 class ReportService extends BaseService {
-  constructor(reportDAO = new ReportDAO()) {
+  constructor(reportDAO = new ReportDAO(), systemConfigDAO = new SystemConfigDAO()) {
     super();
     this.reportDAO = reportDAO;
+    this.systemConfigDAO = systemConfigDAO;
   }
 
 
@@ -14,14 +17,17 @@ class ReportService extends BaseService {
     const developerId = params.user?.accountId || params.developerId;
     if (!developerId) throw new ValidationException('Thiếu định danh Nhà phát hành');
 
-    const transactions = await this.reportDAO.truyVanGiaoDichThanhCong({
-      developerId,
-      fromDate: params.fromDate,
-      toDate: params.toDate
-    });
-    const totalRefunds = await this.reportDAO.truyVanTongTienHoanTra({ developerId });
+    const [transactions, totalRefunds, commissionRate] = await Promise.all([
+      this.reportDAO.truyVanGiaoDichThanhCong({
+        developerId,
+        fromDate: params.fromDate,
+        toDate: params.toDate
+      }),
+      this.reportDAO.truyVanTongTienHoanTra({ developerId }),
+      getPlatformCommissionRate(this.systemConfigDAO),
+    ]);
 
-    const summary = this.tinhTongDoanhThuVaSoLuongBan({ transactions, totalRefunds });
+    const summary = this.tinhTongDoanhThuVaSoLuongBan({ transactions, totalRefunds, commissionRate });
 
     return {
       success: true,
@@ -33,7 +39,7 @@ class ReportService extends BaseService {
         price: Number(t.Price),
         unitsSold: Number(t.UnitsSold || 0),
         grossRevenue: Number(t.GrossSales || 0),
-        devShareEstimate: Number(t.GrossSales || 0) * 0.7
+        devShareEstimate: Number(t.GrossSales || 0) * (1 - commissionRate)
       }))
     };
   }
@@ -43,14 +49,17 @@ class ReportService extends BaseService {
     const developerId = params.user?.accountId || params.developerId;
     if (!developerId) throw new ValidationException('Thiếu định danh Nhà phát hành');
 
-    const rawData = await this.reportDAO.truyVanDuLieuDoiSoatKyNay({
-      developerId,
-      fromDate: params.fromDate,
-      toDate: params.toDate
-    });
-    const totalRefunds = await this.reportDAO.truyVanTongTienHoanTra({ developerId });
+    const [rawData, totalRefunds, commissionRate] = await Promise.all([
+      this.reportDAO.truyVanDuLieuDoiSoatKyNay({
+        developerId,
+        fromDate: params.fromDate,
+        toDate: params.toDate
+      }),
+      this.reportDAO.truyVanTongTienHoanTra({ developerId }),
+      getPlatformCommissionRate(this.systemConfigDAO),
+    ]);
 
-    const calculated = this.tinhDoanhThuPhiSanHoanTienThucNhan({ rawData, totalRefunds });
+    const calculated = this.tinhDoanhThuPhiSanHoanTienThucNhan({ rawData, totalRefunds, commissionRate });
     const statementFile = this.taoTepBangKeDoiSoat({ developerId, calculated });
 
     return {
@@ -71,6 +80,7 @@ class ReportService extends BaseService {
 
   tinhTongDoanhThuVaSoLuongBan(params = {}) {
     const { transactions = [], totalRefunds = 0 } = params;
+    const commissionRate = Number(params.commissionRate ?? 0.3);
     let totalUnitsSold = 0;
     let totalGrossRevenue = 0;
 
@@ -79,15 +89,16 @@ class ReportService extends BaseService {
       totalGrossRevenue += Number(item.GrossSales || 0);
     }
 
-    const platformFeeRate = 0.3; // Phí sàn Steam 30%
-    const netRevenue = (totalGrossRevenue - totalRefunds) * (1 - platformFeeRate);
+    const platformFeeRate = commissionRate;
+    const netSales = Math.max(0, totalGrossRevenue - totalRefunds);
+    const netRevenue = netSales * (1 - platformFeeRate);
 
     return {
       totalUnitsSold,
       totalGrossRevenue,
       totalRefunds,
-      platformFeeRate: '30%',
-      platformFee: (totalGrossRevenue - totalRefunds) * platformFeeRate,
+      platformFeeRate: `${Number((platformFeeRate * 100).toFixed(2))}%`,
+      platformFee: netSales * platformFeeRate,
       netRevenue: Math.max(0, netRevenue)
     };
   }
@@ -95,7 +106,8 @@ class ReportService extends BaseService {
   tinhDoanhThuPhiSanHoanTienThucNhan(params = {}) {
     return this.tinhTongDoanhThuVaSoLuongBan({
       transactions: params.rawData,
-      totalRefunds: params.totalRefunds
+      totalRefunds: params.totalRefunds,
+      commissionRate: params.commissionRate,
     });
   }
 

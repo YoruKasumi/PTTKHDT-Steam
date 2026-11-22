@@ -15,6 +15,14 @@ class ProfileService extends BaseService {
 
   // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)
 
+  async getProfile(params = {}) {
+    const accountId = params.user?.accountId;
+    if (!accountId) throw new UnauthorizedException();
+    const profile = await this.accountDAO.layHoSoCaNhan({ accountId });
+    if (!profile) throw new NotFoundException('Không tìm thấy tài khoản');
+    return this.toProfileResponse(profile);
+  }
+
   /**
    * UC4. Cập nhật hồ sơ cá nhân - sequence #3: UI → ProfileService
    * Vai trò gọi: Authenticated
@@ -81,6 +89,7 @@ class ProfileService extends BaseService {
       displayName: profile.DisplayName,
       avatarUrl: profile.AvatarUrl,
       notifyEnabled: Boolean(profile.NotifyEnabled),
+      createdAt: profile.CreatedAt,
     };
   }
 

@@ -179,7 +179,7 @@ class AccountDAO extends BaseDAO {
 
   async layHoSoCaNhan(params = {}, conn = null) {
     return this.one(
-      `SELECT AccountID, Username, Email, DisplayName, AvatarUrl, NotifyEnabled
+      `SELECT AccountID, Username, Email, DisplayName, AvatarUrl, NotifyEnabled, CreatedAt
        FROM ACCOUNT WHERE AccountID = ? LIMIT 1`,
       [params.accountId],
       conn,
