@@ -39,7 +39,7 @@ test('RBAC permission catalogue exposes required moderation and finance codes', 
   const service = new RbacService();
   const permissions = await service.listPermissions();
   const codes = permissions.map(({ code }) => code);
-  for (const code of ['game.approve', 'game.delist', 'withdrawal.approve', 'review.moderate']) {
+  for (const code of ['game.approve', 'game.delist', 'finance.read', 'review.moderate']) {
     assert.ok(codes.includes(code));
   }
 });

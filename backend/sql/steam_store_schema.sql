@@ -372,7 +372,7 @@ CREATE TABLE GAMEREVIEW (
   PRIMARY KEY (CheckID),
   KEY idx_gr_game (GameID, CheckedAt),
   CONSTRAINT fk_gr_game    FOREIGN KEY (GameID)    REFERENCES GAME(GameID) ON DELETE CASCADE,
-  CONSTRAINT fk_gr_manager FOREIGN KEY (ManagerID) REFERENCES MANAGER(AccountID),
+  CONSTRAINT fk_gr_manager FOREIGN KEY (ManagerID) REFERENCES ACCOUNT(AccountID) ON DELETE CASCADE,
   CONSTRAINT ck_gr_reason CHECK (Decision <> 'Rejected' OR (Reason IS NOT NULL AND Reason <> ''))
 ) ENGINE=InnoDB;
 

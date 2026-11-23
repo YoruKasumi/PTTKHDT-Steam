@@ -41,10 +41,11 @@ export default function AdminGames() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadGames = async (status = statusFilter) => {
+    const targetStatus = typeof status === 'string' ? status : statusFilter;
     setLoading(true);
     setError('');
     try {
-      const data = await moderationApi.listPendingGames({ status });
+      const data = await moderationApi.listPendingGames({ status: targetStatus });
       setGames(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err?.message || 'Lỗi tải danh sách game chờ duyệt.');
@@ -95,13 +96,17 @@ export default function AdminGames() {
       const res = await moderationApi.reviewGame(game.gameId ?? game.id, decision, reason || undefined);
       setNotice(
         `Game "${game.title}" đã được ${
-          decision === 'Approved' ? 'phê duyệt thành công!' : decision === 'Rejected' ? 'từ chối.' : 'gỡ bỏ khẩn cấp.'
+          decision === 'Approved'
+            ? 'phê duyệt thành công và đưa lên cửa hàng (Chuyển sang trạng thái Approved)!'
+            : decision === 'Rejected'
+            ? 'từ chối phát hành.'
+            : 'gỡ bỏ khẩn cấp.'
         }${res?.autoWrapped ? ' (Hệ thống đã tự động bọc DRM an toàn)' : ''}`,
       );
       setActionTarget(null);
       setActionReason('');
       if (selectedGame) closeDetail();
-      await loadGames();
+      await loadGames(statusFilter);
     } catch (err) {
       setError(err?.message || 'Thao tác kiểm duyệt thất bại.');
     } finally {
@@ -164,7 +169,7 @@ export default function AdminGames() {
         </div>
         <button
           type="button"
-          onClick={loadGames}
+          onClick={() => loadGames()}
           disabled={loading}
           className="rounded-lg border border-line bg-page px-4 py-2 text-sm font-semibold text-zinc-300 hover:text-white"
         >
@@ -262,7 +267,7 @@ export default function AdminGames() {
               {!filteredGames.length && !loading && (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-muted">
-                    Không có trò chơi nào phù hợp với bộ lọc.
+                    Không có trò chơi nào ở trạng thái &ldquo;{statusFilter}&rdquo;.
                   </td>
                 </tr>
               )}
@@ -325,16 +330,14 @@ export default function AdminGames() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-indigo-500/20 bg-page/50 p-3 space-y-1.5 font-mono text-xs">
-                  <p className="m-0 font-bold text-accent-light">Thông số gói cài đặt .zip</p>
-                  <p className="m-0 text-zinc-400">File key: {selectedGame.buildFile || '—'}</p>
-                  <p className="m-0 text-zinc-400">Dung lượng: {formatBytes(selectedGame.fileSize)}</p>
-                  <p className="m-0 text-zinc-400 truncate" title={selectedGame.sha256}>SHA-256: {selectedGame.sha256 || '—'}</p>
-                  <p className="m-0 text-zinc-400">Changelog: {selectedGame.changeLog || '—'}</p>
-                </div>
-
-                <div className="rounded-lg bg-indigo-950/40 p-3 text-xs text-violet-300 border border-indigo-500/30">
-                  ℹ Lưu ý kiểm duyệt: Khi bấm <strong>Phê duyệt</strong>, hệ thống sẽ tự động quét virus và bọc DRM HTML5 qua <code>autoDrmPackager</code> nếu game chưa tích hợp sẵn DRM SDK.
+                <div className="rounded-xl border border-white/10 bg-page/50 p-3 space-y-1 text-xs">
+                  <p className="m-0 font-bold text-white">Thông tin gói cài đặt (Build Package)</p>
+                  <p className="m-0 text-muted">Đường dẫn lưu trữ: <span className="font-mono text-zinc-300">{selectedGame.buildFile || '—'}</span></p>
+                  <p className="m-0 text-muted">Dung lượng: <span className="text-zinc-300">{formatBytes(selectedGame.fileSize)}</span></p>
+                  <p className="m-0 text-muted break-all">Mã băm SHA-256: <span className="font-mono text-zinc-300">{selectedGame.sha256 || '—'}</span></p>
+                  {selectedGame.changeLog && (
+                    <p className="m-0 text-muted">Ghi chú phiên bản: <span className="italic text-zinc-300">{selectedGame.changeLog}</span></p>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
@@ -349,14 +352,22 @@ export default function AdminGames() {
                     <>
                       <button
                         type="button"
-                        onClick={() => setActionTarget({ game: selectedGame, decision: 'Rejected' })}
+                        onClick={() => {
+                          const target = { ...selectedGame };
+                          closeDetail();
+                          setActionTarget({ game: target, decision: 'Rejected' });
+                        }}
                         className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-500"
                       >
                         Từ chối phát hành
                       </button>
                       <button
                         type="button"
-                        onClick={() => setActionTarget({ game: selectedGame, decision: 'Approved' })}
+                        onClick={() => {
+                          const target = { ...selectedGame };
+                          closeDetail();
+                          setActionTarget({ game: target, decision: 'Approved' });
+                        }}
                         className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-500"
                       >
                         Phê duyệt phát hành
@@ -366,7 +377,11 @@ export default function AdminGames() {
                   {selectedGame.status === 'Approved' && (
                     <button
                       type="button"
-                      onClick={() => setActionTarget({ game: selectedGame, decision: 'EmergencyDelist' })}
+                      onClick={() => {
+                        const target = { ...selectedGame };
+                        closeDetail();
+                        setActionTarget({ game: target, decision: 'EmergencyDelist' });
+                      }}
                       className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-500"
                     >
                       Gỡ khẩn cấp
@@ -401,7 +416,7 @@ export default function AdminGames() {
             ) : (
               <div>
                 <label className="block text-xs font-bold text-muted mb-1">
-                Lý do {actionTarget.decision === 'Rejected' || actionTarget.decision === 'EmergencyDelist' ? '(bắt buộc)' : '(tùy chọn)'}:
+                  Lý do {actionTarget.decision === 'Rejected' || actionTarget.decision === 'EmergencyDelist' ? '(bắt buộc)' : '(tùy chọn)'}:
                 </label>
                 <textarea
                   value={actionReason}
