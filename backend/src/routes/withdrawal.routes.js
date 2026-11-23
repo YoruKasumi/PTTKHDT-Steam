@@ -1,6 +1,6 @@
 'use strict';
 const express = require('express');
-const { authenticate, authorize, requirePermission } = require('../middlewares/auth');
+const { authenticate, authorize } = require('../middlewares/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const requestContext = require('../utils/requestContext');
 const { ok } = require('../utils/response');
@@ -15,14 +15,5 @@ router.post('/guiYeuCauRutDoanhThu', authenticate, authorize('Developer'), async
 router.get('/layDanhSachYeuCauRutTien', authenticate, authorize('Developer'), asyncHandler(async (req, res) => (
   ok(res, await withdrawalService.layDanhSachYeuCauRutTien(requestContext(req)))
 )));
-
-/** UC57. Phê duyệt rút doanh thu (#2)  | quyền: Admin, Manager */
-router.post('/layChiTietLenhRutTien', authenticate, authorize('Admin', 'Manager'), requirePermission('withdrawal.approve'), asyncHandler(async (req, res) => ok(res, await withdrawalService.layChiTietLenhRutTien(requestContext(req)))));
-
-/** UC57. Phê duyệt rút doanh thu (#7)  | quyền: Admin, Manager */
-router.post('/guiYeuCauTuChoi', authenticate, authorize('Admin', 'Manager'), requirePermission('withdrawal.approve'), asyncHandler(async (req, res) => ok(res, await withdrawalService.guiYeuCauTuChoi(requestContext(req)))));
-
-/** UC57. Phê duyệt rút doanh thu (#13)  | quyền: Admin, Manager */
-router.post('/guiYeuCauChuyenKhoan', authenticate, authorize('Admin', 'Manager'), requirePermission('withdrawal.approve'), asyncHandler(async (req, res) => ok(res, await withdrawalService.guiYeuCauChuyenKhoan(requestContext(req)))));
 
 module.exports = router;

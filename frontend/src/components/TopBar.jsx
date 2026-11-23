@@ -4,7 +4,6 @@ import { useShop } from '../context/ShopContext';
 import { formatVnd } from '../utils/format';
 import { notificationApi } from '../api/notification';
 import { authApi } from '../api/auth';
-import { getRoleLandingPath } from '../utils/roleLanding';
 
 const guestLinks = [
   { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
@@ -17,35 +16,6 @@ const customerLinks = [
   { to: '/library', icon: 'icon-library.svg', label: 'Thư viện' },
   { to: '/wishlist', icon: 'icon-heart.svg', label: 'Danh sách mong muốn' },
   { to: '/search', icon: 'icon-filter.svg', label: 'Bộ lọc tìm kiếm' },
-];
-
-const developerLinks = [
-  { to: '/developer/games', label: 'Dự án game' },
-  { to: '/developer/patches', label: 'Bản vá' },
-  { to: '/developer/keys', label: 'Mã bản quyền' },
-  { to: '/developer/revenue', label: 'Doanh thu' },
-];
-
-const adminLinks = [
-  { to: '/admin/accounts', label: 'Tài khoản' },
-  { to: '/admin/games', label: 'Duyệt game' },
-  { to: '/admin/withdrawals', label: 'Lệnh rút tiền' },
-  { to: '/admin/staff', label: 'Nhân sự' },
-  { to: '/admin/rbac', label: 'Phân quyền' },
-  { to: '/admin/genres-banners', label: 'Thể loại & Banner' },
-  { to: '/finance/overview', label: 'Tài chính' },
-  { to: '/admin/system-config', label: 'Cấu hình' },
-  { to: '/admin/audit-logs', label: 'Nhật ký' },
-];
-
-const managerLinks = [
-  { to: '/admin/accounts', label: 'Tài khoản', permission: 'account.moderate' },
-  { to: '/admin/games', label: 'Duyệt game', permission: 'game.approve' },
-  { to: '/admin/reviews', label: 'Đánh giá', permission: 'review.moderate' },
-  { to: '/moderation/community', label: 'Cộng đồng', permission: 'community.moderate' },
-  { to: '/admin/withdrawals', label: 'Lệnh rút tiền', permission: 'withdrawal.approve' },
-  { to: '/finance/overview', label: 'Tài chính', permission: 'finance.read' },
-  { to: '/admin/genres-banners', label: 'Thể loại & Banner', permission: 'genres.manage' },
 ];
 
 const btn = ({ isActive }) =>
@@ -76,15 +46,6 @@ export default function TopBar() {
   const isManager = roles.includes('Manager') && !isAdmin && !isDeveloper;
   const isCustomer = user && !isAdmin && !isDeveloper && !isManager;
   const isGuest = !user;
-  const homePath = getRoleLandingPath(user);
-
-  const portalLinks = isAdmin
-    ? adminLinks
-    : isDeveloper
-      ? developerLinks
-      : isManager
-        ? managerLinks.filter((link) => (user?.permissions || []).includes(link.permission))
-        : [];
 
   const [openMenu, setOpenMenu] = useState('');
   const [notifications, setNotifications] = useState([]);
@@ -152,6 +113,25 @@ export default function TopBar() {
     }
   };
 
+  if (!isGuest && !isCustomer) {
+    return (
+      <div className="flex h-[51px] items-center justify-end bg-topbar px-3 sm:px-[50px]">
+        <div className="flex items-center gap-2">
+          <Link to="/profile" className="rounded px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 sm:text-sm">
+            Thông tin cá nhân
+          </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="rounded bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/20 sm:text-sm"
+          >
+            Đăng xuất
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[51px] items-center justify-between bg-topbar px-3 sm:px-[50px]">
       <nav
@@ -173,26 +153,7 @@ export default function TopBar() {
               ) : null}
             </NavLink>
           ))
-        ) : (
-          <>
-            <NavLink to={homePath} end className={btn} aria-label="Trang chủ" title="Trang chủ">
-              <img className="h-[30px] w-auto" src="/assets/icon-home.svg" alt="" />
-            </NavLink>
-            {portalLinks.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                className={({ isActive }) =>
-                  `rounded px-2.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm whitespace-nowrap transition-colors ${
-                    isActive ? 'bg-[#211833] text-white shadow-[inset_0_-2px_0_0_#a18dff]' : 'text-violet-200 hover:bg-white/5'
-                  }`
-                }
-              >
-                {link.label}
-              </NavLink>
-            ))}
-          </>
-        )}
+        ) : null}
       </nav>
       <div className="flex gap-2.5 sm:gap-[30px]">
         {(user?.roles?.includes('Customer') || user?.roles?.includes('Developer')) ? (

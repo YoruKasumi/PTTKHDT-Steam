@@ -117,7 +117,6 @@ INSERT INTO ROLE_PERMISSION (RoleID, PermissionCode) VALUES
   ('R01', 'audit.read'),
   ('R01', 'game.approve'),
   ('R01', 'game.delist'),
-  ('R01', 'withdrawal.approve'),
   ('R01', 'review.moderate');
 
 INSERT INTO MANAGER (AccountID, RoleID) VALUES

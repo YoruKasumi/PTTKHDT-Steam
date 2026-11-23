@@ -5,6 +5,7 @@ import FeedbackDialog from '../common/FeedbackDialog';
 
 const inputClass =
   'mt-1.5 w-full rounded-lg border border-line bg-page px-3 py-2.5 text-sm text-white outline-none focus:border-accent';
+const MAX_COVER_SIZE = 10 * 1024 * 1024;
 
 /**
  * Modal tạo dự án game mới.
@@ -79,6 +80,10 @@ export default function NewProjectModal({ onClose, onCreate }) {
     }
     if (!coverFile) {
       setError('Vui lòng tải lên ảnh bìa đại diện (Cover Image) cho game (.jpg, .png, .webp).');
+      return;
+    }
+    if (coverFile.size > MAX_COVER_SIZE) {
+      setError('Ảnh poster tối đa 10 MB. Vui lòng chọn tệp nhỏ hơn.');
       return;
     }
     if (!file || !file.name.toLowerCase().endsWith('.zip')) {
@@ -295,11 +300,21 @@ export default function NewProjectModal({ onClose, onCreate }) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm text-muted">
-              Ảnh bìa Poster game (.jpg, .png, .webp) *
+              Ảnh bìa Poster game (.jpg, .png, .webp · tối đa 10 MB) *
               <input
                 type="file"
                 accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  const selected = event.target.files?.[0] ?? null;
+                  if (selected && selected.size > MAX_COVER_SIZE) {
+                    setCoverFile(null);
+                    setError('Ảnh poster tối đa 10 MB. Vui lòng chọn tệp nhỏ hơn.');
+                    event.target.value = '';
+                    return;
+                  }
+                  setError('');
+                  setCoverFile(selected);
+                }}
                 className={`${inputClass} file:mr-3 file:rounded file:border-0 file:bg-accent file:px-2 file:py-1 file:text-white`}
                 required
               />

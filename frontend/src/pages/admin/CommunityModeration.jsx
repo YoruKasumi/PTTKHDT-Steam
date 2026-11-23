@@ -67,9 +67,6 @@ export default function CommunityModeration() {
       title="Kiểm duyệt cộng đồng"
       description="Quản lý nội dung đánh giá game hiện có, cập nhật trạng thái và ghi nhận lý do xử lý."
     >
-      <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200">
-        Schema hiện tại chỉ lưu đánh giá game, chưa lưu báo cáo hoặc cờ vi phạm; danh sách này gồm các đánh giá hiện có.
-      </p>
       {error ? <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p> : null}
       {notice ? <p role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">{notice}</p> : null}
 

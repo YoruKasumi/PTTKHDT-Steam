@@ -13,8 +13,6 @@ import DeveloperKeys from './pages/developer/DeveloperKeys';
 import DeveloperRevenue from './pages/developer/DeveloperRevenue';
 import AdminAccounts from './pages/admin/AdminAccounts';
 import AdminGames from './pages/admin/AdminGames';
-import AdminWithdrawals from './pages/admin/AdminWithdrawals';
-import AdminKeyApprovals from './pages/admin/AdminKeyApprovals';
 import AdminRoles from './pages/admin/AdminRoles';
 import AdminStaff from './pages/admin/AdminStaff';
 import AdminReviews from './pages/admin/AdminReviews';
@@ -48,7 +46,6 @@ function getRouteAccess(path) {
     return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['genres.manage', 'banners.manage'] };
   }
   if (path === '/admin/games') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['game.approve'] };
-  if (path === '/admin/withdrawals') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['withdrawal.approve'] };
   if (path.startsWith('/admin/')) return { allowedRoles: ['Admin'] };
   if (path.startsWith('/moderation/')) {
     return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['review.moderate', 'community.moderate'] };
@@ -86,8 +83,6 @@ export const pendingScreens = [
   { path: "/admin/genres-banners", title: "Thể loại và banner", uc: "UC48-49 GenreService, BannerService" },
   { path: "/admin/audit-logs", title: "Nhật ký quản trị", uc: "UC60 AuditLogService" },
   { path: "/admin/games", title: "Kiểm duyệt phát hành game", node: "146:2", uc: "UC38-41 ModerationService" },
-  { path: "/admin/keys", title: "Phê duyệt kích hoạt Key", node: "146:44", uc: "chưa có trong sequence" },
-  { path: "/admin/withdrawals", title: "Duyệt rút doanh thu", node: "146:66", uc: "UC57 WithdrawalService" },
   { path: "/moderation/community", title: "Kiểm duyệt cộng đồng", uc: "UC47 ModerationService" },
   { path: "/finance/overview", title: "Tài chính sàn", uc: "UC50-56 FinanceService" },
   { path: "/admin/system-config", title: "Cấu hình hệ thống", node: "147:2", uc: "UC58 SystemConfigService" },
@@ -128,10 +123,8 @@ export const routes = [
         '/admin/system-config': <AdminSystemConfig />,
         '/admin/audit-logs': <AdminAuditLogs />,
         '/admin/games': <AdminGames />,
-        '/admin/withdrawals': <AdminWithdrawals />,
         '/moderation/community': <CommunityModeration />,
         '/finance/overview': <AdminFinance />,
-        '/admin/keys': <AdminKeyApprovals />,
       }[screen.path] ?? <ScreenPlaceholder screen={screen} />,
       ...getRouteAccess(screen.path),
     })),

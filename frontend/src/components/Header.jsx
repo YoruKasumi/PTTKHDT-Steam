@@ -5,18 +5,13 @@ import { getRoleLandingPath } from '../utils/roleLanding';
 
 /** Khối logo + ô tìm kiếm + giỏ hàng (Figma: node 1:304). */
 export default function Header() {
-  const { cart, logout, user } = useShop();
+  const { cart, user } = useShop();
   const [keyword, setKeyword] = useState('');
   const navigate = useNavigate();
 
   const submit = (e) => {
     e.preventDefault();
     navigate(`/search/results?keyword=${encodeURIComponent(keyword.trim())}`);
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
   };
 
   const roles = user?.roles || [];
@@ -60,13 +55,9 @@ export default function Header() {
           <span className="absolute -right-2 -top-2 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-white">{cart.length}</span>
         ) : null}
       </Link> : null}
-      <div className="flex items-center gap-2" aria-label="Tài khoản">
-        {user ? <button
-          type="button"
-          onClick={handleLogout}
-          className="rounded border border-accent/40 bg-page px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 md:text-sm"
-        >Đăng xuất</button> : <Link to="/login" className="rounded border border-accent/40 bg-page px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 md:text-sm">Đăng nhập</Link>}
-      </div>
+      {!isPortalUser && !user ? <div className="flex items-center gap-2" aria-label="Tài khoản">
+        <Link to="/login" className="rounded border border-accent/40 bg-page px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 md:text-sm">Đăng nhập</Link>
+      </div> : null}
     </header>
   );
 }

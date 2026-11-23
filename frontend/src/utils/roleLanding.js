@@ -3,7 +3,6 @@ const managerLandingPages = [
   ['game.approve', '/admin/games'],
   ['review.moderate', '/admin/reviews'],
   ['community.moderate', '/moderation/community'],
-  ['withdrawal.approve', '/admin/withdrawals'],
   ['finance.read', '/finance/overview'],
   ['genres.manage', '/admin/genres-banners'],
   ['banners.manage', '/admin/genres-banners'],

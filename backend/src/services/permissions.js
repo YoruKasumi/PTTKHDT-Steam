@@ -3,7 +3,6 @@
 const PERMISSIONS = [
   { code: 'game.approve', label: 'Phê duyệt game' },
   { code: 'game.delist', label: 'Gỡ game khỏi cửa hàng' },
-  { code: 'withdrawal.approve', label: 'Duyệt lệnh rút tiền' },
   { code: 'finance.read', label: 'Xem báo cáo tài chính' },
   { code: 'review.moderate', label: 'Kiểm duyệt đánh giá' },
   { code: 'community.moderate', label: 'Kiểm duyệt nội dung cộng đồng' },
