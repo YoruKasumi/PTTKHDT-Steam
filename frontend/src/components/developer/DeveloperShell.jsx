@@ -1,7 +1,6 @@
 import { NavLink } from 'react-router-dom';
 
 const links = [
-  { to: '/developer/register', label: 'Đăng ký nhà phát hành' },
   { to: '/developer/profile', label: 'Hồ sơ pháp nhân' },
   { to: '/developer/games', label: 'Dự án game' },
   { to: '/developer/patches', label: 'Bản vá' },

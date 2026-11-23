@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
+import { getRoleLandingPath } from '../utils/roleLanding';
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('user') || sessionStorage.getItem('user');
@@ -18,11 +19,11 @@ export default function RouteGuard({ allowedRoles, allowedPermissions = [], chil
   const user = getStoredUser();
   const roles = user?.roles || [];
   if (!allowedRoles.some((role) => roles.includes(role))) {
-    return <Navigate to="/" replace state={{ accessDenied: true }} />;
+    return <Navigate to={getRoleLandingPath(user)} replace state={{ accessDenied: true }} />;
   }
   if (allowedPermissions.length && !roles.includes('Admin')
     && !allowedPermissions.some((permission) => (user?.permissions || []).includes(permission))) {
-    return <Navigate to="/" replace state={{ accessDenied: true }} />;
+    return <Navigate to={getRoleLandingPath(user)} replace state={{ accessDenied: true }} />;
   }
   return children;
 }

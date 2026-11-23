@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import DeveloperShell from '../../components/developer/DeveloperShell';
 import { formatVnd } from '../../utils/format';
 import { useShop } from '../../context/ShopContext';
 import { developerApi } from '../../api/developer';
@@ -16,7 +15,7 @@ const activationKeys = [
 
 export default function DeveloperRegistration() {
   const navigate = useNavigate();
-  const { balance = 0, refreshShop } = useShop();
+  const { balance = 0, refreshShop, user, updateUser } = useShop();
   const [studio, setStudio] = useState('Vortex');
   const [bankAccount, setBankAccount] = useState('VCB - 0071001294821 - NGUYEN VAN A');
   const [productKey, setProductKey] = useState('');
@@ -42,6 +41,7 @@ export default function DeveloperRegistration() {
         bankAccount: bankAccount.trim(),
         feeAmount: fee,
       });
+      if (user) updateUser({ ...user, roles: [...new Set([...(user.roles || []), 'Developer'])] });
       setMessage('Đăng ký Nhà phát hành thành công! Hệ thống đang chuyển hướng...');
       await refreshShop();
       setTimeout(() => navigate('/developer/games'), 1200);
@@ -69,10 +69,12 @@ export default function DeveloperRegistration() {
   };
 
   return (
-    <DeveloperShell
-      title="Đăng ký Nhà phát hành"
-      description="Tạo hồ sơ Studio, liên kết tài khoản nhận doanh thu và gửi yêu cầu kích hoạt quyền phát hành."
-    >
+    <div className="mx-auto w-full max-w-[1440px] space-y-5 px-4 pb-20 pt-10 md:px-8">
+      <header className="rounded-2xl border border-accent/30 bg-gradient-to-r from-slate-900 via-card to-page p-6 shadow-xl">
+        <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-accent-light">Phân hệ khách hàng</p>
+        <h1 className="mb-2 mt-3 text-2xl font-extrabold md:text-3xl">Đăng ký tài khoản nhà phát hành</h1>
+        <p className="m-0 max-w-3xl text-sm text-muted">Tạo hồ sơ Studio, liên kết tài khoản nhận doanh thu và kích hoạt quyền phát hành.</p>
+      </header>
       <div className="grid gap-5 xl:grid-cols-2">
         <form onSubmit={activateDeveloper} className="space-y-5 rounded-2xl border border-indigo-950 bg-card p-5 md:p-7">
           <h2 className="m-0 text-lg font-bold">Thông tin nhà phát hành</h2>
@@ -168,6 +170,6 @@ export default function DeveloperRegistration() {
           {message}
         </div>
       ) : null}
-    </DeveloperShell>
+    </div>
   );
 }

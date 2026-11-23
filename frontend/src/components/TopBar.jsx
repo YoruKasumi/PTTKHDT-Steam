@@ -13,8 +13,27 @@ const links = [
   { to: '/search', icon: 'icon-filter.svg', label: 'Bộ lọc tìm kiếm' },
 ];
 
+const developerLinks = [
+  { to: '/developer/games', label: 'Dự án game' },
+  { to: '/developer/patches', label: 'Bản vá' },
+  { to: '/developer/keys', label: 'Mã bản quyền' },
+  { to: '/developer/revenue', label: 'Doanh thu' },
+];
+const adminLinks = [
+  { to: '/admin/accounts', label: 'Tài khoản' },
+  { to: '/admin/games', label: 'Duyệt game' },
+  { to: '/admin/withdrawals', label: 'Lệnh rút tiền' },
+];
+const managerLinks = [
+  { to: '/admin/accounts', label: 'Tài khoản', permission: 'account.moderate' },
+  { to: '/admin/games', label: 'Duyệt game', permission: 'game.approve' },
+  { to: '/admin/reviews', label: 'Đánh giá', permission: 'review.moderate' },
+  { to: '/moderation/community', label: 'Cộng đồng', permission: 'community.moderate' },
+  { to: '/finance/overview', label: 'Tài chính', permission: 'finance.read' },
+];
+
 const btn = ({ isActive }) =>
-  `relative flex h-11 w-12 items-center justify-center bg-page sm:w-[70px] ${isActive ? 'outline outline-1 outline-accent' : ''}`;
+  `relative flex h-11 w-12 items-center justify-center bg-[#15111f] transition-colors hover:bg-[#241b38] sm:w-[70px] ${isActive ? 'bg-[#211833] shadow-[inset_0_-2px_0_0_#a18dff]' : ''}`;
 
 function timeAgo(dateString) {
   if (!dateString) return '';
@@ -35,6 +54,18 @@ function timeAgo(dateString) {
 export default function TopBar() {
   const navigate = useNavigate();
   const { cart, balance, user, shopError, logout } = useShop();
+  const roles = user?.roles || [];
+  const isAdmin = roles.includes('Admin');
+  const isDeveloper = roles.includes('Developer') && !isAdmin;
+  const isManager = roles.includes('Manager') && !isAdmin && !isDeveloper;
+  const isStoreUser = !user || (!isAdmin && !isDeveloper && !isManager);
+  const portalLinks = isAdmin
+    ? adminLinks
+    : isDeveloper
+      ? developerLinks
+      : isManager
+        ? managerLinks.filter((link) => (user?.permissions || []).includes(link.permission))
+        : [];
   const [openMenu, setOpenMenu] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -103,18 +134,22 @@ export default function TopBar() {
 
   return (
     <div className="flex h-[51px] items-center justify-between bg-topbar px-3 sm:px-[50px]">
-      <nav className="flex gap-2.5 sm:gap-[30px]">
-        {links.map((l) => (
+      <nav className="flex gap-2.5 sm:gap-[30px]" aria-label={isStoreUser ? 'Điều hướng cửa hàng' : 'Điều hướng khu vực làm việc'}>
+        {isStoreUser ? links.map((l) => (
           <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.to === '/cart' ? `${l.label} (${cart.length})` : l.label} title={l.label}>
             <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
             {l.to === '/cart' && cart.length ? (
               <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-white">{cart.length}</span>
             ) : null}
           </NavLink>
+        )) : portalLinks.map((link) => (
+          <NavLink key={link.to} to={link.to} className={({ isActive }) => `rounded px-2 py-2 text-xs font-semibold sm:px-3 sm:text-sm ${isActive ? 'bg-[#211833] text-white' : 'text-violet-200 hover:bg-white/5'}`}>
+            {link.label}
+          </NavLink>
         ))}
       </nav>
       <div className="flex gap-2.5 sm:gap-[30px]">
-        {user?.roles?.includes('Customer') ? (
+        {(user?.roles?.includes('Customer') || user?.roles?.includes('Developer')) ? (
           <Link to="/wallet" className="flex items-center rounded-md px-2 text-xs font-bold text-emerald-300 hover:bg-white/5 sm:text-sm" aria-label={`Số dư ví ${formatVnd(balance)}`}>
             {formatVnd(balance)}
           </Link>
@@ -212,9 +247,21 @@ export default function TopBar() {
               <Link to="/profile" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
                 Thông tin cá nhân
               </Link>
-              <Link to="/wallet" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
-                Ví
-              </Link>
+              {(user?.roles?.includes('Customer') || user?.roles?.includes('Developer')) ? (
+                <Link to="/wallet" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
+                  Ví
+                </Link>
+              ) : null}
+              {user?.roles?.includes('Customer') ? (
+                <Link to="/orders" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/10">
+                  Lịch sử đơn hàng
+                </Link>
+              ) : null}
+              {user?.roles?.includes('Customer') && !user?.roles?.includes('Developer') ? (
+                <Link to="/developer/register" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-violet-200 hover:bg-violet-500/10">
+                  Đăng ký nhà phát hành
+                </Link>
+              ) : null}
               <Link to="/settings" onClick={() => setOpenMenu('')} className="block rounded px-3 py-3 text-xs text-white hover:bg-white/5">
                 Cài đặt
               </Link>

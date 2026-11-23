@@ -121,7 +121,7 @@ export default function Library() {
   // ─── Launch game ───────────────────────────────────────────────────────────
   const handlePlay = useCallback(async () => {
     if (!selectedGame) return;
-    if (!installed[selectedGame.gameId]) {
+    if (!installed[selectedGame.gameId] || installed[selectedGame.gameId].canAutoUninstall !== true) {
       setNotice('Hãy tải và cài đặt game trước khi khởi chạy.');
       setNoticeType('info');
       return;
@@ -157,11 +157,13 @@ export default function Library() {
     setProgress({ received: 0, total: 0, percent: 0 });
     try {
       const useFs = supportsFsAccess();
+      if (!useFs) {
+        throw new Error('Trình duyệt không hỗ trợ chọn thư mục cài đặt. Hãy dùng Chrome/Edge trên localhost hoặc HTTPS.');
+      }
       let dirHandle = null;
       if (useFs) {
-        const savedHandle = await loadInstallFolder(selectedGame.gameId);
-        if (savedHandle) dirHandle = await ensureWritePermission(savedHandle);
-        if (!dirHandle) dirHandle = await pickInstallFolder(selectedGame.gameId);
+        // Open the picker before awaiting IndexedDB so the click still grants user activation.
+        dirHandle = await pickInstallFolder(selectedGame.gameId);
         if (!dirHandle) {
           throw new Error('Chưa chọn thư mục cài đặt. Hãy chọn thư mục thường trong Documents, không chọn thư mục hệ thống.');
         }
@@ -181,18 +183,7 @@ export default function Library() {
         return;
       }
 
-      if (useFs) {
-        await writeInstalledFile(dirHandle, result.fileName, result.blob);
-      } else {
-        const url = URL.createObjectURL(result.blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = result.fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      }
+      await writeInstalledFile(dirHandle, result.fileName, result.blob);
 
       const info = markInstalled(selectedGame.gameId, {
         fileName: result.fileName,
@@ -200,13 +191,13 @@ export default function Library() {
         sha256: result.sha256,
         size: result.size,
         folder: dirHandle?.name || null,
-        canAutoUninstall: useFs,
+        canAutoUninstall: true,
         verified: result.verified,
       });
       setInstalled(getInstalledMap());
       setNotice(
         `✅ Đã tải và cài đặt "${selectedGame.title}" (v${result.versionNumber}, ${formatSize(result.size)})`
-        + `${info.folder ? ` vào thư mục "${info.folder}"` : ' vào thư mục Downloads của trình duyệt'}`
+        + `${info.folder ? ` vào thư mục "${info.folder}"` : ''}`
         + `${result.verified === true ? ' — checksum SHA-256 khớp.' : '.'}`,
       );
       setNoticeType('success');
@@ -389,12 +380,12 @@ export default function Library() {
                   <button
                     type="button"
                     onClick={handlePlay}
-                    disabled={launching || !installInfo || !selectedGame.versionNumber || selectedGame.licenseStatus !== 'Active'}
+                    disabled={launching || !installInfo || installInfo.canAutoUninstall !== true || !selectedGame.versionNumber || selectedGame.licenseStatus !== 'Active'}
                     className="rounded-lg bg-indigo-500 hover:bg-indigo-600 px-6 py-3 font-bold text-white shadow-lg shadow-indigo-500/30 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {launching
                       ? '⏳ Đang khởi chạy...'
-                      : installInfo ? '▶ CHƠI NGAY (DRM)' : '🔒 CÀI ĐẶT ĐỂ CHƠI'}
+                      : installInfo?.canAutoUninstall === true ? '▶ CHƠI NGAY (DRM)' : '🔒 CÀI ĐẶT ĐỂ CHƠI'}
                   </button>
                   <button
                     type="button"
@@ -404,7 +395,7 @@ export default function Library() {
                   >
                     {installing
                       ? `⬇ Đang tải...${progress?.percent != null ? ` ${progress.percent}%` : ''}`
-                      : (installInfo ? '⬇ Tải lại / Cập nhật' : '⬇ Tải xuống & Cài đặt')}
+                      : (installInfo?.canAutoUninstall === true ? '⬇ Tải lại / Cập nhật' : '⬇ Tải xuống & Cài đặt')}
                   </button>
                   {installInfo && (
                     <button

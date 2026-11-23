@@ -4,6 +4,7 @@ import { libraryApi } from '../api/library';
 import { orderApi } from '../api/order';
 import { wishlistApi } from '../api/wishlist';
 import { authApi } from '../api/auth';
+import { walletApi } from '../api/wallet';
 
 const ShopContext = createContext(null);
 
@@ -47,19 +48,38 @@ export function ShopProvider({ children }) {
   }, []);
 
   const refreshShop = useCallback(async () => {
+    if (user?.roles?.includes('Developer') && !user?.roles?.includes('Customer')) {
+      const wallet = await walletApi.yeuCauXemSoDu();
+      setBalance(Number(wallet?.balance ?? wallet?.data?.balance ?? 0));
+      return;
+    }
     const next = await loadShopState();
     applyShopState(next);
     setShopError('');
-  }, [applyShopState, loadShopState]);
+  }, [applyShopState, loadShopState, user?.roles]);
 
   useEffect(() => {
     let active = true;
-    if (!authToken || !user?.roles?.includes('Customer')) {
+    const roles = user?.roles || [];
+    if (!authToken || (!roles.includes('Customer') && !roles.includes('Developer'))) {
       setCart([]);
       setWishlist([]);
       setOwned([]);
       setBalance(0);
       setShopError('');
+      return () => { active = false; };
+    }
+
+    if (roles.includes('Developer') && !roles.includes('Customer')) {
+      setCart([]);
+      setWishlist([]);
+      setOwned([]);
+      setShopError('');
+      walletApi.yeuCauXemSoDu().then((result) => {
+        if (active) setBalance(Number(result?.balance ?? result?.data?.balance ?? 0));
+      }).catch(() => {
+        if (active) setBalance(0);
+      });
       return () => { active = false; };
     }
 

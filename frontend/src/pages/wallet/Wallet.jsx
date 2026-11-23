@@ -7,6 +7,7 @@ import FeedbackDialog from '../../components/common/FeedbackDialog';
 
 export default function Wallet() {
   const { user, balance: contextBalance, refreshShop } = useShop();
+  const canWithdraw = user?.roles?.includes('Customer');
   const [balance, setBalance] = useState(contextBalance);
   const [depositAmount, setDepositAmount] = useState(200000);
   const [customDeposit, setCustomDeposit] = useState('');
@@ -50,6 +51,10 @@ export default function Wallet() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!canWithdraw) setActiveTab('deposit');
+  }, [canWithdraw]);
 
   // Cập nhật khi context thay đổi
   useEffect(() => {
@@ -185,7 +190,7 @@ export default function Wallet() {
           >
             💳 Nạp tiền vào ví
           </button>
-          <button
+          {canWithdraw ? <button
             type="button"
             onClick={() => { setActiveTab('withdraw'); setError(''); setMessage(''); }}
             className={`rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
@@ -195,7 +200,7 @@ export default function Wallet() {
             }`}
           >
             🏦 Rút tiền về ngân hàng
-          </button>
+          </button> : null}
         </div>
 
         {activeTab === 'deposit' ? (

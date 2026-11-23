@@ -32,13 +32,15 @@ import WalletTransactions from './pages/wallet/WalletTransactions';
 import CatalogSearch from './pages/CatalogSearch';
 
 function getRouteAccess(path) {
+  if (path === '/orders') return { allowedRoles: ['Customer'] };
+  if (path === '/wallet' || path === '/wallet/transactions') return { allowedRoles: ['Customer', 'Developer'] };
   if (path === '/profile') {
     return { allowedRoles: ['Customer', 'Developer', 'Admin', 'Manager'] };
   }
   if (path === '/moderation/community') {
     return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['community.moderate'] };
   }
-  if (path === '/developer/register') return { allowedRoles: ['Customer', 'Developer', 'Admin'] };
+  if (path === '/developer/register') return { allowedRoles: ['Customer'] };
   if (path.startsWith('/developer/')) return { allowedRoles: ['Developer', 'Admin'] };
   if (path === '/admin/accounts') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['account.moderate'] };
   if (path === '/admin/reviews') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['review.moderate'] };

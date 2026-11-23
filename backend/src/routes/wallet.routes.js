@@ -8,19 +8,19 @@ const { walletService } = require('../services');
 
 const router = express.Router();
 
-/** UC12. Xem số dư ví (#2)  | quyền: Customer */
+/** UC12. Xem số dư ví (#2) | quyền: Customer, Developer */
 router.get(
   '/yeuCauXemSoDu',
   authenticate,
-  authorize('Customer'),
+  authorize('Customer', 'Developer'),
   asyncHandler(async (req, res) => ok(res, await walletService.yeuCauXemSoDu(requestContext(req)))),
 );
 
-/** UC13. Nạp tiền vào ví (#2)  | quyền: Customer */
+/** UC13. Nạp tiền vào ví (#2) | quyền: Customer, Developer */
 router.post(
   '/guiYeuCauNapTien',
   authenticate,
-  authorize('Customer'),
+  authorize('Customer', 'Developer'),
   asyncHandler(async (req, res) => ok(res, await walletService.guiYeuCauNapTien(requestContext(req)), 200, 'Nạp tiền thành công')),
 );
 
@@ -32,11 +32,11 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await walletService.guiYeuCauRutTien(requestContext(req)), 200, 'Rút tiền thành công')),
 );
 
-/** UC20. Xem lịch sử biến động số dư (#2)  | quyền: Customer */
+/** UC20. Xem lịch sử biến động số dư (#2) | quyền: Customer, Developer */
 router.get(
   '/yeuCauXemLichSuGiaoDich',
   authenticate,
-  authorize('Customer'),
+  authorize('Customer', 'Developer'),
   asyncHandler(async (req, res) => ok(res, await walletService.yeuCauXemLichSuGiaoDich(requestContext(req)))),
 );
 

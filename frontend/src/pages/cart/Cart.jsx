@@ -9,7 +9,7 @@ import { formatVnd } from '../../utils/format';
 const card = 'rounded-2xl border border-accent/25 bg-card';
 
 export default function Cart() {
-  const { cart, balance, removeFromCart, checkout, refreshShop } = useShop();
+  const { cart, balance, user, removeFromCart, checkout, refreshShop } = useShop();
   const [preview, setPreview] = useState(null);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
@@ -136,7 +136,10 @@ export default function Cart() {
           <h1 className="m-0 flex items-center gap-3 font-display text-lg font-bold">
             <CartIcon className="text-accent" /> Giỏ hàng của bạn ({items.length})
           </h1>
-          <Link to="/search/results" className="text-xs text-accent">+ Tiếp tục chọn game</Link>
+          <div className="flex flex-wrap items-center justify-end gap-4">
+            {user?.roles?.includes('Customer') ? <Link to="/orders" className="text-xs font-semibold text-accent-light hover:underline">Xem lịch sử đơn hàng</Link> : null}
+            <Link to="/search/results" className="text-xs text-accent">+ Tiếp tục chọn game</Link>
+          </div>
         </div>
         {loading ? <p role="status" className="mt-8 text-center text-muted">Đang tải giỏ hàng…</p> : null}
         {!loading && items.length ? (

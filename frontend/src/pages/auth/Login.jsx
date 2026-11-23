@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 import Field from '../../components/auth/Field';
 import { authApi } from '../../api/auth';
 import { useShop } from '../../context/ShopContext';
+import { getRoleLandingPath } from '../../utils/roleLanding';
 
 const socials = ['Steam', 'Discord', 'Google', 'Apple ID'];
 
 /** Màn hình Đăng nhập (Figma: node 8:240). Sequence UC2: nhapThongTinDangNhap → guiThongTinDangNhap. */
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useShop();
   const [form, setForm] = useState({ account: '', password: '' });
   const [remember, setRemember] = useState(true);
@@ -37,7 +39,8 @@ export default function Login() {
     try {
       const data = await authApi.login({ account: form.account.trim(), password: form.password });
       login(data.user, data.token, remember);
-      navigate('/', { state: { loginSuccess: true } });
+      const requestedPath = location.state?.from?.pathname;
+      navigate(requestedPath || getRoleLandingPath(data.user), { state: { loginSuccess: true } });
     } catch (err) {
       setMessage(err.message); // hiển thị thông báo lỗi (hienThiThongBaoDangNhapThatBai)
     } finally {
