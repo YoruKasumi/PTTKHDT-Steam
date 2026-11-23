@@ -18,8 +18,8 @@ const {
   getLegacyGameVersionDir,
 } = require('../utils/storagePaths');
 
-/** Thời gian sống của Launch Token: 10 phút */
-const LAUNCH_TOKEN_TTL = '10m';
+/** Token dài hơn phiên chơi; quyền vẫn được xác minh lại mỗi phút qua heartbeat. */
+const LAUNCH_TOKEN_TTL = '12h';
 
 /**
  * LibraryService — tầng Business Logic cho thư viện, đổi Key & DRM.
@@ -165,6 +165,12 @@ class LibraryService extends BaseService {
       VersionNumber: versionNumber,
     } = license;
 
+    await this.licenseDAO.ghiNhanPhienChoi({
+      licenseId,
+      customerId: user.accountId,
+      gameId,
+    });
+
     // Ký Launch Token (10 phút)
     const launchToken = jwt.sign(
       {
@@ -236,6 +242,12 @@ class LibraryService extends BaseService {
     if (check.AccountStatus !== 'Active') {
       return { valid: false, reason: 'Tài khoản đã bị tạm khóa hoặc cấm.' };
     }
+
+    await this.licenseDAO.ghiNhanPhienChoi({
+      licenseId: claims.licenseId,
+      customerId: claims.customerId,
+      gameId: claims.gameId,
+    });
 
     return {
       valid: true,

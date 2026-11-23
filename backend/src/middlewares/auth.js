@@ -32,7 +32,7 @@ async function authenticate(req, res, next) {
     }
 
     const roles = [];
-    if (Number(identity.IsCustomer) === 1) roles.push('Customer');
+    if (Number(identity.IsCustomer) === 1 || Number(identity.IsDeveloper) === 1) roles.push('Customer');
     if (Number(identity.IsDeveloper) === 1) roles.push('Developer');
     if (Number(identity.IsManager) === 1) roles.push('Manager');
     if (Number(identity.IsAdmin) === 1) roles.push('Admin');
@@ -56,7 +56,10 @@ function requireRole(...roles) {
   return (req, res, next) => {
     const have = (req.user && req.user.roles) || [];
     const isGuest = roles.includes('Guest') && !req.user;
-    if (roles.length && !isGuest && !roles.some((r) => have.includes(r))) return next(new ForbiddenException());
+    // Developer is an upgraded customer account and retains all customer capabilities.
+    const hasRequiredRole = roles.some((role) => have.includes(role)
+      || (role === 'Customer' && have.includes('Developer')));
+    if (roles.length && !isGuest && !hasRequiredRole) return next(new ForbiddenException());
     next();
   };
 }

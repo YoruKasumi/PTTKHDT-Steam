@@ -18,7 +18,9 @@ export default function RouteGuard({ allowedRoles, allowedPermissions = [], chil
 
   const user = getStoredUser();
   const roles = user?.roles || [];
-  if (!allowedRoles.some((role) => roles.includes(role))) {
+  const hasAllowedRole = allowedRoles.some((role) => roles.includes(role)
+    || (role === 'Customer' && roles.includes('Developer')));
+  if (!hasAllowedRole) {
     return <Navigate to={getRoleLandingPath(user)} replace state={{ accessDenied: true }} />;
   }
   if (allowedPermissions.length && !roles.includes('Admin')

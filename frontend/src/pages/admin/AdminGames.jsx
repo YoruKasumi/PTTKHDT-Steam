@@ -185,6 +185,7 @@ export default function AdminGames() {
               <tr>
                 <th className="px-4 py-3">Tên trò chơi</th>
                 <th className="px-4 py-3">Nhà phát hành</th>
+                <th className="px-4 py-3" title="Người chơi đang hoạt động trong 3 phút gần nhất">Đang chơi</th>
                 <th className="px-4 py-3">Giá bán</th>
                 <th className="px-4 py-3">Phiên bản</th>
                 <th className="px-4 py-3">Dung lượng build</th>
@@ -209,6 +210,7 @@ export default function AdminGames() {
                     <p className="m-0 font-medium">{game.developerName || '—'}</p>
                     <p className="m-0 text-xs text-muted">{game.developerEmail}</p>
                   </td>
+                  <td className="px-4 py-3 font-semibold text-cyan-300" title="Phiên chơi có heartbeat trong 3 phút gần nhất">{Number(game.playerCount || 0).toLocaleString('vi-VN')}</td>
                   <td className="px-4 py-3 font-semibold text-emerald-400">
                     {formatVnd(game.price)}
                   </td>
@@ -297,6 +299,7 @@ export default function AdminGames() {
                   <div>
                     <span className="text-xs text-muted">Nhà phát hành:</span>
                     <p className="m-0 font-bold">{selectedGame.developerName || '—'}</p>
+                  <p className="m-0 mt-2 text-sm text-muted">Đang chơi: <span className="font-semibold text-cyan-300">{Number(selectedGame.playerCount || 0).toLocaleString('vi-VN')}</span></p>
                   </div>
                   <div>
                     <span className="text-xs text-muted">Giá niêm yết:</span>

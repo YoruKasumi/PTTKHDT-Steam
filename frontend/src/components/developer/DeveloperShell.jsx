@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/developer/profile', label: 'Hồ sơ pháp nhân' },
@@ -17,12 +17,14 @@ export default function DeveloperShell({ title, description, children }) {
           <h1 className="mb-2 mt-3 text-2xl font-extrabold md:text-3xl">{title}</h1>
           <p className="m-0 max-w-3xl text-sm text-muted">{description}</p>
         </div>
-        <NavLink
-          to="/developer/games"
-          className="mt-5 inline-flex rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white md:mt-0"
-        >
-          + Khởi tạo dự án game
-        </NavLink>
+        <div className="mt-5 flex flex-wrap gap-2 md:mt-0">
+          <Link to="/search" className="inline-flex rounded-lg border border-white/20 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10">
+            ← Trang khách hàng
+          </Link>
+          <NavLink to="/developer/games" className="inline-flex rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white">
+            + Khởi tạo dự án game
+          </NavLink>
+        </div>
       </header>
 
       <nav aria-label="Điều hướng nhà phát hành" className="my-5 flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-card p-2">

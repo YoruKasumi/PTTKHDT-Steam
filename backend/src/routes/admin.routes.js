@@ -9,6 +9,7 @@ const {
   rbacService,
   accountService,
   staffService,
+  couponService,
   genreService,
   bannerService,
   systemConfigService,
@@ -27,6 +28,15 @@ const contentManagers = (permission) => [
   requireRole('Admin', 'Manager'),
   requirePermission(permission),
 ];
+const couponManagers = [authenticate, requireRole('Admin', 'Manager')];
+
+router.get('/layDanhSachMaGiamGia', ...couponManagers, asyncHandler(async (req, res) => (
+  ok(res, await couponService.listCoupons())
+)));
+
+router.post('/taoMaGiamGia', ...couponManagers, asyncHandler(async (req, res) => (
+  ok(res, await couponService.createCoupon(requestContext(req)), 201, 'Coupon created')
+)));
 
 // ─── 1. RBAC (Vai trò & Quyền hạn) ──────────────────────────────────────────
 

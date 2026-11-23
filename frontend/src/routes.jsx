@@ -28,9 +28,11 @@ import GameDetail from './pages/GameDetail';
 import Orders from './pages/Orders';
 import WalletTransactions from './pages/wallet/WalletTransactions';
 import CatalogSearch from './pages/CatalogSearch';
+import AdminCoupons from './pages/admin/AdminCoupons';
 
 function getRouteAccess(path) {
-  if (path === '/orders') return { allowedRoles: ['Customer'] };
+  if (path === '/orders') return { allowedRoles: ['Customer', 'Developer'] };
+  if (path === '/library' || path === '/wishlist') return { allowedRoles: ['Customer', 'Developer'] };
   if (path === '/wallet' || path === '/wallet/transactions') return { allowedRoles: ['Customer', 'Developer'] };
   if (path === '/profile') {
     return { allowedRoles: ['Customer', 'Developer', 'Admin', 'Manager'] };
@@ -46,6 +48,7 @@ function getRouteAccess(path) {
     return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['genres.manage', 'banners.manage'] };
   }
   if (path === '/admin/games') return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['game.approve'] };
+  if (path === '/admin/coupons') return { allowedRoles: ['Admin', 'Manager'] };
   if (path.startsWith('/admin/')) return { allowedRoles: ['Admin'] };
   if (path.startsWith('/moderation/')) {
     return { allowedRoles: ['Admin', 'Manager'], allowedPermissions: ['review.moderate', 'community.moderate'] };
@@ -116,6 +119,7 @@ export const routes = [
         '/developer/keys': <DeveloperKeys />,
         '/developer/revenue': <DeveloperRevenue />,
         '/admin/accounts': <AdminAccounts />,
+        '/admin/coupons': <AdminCoupons />,
         '/admin/rbac': <AdminRoles />,
         '/admin/staff': <AdminStaff />,
         '/admin/reviews': <AdminReviews />,

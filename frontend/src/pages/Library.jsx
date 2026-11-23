@@ -60,7 +60,7 @@ export default function Library() {
 
   // Tải danh sách game từ API
   const fetchLibrary = useCallback(async (selectGameId = null) => {
-    if (!user?.roles?.includes('Customer')) return;
+    if (!user?.roles?.some((role) => role === 'Customer' || role === 'Developer')) return;
     setLoading(true);
     try {
       const data = await libraryApi.yeuCauXemThuVien();
@@ -249,7 +249,7 @@ export default function Library() {
   }, [selectedGame, installed]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
-  if (!user?.roles?.includes('Customer')) {
+  if (!user?.roles?.some((role) => role === 'Customer' || role === 'Developer')) {
     return (
       <div className="flex min-h-72 items-center justify-center p-10 text-center text-muted">
         Vui lòng <Link to="/login" className="ml-1 text-accent-light">đăng nhập</Link> để xem thư viện game.
@@ -362,7 +362,10 @@ export default function Library() {
         <section className="min-w-0 space-y-5">
           {/* Hero card */}
           <div className="relative min-h-[280px] overflow-hidden rounded-2xl border border-indigo-500/30 bg-neutral-900 p-6 md:p-8">
-            <div className="absolute inset-0 opacity-40" style={{ background: 'linear-gradient(110deg, #312e81, transparent 75%)' }} />
+            {selectedGame.coverImage ? (
+              <img src={selectedGame.coverImage} alt="" className="absolute inset-0 size-full object-cover" />
+            ) : null}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/65 to-black/20" />
             <div className="relative flex min-h-[230px] flex-col justify-between">
               <div>
                 <span className="inline-block rounded bg-indigo-500/30 px-3 py-1 text-xs font-bold text-violet-300">

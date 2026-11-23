@@ -472,8 +472,8 @@ Loại thông điệp được xác định từ hướng mũi tên (UI → Serv
 | 6 | `traVeKetQuaKiemTraTen` | Kết quả trả về |  |
 | 7 | `taiLenTepCaiDatTam` | Client ngoài | StorageClient.taiLenTepCaiDatTam |
 | 8 | `traVeDuongDanTam` | Kết quả trả về |  |
-| 9 | `guiYeuCauQuetVirus` | Service (public) | GameService.guiYeuCauQuetVirus |
-| 10 | `traVeKetQuaQuetVirus` | Kết quả trả về |  |
+| 9 | `validateAndProcessBuildZip` | Service/helper | autoDrmPackager.validateAndProcessBuildZip |
+| 10 | `traVeKetQuaKiemTraBuild` | Kết quả trả về |  |
 | 11 | `thongBaoThatBai` | Frontend |  |
 | 12 | `luuHoSoDuAnGame` | Service (public) | GameService.luuHoSoDuAnGame |
 | 13 | `taoBanGhiDuAnMoi` | DAO | GameDAO.taoBanGhiDuAnMoi |

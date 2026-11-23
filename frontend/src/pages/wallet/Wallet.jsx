@@ -7,7 +7,7 @@ import FeedbackDialog from '../../components/common/FeedbackDialog';
 
 export default function Wallet() {
   const { user, balance: contextBalance, refreshShop } = useShop();
-  const canWithdraw = user?.roles?.includes('Customer');
+  const canWithdraw = user?.roles?.some((role) => role === 'Customer' || role === 'Developer');
   const [balance, setBalance] = useState(contextBalance);
   const [depositAmount, setDepositAmount] = useState(200000);
   const [customDeposit, setCustomDeposit] = useState('');
@@ -64,7 +64,7 @@ export default function Wallet() {
   }, [contextBalance]);
 
   // Nạp tiền
-  const handleDeposit = async () => {
+  const handleDeposit = async ({ simulateFailure = false } = {}) => {
     const amt = customDeposit ? Number(customDeposit) : Number(depositAmount);
     if (!Number.isFinite(amt) || amt < 10000 || amt > 50000000) {
       setError('Số tiền nạp phải từ 10.000 VND đến tối đa 50.000.000 VND.');
@@ -79,6 +79,7 @@ export default function Wallet() {
       const res = await walletApi.guiYeuCauNapTien({
         amount: amt,
         paymentMethod,
+        simulateFailure,
       });
       const data = res?.data || res;
       setMessage(`✓ Nạp tiền thành công! Đã cộng ${formatVnd(amt)} vào ví của bạn.`);
@@ -88,7 +89,16 @@ export default function Wallet() {
         await refreshShop();
       } catch (_) {}
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'Nạp tiền thất bại.');
+      if (simulateFailure && err.code === 'ERR_PAYMENT_FAILED') {
+        setDialog({
+          title: 'Thanh toán thất bại (mô phỏng)',
+          message: 'Cổng thanh toán đã từ chối giao dịch giả lập. Số dư không thay đổi và giao dịch đã được ghi vào lịch sử với trạng thái Thất bại.',
+          tone: 'error',
+        });
+        await loadData();
+      } else {
+        setError(err?.response?.data?.message || err?.message || 'Nạp tiền thất bại.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -136,7 +146,7 @@ export default function Wallet() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 pb-20 pt-10 md:px-8">
-      <FeedbackDialog open={Boolean(dialog || message || error)} title={dialog?.title || (error ? 'Đã xảy ra lỗi' : 'Thông báo')} message={dialog?.message || error || message} tone={dialog?.tone || (error ? 'error' : 'success')} onClose={() => { setDialog(null); setMessage(''); setError(''); }} onConfirm={dialog?.onConfirm} />
+      <FeedbackDialog open={Boolean(dialog || message || error)} title={dialog?.title || (error ? 'Đã xảy ra lỗi' : 'Thông báo')} message={dialog?.message || error || message} tone={dialog?.tone || (error ? 'error' : 'success')} onClose={() => { setDialog(null); setMessage(''); setError(''); }} onConfirm={dialog?.onConfirm} confirmLabel={dialog?.confirmLabel} />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="m-0 text-2xl font-bold">Ví điện tử cá nhân</h1>
@@ -272,14 +282,24 @@ export default function Wallet() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setDialog({ title: 'Xác nhận nạp tiền', message: `Nạp ${formatVnd(customDeposit ? Number(customDeposit) || 0 : depositAmount)} vào ví bằng ${paymentMethod}?`, onConfirm: async () => { setDialog(null); await handleDeposit(); } })}
-              disabled={submitting}
-              className="rounded-xl bg-accent px-6 py-3 font-bold text-white shadow-lg hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {submitting ? 'Đang xử lý nạp tiền…' : `Nạp ngay ${formatVnd(customDeposit ? Number(customDeposit) || 0 : depositAmount)}`}
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setDialog({ title: 'Xác nhận nạp tiền', message: `Nạp ${formatVnd(customDeposit ? Number(customDeposit) || 0 : depositAmount)} vào ví bằng ${paymentMethod}?`, onConfirm: async () => { setDialog(null); await handleDeposit(); } })}
+                disabled={submitting}
+                className="rounded-xl bg-accent px-6 py-3 font-bold text-white shadow-lg hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? 'Đang xử lý nạp tiền…' : `Nạp ngay ${formatVnd(customDeposit ? Number(customDeposit) || 0 : depositAmount)}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDialog({ title: 'Mô phỏng thanh toán thất bại?', message: `Gửi giao dịch thử ${formatVnd(customDeposit ? Number(customDeposit) || 0 : depositAmount)} bằng ${paymentMethod} đến cổng thanh toán giả lập. Giao dịch sẽ được ghi là Thất bại và không cộng tiền vào ví.`, confirmLabel: 'Mô phỏng thất bại', tone: 'error', onConfirm: async () => { setDialog(null); await handleDeposit({ simulateFailure: true }); } })}
+                disabled={submitting}
+                className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-6 py-3 font-bold text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Mô phỏng thanh toán thất bại
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={(event) => { event.preventDefault(); setDialog({ title: 'Xác nhận rút tiền', message: `Gửi yêu cầu rút ${formatVnd(Number(withdrawAmount) || 0)} về tài khoản ngân hàng đã nhập?`, onConfirm: async () => { setDialog(null); await handleWithdraw({ preventDefault() {} }); } }); }} className="mt-6 max-w-lg space-y-4">

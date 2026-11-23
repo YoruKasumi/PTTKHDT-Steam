@@ -2,6 +2,16 @@
 const BaseDAO = require('./BaseDAO');
 
 class LicenseDAO extends BaseDAO {
+  async ghiNhanPhienChoi(params = {}, conn = null) {
+    await this.query(
+      `INSERT INTO GAMEPLAYSESSION (LicenseID, CustomerID, GameID, StartedAt, LastSeenAt)
+       VALUES (?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE CustomerID = VALUES(CustomerID), GameID = VALUES(GameID), LastSeenAt = NOW()`,
+      [params.licenseId, params.customerId, params.gameId],
+      conn,
+    );
+  }
+
   /**
    * UC16. Xem thư viện cá nhân (#3) — Lấy danh sách game đã sở hữu kèm phiên bản hiện hành.
    * @param {{ customerId: string }} params

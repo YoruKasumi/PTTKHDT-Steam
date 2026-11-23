@@ -39,11 +39,10 @@ router.post(
   }),
 );
 
-/** UC25. Gửi yêu cầu quét virus (mô phỏng) */
 router.post(
-  '/guiYeuCauQuetVirus',
+  '/capNhatThongTinGame',
   authenticate, authorize('Developer'),
-  asyncHandler(async (req, res) => ok(res, await gameService.guiYeuCauQuetVirus({ user: req.user, ...req.body }))),
+  asyncHandler(async (req, res) => ok(res, await gameService.capNhatThongTinGame({ ...req.body, user: req.user }))),
 );
 
 /** UC25. Khởi tạo dự án game mới — multipart/form-data */
@@ -126,7 +125,7 @@ router.post(
 router.post(
   '/yeuCauCapNhatTrangThaiGame',
   authenticate, authorize('Developer'),
-  asyncHandler(async (req, res) => ok(res, await gameService.yeuCauCapNhatTrangThaiGame({ user: req.user, ...req.body }))),
+  asyncHandler(async (req, res) => ok(res, await gameService.yeuCauCapNhatTrangThaiGame({ ...req.body, user: req.user }))),
 );
 
 /** UC35. Gỡ game khỏi hệ thống */

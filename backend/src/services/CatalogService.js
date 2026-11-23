@@ -223,6 +223,7 @@ class CatalogService extends BaseService {
       rating: Number(row.AverageRating),
       ratingCount: Number(row.RatingCount),
       popularity: Number(row.Popularity || 0),
+      playerCount: Number(row.PlayerCount || 0),
       releaseDate: row.ReleaseDate,
     };
   }

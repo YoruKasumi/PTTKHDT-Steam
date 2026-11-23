@@ -22,6 +22,7 @@ const FinanceService = require('./FinanceService');
 const SystemConfigService = require('./SystemConfigService');
 const RbacService = require('./RbacService');
 const StaffService = require('./StaffService');
+const CouponService = require('./CouponService');
 
 const authService = new AuthService();
 const profileService = new ProfileService();
@@ -46,6 +47,7 @@ const financeService = new FinanceService();
 const systemConfigService = new SystemConfigService();
 const rbacService = new RbacService();
 const staffService = new StaffService();
+const couponService = new CouponService();
 
 // Gắn các phụ thuộc giữa service (theo lời gọi Service → Service trong sơ đồ sequence)
 cartService.gameService = gameService;
@@ -98,4 +100,5 @@ module.exports = {
   systemConfigService,
   rbacService,
   staffService,
+  couponService,
 };

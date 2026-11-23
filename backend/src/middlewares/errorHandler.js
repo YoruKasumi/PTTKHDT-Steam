@@ -10,6 +10,19 @@ function notFound(req, res) {
 
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
+  if (err && err.name === 'MulterError') {
+    const tooLarge = err.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).json({
+      success: false,
+      code: tooLarge ? 'UPLOAD_TOO_LARGE' : 'INVALID_UPLOAD',
+      message: tooLarge
+        ? 'Tệp upload vượt quá dung lượng cho phép.'
+        : 'Không thể nhận tệp upload. Vui lòng kiểm tra định dạng và số lượng tệp.',
+    });
+  }
+  if (err && err.message && err.message.startsWith('Định dạng tệp không được hỗ trợ')) {
+    return res.status(400).json({ success: false, code: 'INVALID_UPLOAD_TYPE', message: err.message });
+  }
   if (err instanceof NghiepVuException) {
     const body = { success: false, code: err.code, message: err.message };
     if (err.details !== undefined) body.details = err.details;

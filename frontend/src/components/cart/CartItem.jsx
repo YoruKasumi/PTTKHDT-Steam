@@ -6,13 +6,6 @@ import { formatVnd } from '../../utils/format';
 export default function CartItem({ game, onRemove }) {
   return (
     <li className="flex items-center gap-4 rounded-xl border-2 border-page bg-field p-3 sm:gap-6 sm:px-[18px]">
-      <Link
-        to={`/games/${game.id}`}
-        className="flex size-[76px] flex-none items-center justify-center overflow-hidden rounded-lg border border-white/10 text-center text-[10px] font-bold"
-        style={{ background: game.poster }}
-      >
-        {game.thumb ? <img className="size-full object-cover" src={game.thumb} alt={game.title} /> : game.title}
-      </Link>
       <div className="min-w-0 flex-1">
         <Link to={`/games/${game.id}`} className="block truncate text-lg font-bold sm:text-xl">{game.title}</Link>
         <p className="m-0 mt-2 text-xs text-muted">{game.genres.join(', ')}</p>

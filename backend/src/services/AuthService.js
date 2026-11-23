@@ -180,7 +180,7 @@ class AuthService extends BaseService {
     }
 
     const roles = [];
-    if (Number(account.IsCustomer) === 1) roles.push('Customer');
+    if (Number(account.IsCustomer) === 1 || Number(account.IsDeveloper) === 1) roles.push('Customer');
     if (Number(account.IsDeveloper) === 1) roles.push('Developer');
     if (Number(account.IsManager) === 1) roles.push('Manager');
     if (Number(account.IsAdmin) === 1) roles.push('Admin');

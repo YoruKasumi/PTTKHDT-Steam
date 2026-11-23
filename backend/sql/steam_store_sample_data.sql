@@ -94,6 +94,8 @@ INSERT INTO ACCOUNT (AccountID, Username, PasswordHash, Email, DisplayName, Avat
 
 INSERT INTO CUSTOMER (AccountID) VALUES
   ('A003'),
+  ('A006'),
+  ('A007'),
   ('A004'),
   ('A005'),
   ('A008'),
@@ -304,6 +306,8 @@ INSERT INTO SALECAMPAIGN (CampaignID, GameID, PercentOff, StartDate, EndDate) VA
 -- ---------------------------------------------------------------------
 INSERT INTO CART (CustomerID) VALUES
   ('A003'),
+  ('A006'),
+  ('A007'),
   ('A004'),
   ('A005'),
   ('A008'),
@@ -392,6 +396,8 @@ INSERT INTO REFUNDREQUEST (RequestID, OrderID, GameID, Reason, RequestDate, Stat
 -- ---------------------------------------------------------------------
 INSERT INTO WALLET (WalletID, CustomerID, Balance, Currency) VALUES
   ('W001', 'A003', 50000, 'VND'),
+  ('W006', 'A006', 0, 'VND'),
+  ('W007', 'A007', 0, 'VND'),
   ('W002', 'A004', 321000, 'VND'),
   ('W003', 'A005', 150500, 'VND'),
   ('W004', 'A008', 62000, 'VND'),

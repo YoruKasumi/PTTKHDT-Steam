@@ -21,14 +21,17 @@ function InvoiceDialog({ order, onClose }) {
         <p className="m-0 font-bold text-accent-light">#{order.orderId}</p>
         <ul className="m-0 mt-5 list-none space-y-3 p-0">
           {order.items.map((item) => (
-            <li key={item.gameId} className="rounded-xl border border-indigo-950 p-4">
-              <div className="flex flex-wrap justify-between gap-2">
-                <span className="font-bold">{item.title}</span>
-                <span className="font-bold text-accent-light">{formatVnd(item.priceAfterDiscount)}</span>
+            <li key={item.gameId} className="flex gap-4 rounded-xl border border-indigo-950 p-4">
+              {item.coverImage ? <img src={item.coverImage} alt={item.title} className="h-24 w-16 flex-none rounded-md object-cover" /> : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <span className="font-bold">{item.title}</span>
+                  <span className="font-bold text-accent-light">{formatVnd(item.priceAfterDiscount)}</span>
+                </div>
+                {item.priceAfterDiscount < item.unitPrice ? (
+                  <p className="mb-0 mt-2 text-xs text-muted">Giá trước giảm: {formatVnd(item.unitPrice)}</p>
+                ) : null}
               </div>
-              {item.priceAfterDiscount < item.unitPrice ? (
-                <p className="mb-0 mt-2 text-xs text-muted">Giá trước giảm: {formatVnd(item.unitPrice)}</p>
-              ) : null}
             </li>
           ))}
         </ul>
@@ -315,6 +318,7 @@ export default function Orders() {
                           ) : (
                             <span aria-hidden="true" className="mt-0.5 w-4 text-center text-xs text-muted">•</span>
                           )}
+                          {item.coverImage ? <img src={item.coverImage} alt="" className="h-16 w-11 flex-none rounded object-cover" /> : null}
                           <span>
                             <span className="block">{item.title}</span>
                             <span className={`mt-0.5 block text-xs ${

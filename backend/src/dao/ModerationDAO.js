@@ -48,6 +48,8 @@ class ModerationDAO extends BaseDAO {
   async truyVanDanhSachGameChoDuyet(params = {}, conn = null) {
     return this.query(
       `SELECT g.GameID, g.Title, g.Status, g.Price, g.ReleaseDate,
+              (SELECT COUNT(*) FROM GAMEPLAYSESSION AS activePlayer
+               WHERE activePlayer.GameID = g.GameID AND activePlayer.LastSeenAt >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)) AS PlayerCount,
               a.Username AS DeveloperName, a.Email AS DeveloperEmail,
               gv.VersionID, gv.VersionNumber, gv.BuildFile, gv.FileSize, gv.Sha256, gv.UploadDate
        FROM GAME g
@@ -68,6 +70,8 @@ class ModerationDAO extends BaseDAO {
     return this.one(
       `SELECT g.GameID, g.DeveloperID, g.Title, g.Description, g.Price, g.Status,
               g.CoverImage, g.MinSpec, g.RecSpec, g.ReleaseDate,
+              (SELECT COUNT(*) FROM GAMEPLAYSESSION AS activePlayer
+               WHERE activePlayer.GameID = g.GameID AND activePlayer.LastSeenAt >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)) AS PlayerCount,
               a.Username AS DeveloperName, a.Email AS DeveloperEmail,
               gv.VersionID, gv.VersionNumber, gv.BuildFile, gv.FileSize, gv.Sha256,
               gv.ChangeLog, gv.UploadDate

@@ -60,6 +60,10 @@ class StorageClient {
 
     const versionDir = getGameVersionDir(developerId, gameId, versionNumber);
     const dest = path.join(versionDir, 'build.zip');
+    if (fs.existsSync(dest)) {
+      fs.unlinkSync(tempFilePath);
+      throw new ConflictException(`Build phiên bản ${versionNumber} đã có trong kho lưu trữ; hệ thống giữ nguyên file hiện có.`);
+    }
     moveFile(tempFilePath, dest);
     return {
       buildFileKey: getGameBuildKey(developerId, gameId, versionNumber),

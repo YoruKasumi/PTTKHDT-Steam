@@ -1,6 +1,7 @@
 'use strict';
 const path = require('node:path');
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const { v4: uuidv4 } = require('uuid');
 const BaseService = require('./BaseService');
 const {
@@ -18,6 +19,16 @@ const {
   getGameVersionDir,
   getLegacyGameVersionDir,
 } = require('../utils/storagePaths');
+
+function sha256File(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
+}
 
 class GameService extends BaseService {
   constructor() {
@@ -47,6 +58,12 @@ class GameService extends BaseService {
 
     const game = await this.gameDAO.truyVanThongTinGame({ gameId, developerId: user.accountId });
     if (!game) throw new NotFoundException('Không tìm thấy game hoặc bạn không phải chủ sở hữu.');
+
+    const duplicateVersion = await this.gameDAO.kiemTraPhienBanGame({ gameId, versionNumber });
+    if (duplicateVersion) {
+      if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      throw new ConflictException(`Phiên bản ${versionNumber} đã tồn tại. Hãy chọn số phiên bản mới để giữ an toàn các file build cũ.`);
+    }
 
     const slug = normalizeGameSlug(game.Slug, game.Title);
     const buildInfo = await validateAndProcessBuildZip({
@@ -102,11 +119,6 @@ class GameService extends BaseService {
       autoWrapped,
       message: `Đã upload phiên bản ${versionNumber} thành công.`,
     };
-  }
-
-  async guiYeuCauQuetVirus(params = {}) {
-    // Mô phỏng: trả về "clean"
-    return { result: 'clean', scannedAt: new Date().toISOString() };
   }
 
   async layDanhSachDuAnCuaToi(params = {}) {
@@ -282,6 +294,21 @@ class GameService extends BaseService {
       throw new NghiepVuException(`Tệp build phiên bản ${target.VersionNumber} không còn tồn tại trên đĩa.`, 422);
     }
 
+    let rollbackZip;
+    try {
+      const AdmZip = require('adm-zip');
+      rollbackZip = new AdmZip(buildPath);
+      if (!rollbackZip.getEntries().some((entry) => !entry.isDirectory)) throw new Error('empty zip');
+    } catch (_) {
+      throw new NghiepVuException(`Tệp build phiên bản ${target.VersionNumber} bị hỏng hoặc rỗng; không thể rollback.`, 422);
+    }
+    if (target.Sha256) {
+      const hash = await sha256File(buildPath);
+      if (hash.toLowerCase() !== String(target.Sha256).toLowerCase()) {
+        throw new NghiepVuException(`Tệp build phiên bản ${target.VersionNumber} không khớp mã SHA-256 đã lưu; không thể rollback.`, 422);
+      }
+    }
+
     await this.transaction(async (conn) => {
       await this.gameDAO.resetCurrentVersion({ gameId }, conn);
       await this.gameDAO.capNhatPhienBanHienTai({ versionId }, conn);
@@ -297,7 +324,21 @@ class GameService extends BaseService {
 
 
   async yeuCauCapNhatTrangThaiGame(params = {}) {
-    throw new NghiepVuException('Chưa cài đặt: GameService.yeuCauCapNhatTrangThaiGame', 501);
+    const gameId = String(params.gameId || '').trim();
+    const developerId = params.user?.accountId;
+    const nextStatus = params.status;
+    if (!gameId || !developerId) throw new ValidationException('Thiếu gameId hoặc thông tin nhà phát hành.');
+    if (!['Approved', 'Hidden'].includes(nextStatus)) throw new ValidationException('Nhà phát hành chỉ có thể ẩn hoặc mở bán lại game đã được duyệt.');
+    const game = await this.gameDAO.truyVanThongTinGame({ gameId, developerId });
+    if (!game) throw new NotFoundException('Không tìm thấy game hoặc bạn không phải chủ sở hữu.');
+    if (nextStatus === 'Hidden' && game.Status !== 'Approved') {
+      throw new NghiepVuException('Chỉ game đang được duyệt và mở bán mới có thể ẩn.', 422);
+    }
+    if (nextStatus === 'Approved' && game.Status !== 'Hidden') {
+      throw new NghiepVuException('Chỉ game đang ẩn mới có thể mở bán lại.', 422);
+    }
+    await this.gameDAO.capNhatTrangThaiCuaDeveloper({ gameId, developerId, status: nextStatus });
+    return { gameId, status: nextStatus, message: nextStatus === 'Hidden' ? 'Đã ẩn game khỏi cửa hàng.' : 'Đã mở bán lại game.' };
   }
 
   async yeuCauGoGame(params = {}) {
@@ -309,7 +350,24 @@ class GameService extends BaseService {
   }
 
   async yeuCauAnGame(params = {}) {
-    throw new NghiepVuException('Chưa cài đặt: GameService.yeuCauAnGame', 501);
+    return this.yeuCauCapNhatTrangThaiGame({ ...params, status: 'Hidden' });
+  }
+
+  async capNhatThongTinGame(params = {}) {
+    const gameId = String(params.gameId || '').trim();
+    const developerId = params.user?.accountId;
+    const title = typeof params.title === 'string' ? params.title.trim() : '';
+    const description = typeof params.description === 'string' ? params.description.trim() : '';
+    const minSpec = typeof params.minSpec === 'string' ? params.minSpec.trim() : '';
+    const recSpec = typeof params.recSpec === 'string' ? params.recSpec.trim() : '';
+    if (!gameId || !developerId) throw new ValidationException('Thiếu gameId hoặc thông tin nhà phát hành.');
+    if (!title || title.length > 150) throw new ValidationException('Tên game bắt buộc và tối đa 150 ký tự.');
+    if (!description || description.length > 10000) throw new ValidationException('Mô tả game bắt buộc và tối đa 10.000 ký tự.');
+    if (minSpec.length > 2000 || recSpec.length > 2000) throw new ValidationException('Thông tin cấu hình tối đa 2.000 ký tự.');
+    const game = await this.gameDAO.truyVanThongTinGame({ gameId, developerId });
+    if (!game) throw new NotFoundException('Không tìm thấy game hoặc bạn không phải chủ sở hữu.');
+    await this.gameDAO.capNhatThongTinGame({ gameId, developerId, title, description, minSpec, recSpec });
+    return { gameId, title, description, minSpec, recSpec, message: 'Đã cập nhật thông tin game.' };
   }
 
   async kiemTraGiaBanHopLe(params = {}) {

@@ -1,6 +1,8 @@
 import http from './http';
 
 export const adminApi = {
+  listCoupons: () => http.get('/admin/layDanhSachMaGiamGia'),
+  createCoupon: (body) => http.post('/admin/taoMaGiamGia', body),
   // ─── 1. PHÂN QUYỀN & VAI TRÒ (RBAC) ──────────────────────────────────────────
   listRoles: () => http.get('/admin/layDanhSachVaiTro'),
   listPermissions: () => http.get('/admin/layDanhSachQuyen'),

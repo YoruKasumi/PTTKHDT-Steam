@@ -1,9 +1,10 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { formatVnd } from '../utils/format';
 import { notificationApi } from '../api/notification';
 import { authApi } from '../api/auth';
+import { getRoleLandingPath } from '../utils/roleLanding';
 
 const guestLinks = [
   { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
@@ -12,7 +13,6 @@ const guestLinks = [
 
 const customerLinks = [
   { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
-  { to: '/cart', icon: 'icon-cart.svg', label: 'Giỏ hàng' },
   { to: '/library', icon: 'icon-library.svg', label: 'Thư viện' },
   { to: '/wishlist', icon: 'icon-heart.svg', label: 'Danh sách mong muốn' },
   { to: '/search', icon: 'icon-filter.svg', label: 'Bộ lọc tìm kiếm' },
@@ -39,13 +39,19 @@ function timeAgo(dateString) {
 /** Thanh điều hướng phía trên (Figma: node 1:319). */
 export default function TopBar() {
   const navigate = useNavigate();
-  const { cart, balance, user, shopError, logout } = useShop();
+  const location = useLocation();
+  const { balance, user, shopError, logout } = useShop();
   const roles = user?.roles || [];
   const isAdmin = roles.includes('Admin');
   const isDeveloper = roles.includes('Developer') && !isAdmin;
   const isManager = roles.includes('Manager') && !isAdmin && !isDeveloper;
   const isCustomer = user && !isAdmin && !isDeveloper && !isManager;
   const isGuest = !user;
+  const isPortalUser = isAdmin || isDeveloper || isManager;
+  const isWorkspace = location.pathname.startsWith('/developer')
+    || location.pathname.startsWith('/admin')
+    || location.pathname.startsWith('/finance')
+    || location.pathname.startsWith('/moderation');
 
   const [openMenu, setOpenMenu] = useState('');
   const [notifications, setNotifications] = useState([]);
@@ -113,32 +119,28 @@ export default function TopBar() {
     }
   };
 
-  if (!isGuest && !isCustomer) {
-    return (
-      <div className="flex h-[51px] items-center justify-end bg-topbar px-3 sm:px-[50px]">
-        <div className="flex items-center gap-2">
-          <Link to="/profile" className="rounded px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 sm:text-sm">
-            Thông tin cá nhân
-          </Link>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/20 sm:text-sm"
-          >
-            Đăng xuất
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-[51px] items-center justify-between bg-topbar px-3 sm:px-[50px]">
       <nav
         className="flex items-center gap-2.5 sm:gap-[20px] overflow-x-auto"
-        aria-label={isGuest || isCustomer ? 'Điều hướng cửa hàng' : 'Điều hướng khu vực làm việc'}
+        aria-label={isWorkspace && isPortalUser ? 'Điều hướng khu vực làm việc' : 'Điều hướng cửa hàng'}
       >
-        {isGuest ? (
+        {isPortalUser ? (
+          <>
+            {isWorkspace ? (
+              <Link to="/" className="rounded px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 sm:text-sm">Cửa hàng</Link>
+            ) : (
+              <>
+                {customerLinks.map((l) => (
+                  <NavLink key={l.to} to={l.to} end={l.to === '/'} className={btn} aria-label={l.label} title={l.label}>
+                    <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
+                  </NavLink>
+                ))}
+                <Link to={getRoleLandingPath(user)} className="rounded bg-accent px-3 py-2 text-xs font-semibold text-white sm:text-sm">Khu vực {isAdmin ? 'Admin' : isDeveloper ? 'Nhà phát hành' : 'Staff'}</Link>
+              </>
+            )}
+          </>
+        ) : isGuest ? (
           guestLinks.map((l) => (
             <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.label} title={l.label}>
               <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
@@ -146,17 +148,14 @@ export default function TopBar() {
           ))
         ) : isCustomer ? (
           customerLinks.map((l) => (
-            <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.to === '/cart' ? `${l.label} (${cart.length})` : l.label} title={l.label}>
+            <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.label} title={l.label}>
               <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
-              {l.to === '/cart' && cart.length ? (
-                <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-white">{cart.length}</span>
-              ) : null}
             </NavLink>
           ))
         ) : null}
       </nav>
       <div className="flex gap-2.5 sm:gap-[30px]">
-        {(user?.roles?.includes('Customer') || user?.roles?.includes('Developer')) ? (
+        {(user?.roles?.includes('Customer') || user?.roles?.includes('Developer')) && (!isPortalUser || !isWorkspace) ? (
           <Link to="/wallet" className="flex items-center rounded-md px-2 text-xs font-bold text-emerald-300 hover:bg-white/5 sm:text-sm" aria-label={`Số dư ví ${formatVnd(balance)}`}>
             {formatVnd(balance)}
           </Link>

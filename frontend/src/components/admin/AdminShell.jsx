@@ -3,6 +3,7 @@ import { useShop } from '../../context/ShopContext';
 
 const links = [
   { to: '/admin/accounts', label: 'Tài khoản', permission: 'account.moderate', adminOnly: false },
+  { to: '/admin/coupons', label: 'Mã giảm giá', adminOnly: false },
   { to: '/admin/staff', label: 'Nhân sự', adminOnly: true },
   { to: '/admin/rbac', label: 'Phân quyền', adminOnly: true },
   { to: '/admin/reviews', label: 'Đánh giá', permission: 'review.moderate', adminOnly: false },
@@ -29,11 +30,10 @@ export default function AdminShell({ title, description, children }) {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 pb-20 pt-10 md:px-8">
-      <header className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-slate-900 via-card to-page p-6 shadow-xl">
-        <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-accent-light">Vortex Admin Console</p>
-        <h1 className="mb-2 mt-3 text-2xl font-extrabold md:text-3xl">{title}</h1>
-        <p className="m-0 max-w-3xl text-sm text-muted">{description}</p>
-      </header>
+      <div className="pt-2">
+        <h1 className="m-0 text-2xl font-extrabold md:text-3xl">{title}</h1>
+        <p className="mb-0 mt-2 max-w-3xl text-sm text-muted">{description}</p>
+      </div>
 
       <nav aria-label="Điều hướng quản trị" className="my-5 flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-card p-2">
         {visibleLinks.map((link) => (

@@ -195,11 +195,22 @@ test('customer-only routes still reject requests without a JWT', async () => {
 });
 
 test('admin endpoints require authentication', async () => {
-  const response = await fetch(`${baseUrl}/api/admin/layDanhSachVaiTro`);
-  assert.equal(response.status, 401);
-  assert.deepEqual(await response.json(), {
-    success: false,
-    code: 'UNAUTHORIZED',
-    message: 'Chưa đăng nhập hoặc phiên đã hết hạn',
-  });
+  const requests = [
+    fetch(`${baseUrl}/api/admin/layDanhSachVaiTro`),
+    fetch(`${baseUrl}/api/admin/layDanhSachMaGiamGia`),
+    fetch(`${baseUrl}/api/admin/taoMaGiamGia`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: 'TEST20', discountValue: 20000, expiryDate: '2030-01-01T00:00', usageLimit: 10 }),
+    }),
+  ];
+  for (const pendingResponse of requests) {
+    const response = await pendingResponse;
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      success: false,
+      code: 'UNAUTHORIZED',
+      message: 'Chưa đăng nhập hoặc phiên đã hết hạn',
+    });
+  }
 });

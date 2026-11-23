@@ -37,7 +37,7 @@ export default function GameDetail() {
 
   useEffect(() => {
     let active = true;
-    if (!user?.roles?.includes('Customer')) {
+    if (!user?.roles?.some((role) => role === 'Customer' || role === 'Developer')) {
       setIsOwned(false);
       setCheckingOwnership(false);
       return () => { active = false; };
@@ -149,7 +149,7 @@ export default function GameDetail() {
             <p className="text-xs font-bold uppercase tracking-widest text-accent-light">{game.genres.join(' · ') || 'Trò chơi'}</p>
             <h1 className="mb-2 mt-3 text-3xl font-extrabold md:text-5xl">{game.title}</h1>
             <p className="mb-0 text-sm text-zinc-300">
-              {game.developer} · {game.rating.toFixed(1)}/5 ({game.ratingCount} đánh giá)
+              {game.developer} · {game.rating.toFixed(1)}/5 ({game.ratingCount} đánh giá) · {game.playerCount.toLocaleString('vi-VN')} đang chơi
             </p>
           </div>
         </div>
@@ -181,6 +181,15 @@ export default function GameDetail() {
       <FeedbackDialog open={Boolean(notice || error)} title={error ? 'Đã xảy ra lỗi' : 'Thông báo'} message={error || notice} tone={error ? 'error' : 'success'} onClose={() => { setError(''); setNotice(''); }} />
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
+        {game.trailerUrl ? (
+          <article className="overflow-hidden rounded-2xl border border-white/10 bg-card p-5 lg:col-span-2">
+            <h2 className="m-0 text-xl font-bold">Video giới thiệu</h2>
+            <video controls preload="metadata" playsInline className="mt-4 max-h-[70vh] w-full rounded-xl bg-black" aria-label={`Video giới thiệu ${game.title}`}>
+              <source src={game.trailerUrl} />
+              Trình duyệt không hỗ trợ phát video.
+            </video>
+          </article>
+        ) : null}
         <article className="rounded-2xl border border-white/10 bg-card p-5">
           <h2 className="m-0 text-xl font-bold">Cấu hình yêu cầu</h2>
           <dl className="mt-4 space-y-3 text-sm">
@@ -197,9 +206,9 @@ export default function GameDetail() {
 
         <article className="rounded-2xl border border-white/10 bg-card p-5">
           <h2 className="m-0 text-xl font-bold">Đánh giá của người chơi</h2>
-          {user?.roles?.includes('Customer') && checkingOwnership ? (
+          {user?.roles?.some((role) => role === 'Customer' || role === 'Developer') && checkingOwnership ? (
             <p role="status" className="mt-4 text-sm text-muted">Đang kiểm tra bản quyền trò chơi...</p>
-          ) : user?.roles?.includes('Customer') && isOwned && !game.reviews.some((review) => review.customerId === user.accountId) ? (
+          ) : user?.roles?.some((role) => role === 'Customer' || role === 'Developer') && isOwned && !game.reviews.some((review) => review.customerId === user.accountId) ? (
             <form onSubmit={submitReview} className="mt-4 space-y-3">
               <fieldset>
                 <legend className="mb-2 text-sm font-bold">Số sao</legend>
@@ -220,7 +229,7 @@ export default function GameDetail() {
               </button>
               {editingReviewId ? <button type="button" onClick={() => { setEditingReviewId(null); setContent(''); setRating(5); }} className="ml-2 rounded-lg border border-line px-4 py-2.5 font-semibold">Hủy sửa</button> : null}
             </form>
-          ) : user?.roles?.includes('Customer') ? (
+          ) : user?.roles?.some((role) => role === 'Customer' || role === 'Developer') ? (
             <p className="mt-3 text-sm text-muted">Chỉ tài khoản có bản quyền game này mới được gửi đánh giá.</p>
           ) : <p className="mt-3 text-sm text-muted">Đăng nhập bằng tài khoản khách hàng để gửi đánh giá. Chỉ chủ sở hữu trò chơi được phép đánh giá.</p>}
 

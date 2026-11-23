@@ -33,6 +33,7 @@ test('permission middleware allows Admin and assigned Manager permissions only',
 test('role middleware rejects a signed-in user without the required role', () => {
   assert.equal(runMiddleware(requireRole('Admin'), { roles: ['Manager'] }).status, 403);
   assert.equal(runMiddleware(requireRole('Admin'), { roles: ['Admin'] }), null);
+  assert.equal(runMiddleware(requireRole('Customer'), { roles: ['Developer'] }), null);
 });
 
 test('RBAC permission catalogue exposes required moderation and finance codes', async () => {

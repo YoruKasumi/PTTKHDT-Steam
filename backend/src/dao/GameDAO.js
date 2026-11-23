@@ -40,6 +40,8 @@ class GameDAO extends BaseDAO {
               price.BasePrice, price.PercentOff, price.CurrentPrice,
               COALESCE(rating.AverageRating, 0) AS AverageRating,
               COALESCE(rating.RatingCount, 0) AS RatingCount,
+              (SELECT COUNT(*) FROM GAMEPLAYSESSION AS activePlayer
+               WHERE activePlayer.GameID = g.GameID AND activePlayer.LastSeenAt >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)) AS PlayerCount,
               COALESCE(popularity.Popularity, 0) AS Popularity,
               (SELECT GROUP_CONCAT(DISTINCT genre.GenreName ORDER BY genre.GenreName SEPARATOR ',')
                FROM GAME_GENRE AS gameGenre
@@ -90,13 +92,20 @@ class GameDAO extends BaseDAO {
 
   async layDanhSachGameTheoDeveloper(developerId, conn = null) {
     return this.query(
-      `SELECT g.GameID, g.Title, g.Slug, g.Status, g.Price,
+      `SELECT g.GameID, g.Title, g.Slug, g.Status, g.Price, g.Description,
+              g.MinSpec, g.RecSpec, g.CoverImage, g.TrailerUrl,
+              currentVersion.VersionNumber, currentVersion.FileSize, currentVersion.Sha256,
+              (SELECT COUNT(*) FROM GAMEPLAYSESSION AS activePlayer
+               WHERE activePlayer.GameID = g.GameID AND activePlayer.LastSeenAt >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)) AS PlayerCount,
               COALESCE(GROUP_CONCAT(DISTINCT genre.GenreName ORDER BY genre.GenreName SEPARATOR ', '), '') AS Genres
        FROM GAME AS g
        LEFT JOIN GAME_GENRE AS gameGenre ON gameGenre.GameID = g.GameID
        LEFT JOIN GENRE AS genre ON genre.GenreID = gameGenre.GenreID
+       LEFT JOIN GAMEVERSION AS currentVersion ON currentVersion.GameID = g.GameID AND currentVersion.IsCurrent = 1
        WHERE g.DeveloperID = ?
-       GROUP BY g.GameID, g.Title, g.Slug, g.Status, g.Price
+       GROUP BY g.GameID, g.Title, g.Slug, g.Status, g.Price, g.Description,
+                g.MinSpec, g.RecSpec, g.CoverImage, g.TrailerUrl,
+                currentVersion.VersionNumber, currentVersion.FileSize, currentVersion.Sha256
        ORDER BY g.GameID DESC`,
       [developerId],
       conn,
@@ -110,6 +119,8 @@ class GameDAO extends BaseDAO {
               price.BasePrice, price.PercentOff, price.CurrentPrice,
               currentVersion.VersionID, currentVersion.VersionNumber,
               currentVersion.ChangeLog, currentVersion.UploadDate AS VersionDate,
+              (SELECT COUNT(*) FROM GAMEPLAYSESSION AS activePlayer
+               WHERE activePlayer.GameID = g.GameID AND activePlayer.LastSeenAt >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)) AS PlayerCount,
               (SELECT GROUP_CONCAT(DISTINCT genre.GenreName ORDER BY genre.GenreName SEPARATOR ',')
                FROM GAME_GENRE AS gameGenre
                INNER JOIN GENRE AS genre ON genre.GenreID = gameGenre.GenreID
@@ -130,6 +141,26 @@ class GameDAO extends BaseDAO {
       [params.gameId],
       conn,
     );
+  }
+
+  async capNhatThongTinGame(params = {}, conn = null) {
+    const result = await this.query(
+      `UPDATE GAME
+       SET Title = ?, Description = ?, MinSpec = ?, RecSpec = ?
+       WHERE GameID = ? AND DeveloperID = ?`,
+      [params.title, params.description, params.minSpec, params.recSpec, params.gameId, params.developerId],
+      conn,
+    );
+    return result.affectedRows > 0;
+  }
+
+  async capNhatTrangThaiCuaDeveloper(params = {}, conn = null) {
+    const result = await this.query(
+      'UPDATE GAME SET Status = ? WHERE GameID = ? AND DeveloperID = ?',
+      [params.status, params.gameId, params.developerId],
+      conn,
+    );
+    return result.affectedRows > 0;
   }
 
   async layThongTinCoBan(params = {}, conn = null) {
@@ -235,6 +266,15 @@ class GameDAO extends BaseDAO {
       conn,
     );
   }
+
+  async kiemTraPhienBanGame(params = {}, conn = null) {
+    return this.one(
+      'SELECT VersionID FROM GAMEVERSION WHERE GameID = ? AND VersionNumber = ? LIMIT 1',
+      [params.gameId, params.versionNumber],
+      conn,
+    );
+  }
+
   async capNhatPhienBanMoi(params = {}, conn = null) {
     await this.query(
       `INSERT INTO GAMEVERSION (GameID, VersionNumber, BuildFile, FileSize, Sha256, ChangeLog, IsCurrent)

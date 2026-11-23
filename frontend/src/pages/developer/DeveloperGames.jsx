@@ -36,29 +36,6 @@ function StatusBadge({ status }) {
   );
 }
 
-// ─── Badge DRM ───────────────────────────────────────────────────────────────
-function DrmBadge({ hasDrmJs, hasManifest, status }) {
-  if (status === 'Pending') {
-    return (
-      <span className="inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-400">
-        ⏳ Chờ duyệt
-      </span>
-    );
-  }
-  if (hasDrmJs && hasManifest) {
-    return (
-      <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-400">
-        ✅ DRM tích hợp sẵn
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs font-bold text-blue-400">
-      🔧 Auto-DRM bởi nền tảng
-    </span>
-  );
-}
-
 // ─── Modal Upload Patch ───────────────────────────────────────────────────────
 export function UploadPatchModal({ game, onClose, onSuccess }) {
   const [versionNumber, setVersionNumber] = useState('');
@@ -211,7 +188,7 @@ export function RollbackModal({ game, onClose, onSuccess }) {
                         v{v.VersionNumber ?? v.versionNumber}
                       </td>
                       <td className="px-3 py-2 text-muted text-xs">
-                        {v.UploadDate ? new Date(v.UploadDate).toLocaleDateString('vi-VN') : '—'}
+                        {(v.UploadDate ?? v.uploadDate) ? new Date(v.UploadDate ?? v.uploadDate).toLocaleDateString('vi-VN') : '—'}
                       </td>
                       <td className="px-3 py-2">
                         {isCurrent ? (
@@ -262,6 +239,49 @@ export function RollbackModal({ game, onClose, onSuccess }) {
   );
 }
 
+export function EditGameModal({ game, onClose, onSuccess }) {
+  const [form, setForm] = useState({
+    title: game.title || '',
+    description: game.description || '',
+    minSpec: game.minSpec || '',
+    recSpec: game.recSpec || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await gameApi.updateGameDetails(game.id, form);
+      onSuccess({ ...game, ...form });
+    } catch (requestError) {
+      setError(requestError.message || 'Không thể cập nhật thông tin game.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+      <section role="dialog" aria-modal="true" className="w-full max-w-2xl rounded-2xl border border-indigo-900 bg-zinc-950 p-6 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between"><h3 className="m-0 font-bold">Sửa thông tin game — {game.title}</h3><button type="button" onClick={onClose} className="text-muted hover:text-white">✕</button></div>
+        <form onSubmit={submit} className="space-y-4">
+          <label className="block text-sm text-muted">Tên game<input required maxLength={150} value={form.title} onChange={(event) => update('title', event.target.value)} className={inputClass} /></label>
+          <label className="block text-sm text-muted">Mô tả<textarea required maxLength={10000} rows={4} value={form.description} onChange={(event) => update('description', event.target.value)} className={inputClass} /></label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm text-muted">Cấu hình tối thiểu<textarea maxLength={2000} rows={3} value={form.minSpec} onChange={(event) => update('minSpec', event.target.value)} className={inputClass} /></label>
+            <label className="block text-sm text-muted">Cấu hình đề nghị<textarea maxLength={2000} rows={3} value={form.recSpec} onChange={(event) => update('recSpec', event.target.value)} className={inputClass} /></label>
+          </div>
+          {error ? <p role="alert" className="m-0 text-sm text-red-400">{error}</p> : null}
+          <div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-line px-4 py-2 text-sm font-bold">Hủy</button><button type="submit" disabled={saving} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold disabled:opacity-50">{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</button></div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 // ─── Trang chính DeveloperGames ───────────────────────────────────────────────
 export default function DeveloperGames() {
   const [projects, setProjects] = useState([]);
@@ -270,7 +290,9 @@ export default function DeveloperGames() {
   const [showCreate, setShowCreate] = useState(false);
   const [patchTarget, setPatchTarget] = useState(null);   // game đang upload patch
   const [rollbackTarget, setRollbackTarget] = useState(null); // game đang rollback
+  const [editTarget, setEditTarget] = useState(null);
   const [priceGameId, setPriceGameId] = useState('');
+  const [pricingModal, setPricingModal] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [saleGameId, setSaleGameId] = useState('');
   const [discount, setDiscount] = useState(25);
@@ -287,10 +309,14 @@ export default function DeveloperGames() {
       const list = (Array.isArray(response) ? response : []).map((game) => ({
         id: game.GameID,
         title: game.Title,
+        description: game.Description || '',
+        minSpec: game.MinSpec || '',
+        recSpec: game.RecSpec || '',
         genres: game.Genres || '—',
         status: game.Status,
-        build: game.VersionNumber ? `v${game.VersionNumber}` : 'v1.0.0',
+        build: game.VersionNumber ? `v${game.VersionNumber}` : '—',
         price: Number(game.Price || 0),
+        playerCount: Number(game.PlayerCount || 0),
         discount: Number(game.Discount || 0),
         startDate: game.SaleStart,
         endDate: game.SaleEnd,
@@ -358,6 +384,23 @@ export default function DeveloperGames() {
     setMessage(`Đã hoàn nguyên về phiên bản v${data.versionNumber ?? ''} thành công!`);
   };
 
+  const handleEditSuccess = (data) => {
+    setProjects((current) => current.map((project) => project.id === data.id ? { ...project, ...data } : project));
+    setEditTarget(null);
+    setMessage('Đã cập nhật thông tin game.');
+  };
+
+  const toggleGameStatus = async (project) => {
+    const status = project.status === 'Approved' ? 'Hidden' : 'Approved';
+    try {
+      await gameApi.updateGameStatus(project.id, status);
+      setProjects((current) => current.map((game) => game.id === project.id ? { ...game, status } : game));
+      setMessage(status === 'Hidden' ? `Đã ẩn ${project.title} khỏi cửa hàng.` : `Đã mở bán lại ${project.title}.`);
+    } catch (requestError) {
+      setMessage(requestError.message || 'Không thể cập nhật trạng thái game.');
+    }
+  };
+
   // ── Lưu giá bán (gọi API thực) ──────────────────────────────────────────
   const savePrice = async (event) => {
     event.preventDefault();
@@ -381,6 +424,7 @@ export default function DeveloperGames() {
       current.map((p) => (p.id === priceGame.id ? { ...p, price } : p)),
     );
     setMessage(`Đã cập nhật giá của ${priceGame.title} thành ${formatVnd(price)}.`);
+    setPricingModal('');
   };
 
   // ── Lưu chiến dịch Sale ──────────────────────────────────────────────────
@@ -408,6 +452,7 @@ export default function DeveloperGames() {
         ),
       );
       setMessage(`Đã lưu chiến dịch Sale ${percent}% cho ${saleGame.title} thành công.`);
+      setPricingModal('');
     } catch (error) {
       setMessage(error?.message || 'Không thể thiết lập chiến dịch Sale.');
     }
@@ -421,6 +466,7 @@ export default function DeveloperGames() {
       ),
     );
     setMessage(`Đã kết thúc chiến dịch Sale của ${saleGame.title}.`);
+    setPricingModal('');
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -478,7 +524,7 @@ export default function DeveloperGames() {
                   <th className="px-3 py-3">Tựa Game & Mã Dự Án</th>
                   <th className="px-3 py-3">Trạng thái</th>
                   <th className="px-3 py-3">Build hiện hành</th>
-                  <th className="px-3 py-3">DRM</th>
+              <th className="px-3 py-3" title="Người chơi đang hoạt động trong 3 phút gần nhất">Đang chơi</th>
                   <th className="px-3 py-3">Dung lượng / SHA-256</th>
                   <th className="px-3 py-3">Giá gốc</th>
                   <th className="px-3 py-3">Sale</th>
@@ -499,13 +545,7 @@ export default function DeveloperGames() {
                       <StatusBadge status={project.status} />
                     </td>
                     <td className="px-3 py-4 font-mono text-accent-light">{project.build}</td>
-                    <td className="px-3 py-4">
-                      <DrmBadge
-                        hasDrmJs={project.hasDrmJs}
-                        hasManifest={project.hasManifest}
-                        status={project.status}
-                      />
-                    </td>
+                    <td className="px-3 py-4 font-semibold text-cyan-300" title="Phiên chơi có heartbeat trong 3 phút gần nhất">{project.playerCount.toLocaleString('vi-VN')}</td>
                     <td className="px-3 py-4">
                       <p className="m-0 text-xs text-muted">{formatBytes(project.fileSize)}</p>
                       {project.sha256 && (
@@ -531,16 +571,18 @@ export default function DeveloperGames() {
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex flex-col gap-1.5">
+                        <button type="button" onClick={() => setEditTarget(project)} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold hover:border-accent">Sửa thông tin</button>
+                        {(project.status === 'Approved' || project.status === 'Hidden') && <button type="button" onClick={() => toggleGameStatus(project)} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-300">{project.status === 'Approved' ? 'Ẩn game' : 'Mở bán lại'}</button>}
                         <button
                           type="button"
-                          onClick={() => { setPriceGameId(project.id); setNewPrice(String(project.price)); }}
+                          onClick={() => { setPriceGameId(project.id); setNewPrice(String(project.price)); setPricingModal('price'); }}
                           className="rounded-lg border border-line px-3 py-1.5 text-xs font-bold hover:border-accent"
                         >
                           Đổi giá
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setSaleGameId(project.id); setDiscount(project.discount || 25); }}
+                          onClick={() => { setSaleGameId(project.id); setDiscount(project.discount || 25); setPricingModal('sale'); }}
                           className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent-light"
                         >
                           Sale
@@ -569,128 +611,19 @@ export default function DeveloperGames() {
         )}
       </section>
 
-      {/* Panel thiết lập giá + Sale */}
-      {projects.length > 0 && (
-        <div className="grid gap-5 xl:grid-cols-2">
-          {/* Thiết lập giá */}
-          <form onSubmit={savePrice} className={panelClass}>
-            <h2 className="m-0 border-b border-white/10 pb-4 text-lg font-bold">Thiết lập giá bán VND</h2>
-            <label className="mt-4 block text-sm font-semibold text-muted">
-              Chọn tựa game cần điều chỉnh giá gốc
-              <select
-                value={priceGameId}
-                onChange={(event) => {
-                  setPriceGameId(event.target.value);
-                  setNewPrice(
-                    String(projects.find((item) => item.id === event.target.value)?.price ?? ''),
-                  );
-                }}
-                className={controlClass}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
-              </select>
-            </label>
-            {priceGame?.discount ? (
-              <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
-                <strong>CẢNH BÁO!</strong> {priceGame.title} đang trong chiến dịch Sale (-
-                {priceGame.discount}%). Hệ thống khóa điều chỉnh giá gốc cho đến khi đợt Sale kết thúc.
-              </p>
-            ) : null}
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <p className="m-0 rounded-lg bg-page p-3 text-sm">
-                Giá gốc hiện tại: <strong>{priceGame ? formatVnd(priceGame.price) : '—'}</strong>
-              </p>
-              <label className="text-sm text-muted">
-                Mức giá bán mới (0 ₫ – 5.000.000 ₫)
-                <input
-                  type="number"
-                  min="0"
-                  max="5000000"
-                  step="1000"
-                  value={newPrice}
-                  onChange={(event) => setNewPrice(event.target.value)}
-                  className={controlClass}
-                />
-              </label>
-            </div>
-            <button
-              type="submit"
-              disabled={!priceGame || priceGame.discount > 0}
-              className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Cập nhật giá bán VND
-            </button>
-          </form>
-
-          {/* Sale */}
-          <form onSubmit={saveSale} className={panelClass}>
-            <h2 className="m-0 border-b border-white/10 pb-4 text-lg font-bold">Lên chiến dịch khuyến mãi Sale</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-semibold text-muted">
-                Chọn tựa game áp dụng Sale
-                <select
-                  value={saleGameId}
-                  onChange={(event) => setSaleGameId(event.target.value)}
-                  className={controlClass}
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-semibold text-muted">
-                Tỷ lệ giảm giá (5%–90%)
-                <input
-                  type="number"
-                  min="5"
-                  max="90"
-                  value={discount}
-                  onChange={(event) => setDiscount(event.target.value)}
-                  className={controlClass}
-                />
-              </label>
-              <label className="text-sm font-semibold text-muted">
-                Ngày bắt đầu
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  className={controlClass}
-                />
-              </label>
-              <label className="text-sm font-semibold text-muted">
-                Ngày kết thúc
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  className={controlClass}
-                />
-              </label>
-            </div>
-            <p className="mt-4 rounded-lg border border-white/10 bg-page p-3 text-sm text-muted">
-              Giá sau khuyến mãi dự kiến:{' '}
-              <strong className="font-mono text-accent-light">{saleGame ? formatVnd(salePrice) : '—'}</strong>
-            </p>
-            <div className="flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={endSale}
-                disabled={!saleGame || saleGame.discount === 0}
-                className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold disabled:opacity-50"
-              >
-                Kết thúc đợt Sale hiện tại
-              </button>
-              <button type="submit" className="rounded-lg bg-accent px-4 py-2.5 text-sm font-bold">
-                Lưu lịch chiến dịch Sale
-              </button>
-            </div>
-          </form>
+      {/* Pop-up thiết lập giá và chiến dịch Sale */}
+      {pricingModal && projects.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setPricingModal(''); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="pricing-modal-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/15 bg-card p-5 shadow-2xl md:p-7">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4"><div><h2 id="pricing-modal-title" className="m-0 text-xl font-bold">{pricingModal === 'price' ? 'Đổi giá bán' : 'Chiến dịch Sale'}</h2><p className="mb-0 mt-1 text-sm text-muted">{pricingModal === 'price' ? 'Cập nhật giá niêm yết cho game.' : 'Thiết lập thời gian và mức giảm giá.'}</p></div><button type="button" onClick={() => setPricingModal('')} aria-label="Đóng" className="rounded-lg border border-line px-3 py-1 text-xl text-muted hover:text-white">×</button></div>
+            {pricingModal === 'price' ? (
+              <form onSubmit={savePrice} className="pt-4"><label className="block text-sm font-semibold text-muted">Chọn tựa game<select value={priceGameId} onChange={(event) => { setPriceGameId(event.target.value); setNewPrice(String(projects.find((item) => item.id === event.target.value)?.price ?? '')); }} className={controlClass}>{projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select></label>{priceGame?.discount ? <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300"><strong>CẢNH BÁO!</strong> {priceGame.title} đang trong chiến dịch Sale (-{priceGame.discount}%). Hãy kết thúc chiến dịch trước khi đổi giá gốc.</p> : null}<div className="mt-4 grid gap-4 sm:grid-cols-2"><p className="m-0 rounded-lg bg-page p-3 text-sm">Giá gốc hiện tại: <strong>{priceGame ? formatVnd(priceGame.price) : '—'}</strong></p><label className="text-sm text-muted">Mức giá bán mới (0 ₫ – 5.000.000 ₫)<input type="number" min="0" max="5000000" step="1000" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} className={controlClass} /></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setPricingModal('')} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold">Hủy</button><button type="submit" disabled={!priceGame || priceGame.discount > 0} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-bold disabled:opacity-50">Cập nhật giá</button></div></form>
+            ) : (
+              <form onSubmit={saveSale} className="pt-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-muted">Chọn tựa game<select value={saleGameId} onChange={(event) => setSaleGameId(event.target.value)} className={controlClass}>{projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select></label><label className="text-sm font-semibold text-muted">Tỷ lệ giảm giá (5%–90%)<input type="number" min="5" max="90" value={discount} onChange={(event) => setDiscount(event.target.value)} className={controlClass} /></label><label className="text-sm font-semibold text-muted">Ngày bắt đầu<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className={controlClass} /></label><label className="text-sm font-semibold text-muted">Ngày kết thúc<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className={controlClass} /></label></div><p className="mt-4 rounded-lg border border-white/10 bg-page p-3 text-sm text-muted">Giá sau khuyến mãi dự kiến: <strong className="font-mono text-accent-light">{saleGame ? formatVnd(salePrice) : '—'}</strong></p><div className="flex flex-wrap justify-end gap-3"><button type="button" onClick={endSale} disabled={!saleGame || saleGame.discount === 0} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold disabled:opacity-50">Kết thúc đợt Sale</button><button type="button" onClick={() => setPricingModal('')} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold">Hủy</button><button type="submit" className="rounded-lg bg-accent px-4 py-2.5 text-sm font-bold">Lưu chiến dịch</button></div></form>
+            )}
+          </section>
         </div>
       )}
-
       {/* Thông báo */}
       {message ? (
         <p
@@ -705,6 +638,8 @@ export default function DeveloperGames() {
       {showCreate ? (
         <NewProjectModal onClose={() => setShowCreate(false)} onCreate={handleCreate} />
       ) : null}
+
+      {editTarget ? <EditGameModal game={editTarget} onClose={() => setEditTarget(null)} onSuccess={handleEditSuccess} /> : null}
 
       {/* Modal upload patch */}
       {patchTarget ? (

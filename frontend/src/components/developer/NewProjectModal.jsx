@@ -20,7 +20,6 @@ export default function NewProjectModal({ onClose, onCreate }) {
     minSpec: '',
     recommendedSpec: '',
     description: '',
-    scanner: 'Gói cài đặt an toàn (Clean .zip)',
   });
   const [availableGenres, setAvailableGenres] = useState([]);
   const [selectedGenreIds, setSelectedGenreIds] = useState([]);
@@ -380,7 +379,7 @@ export default function NewProjectModal({ onClose, onCreate }) {
             />
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4">
             <label className="text-sm text-muted">
               Tệp gói cài đặt v1.0.0 (.zip) *
               <input
@@ -391,17 +390,6 @@ export default function NewProjectModal({ onClose, onCreate }) {
                 required
               />
             </label>
-            <label className="text-sm text-muted">
-              Chế độ kiểm thử Antivirus Scanner
-              <select
-                value={form.scanner}
-                onChange={(event) => update('scanner', event.target.value)}
-                className={inputClass}
-              >
-                <option>Gói cài đặt an toàn (Clean .zip)</option>
-                <option>Quét khi gửi xét duyệt</option>
-              </select>
-            </label>
           </div>
 
           {file && (
@@ -411,9 +399,7 @@ export default function NewProjectModal({ onClose, onCreate }) {
             </p>
           )}
 
-          <p className="m-0 text-xs text-muted">
-            Quét Antivirus ở đây chỉ là thao tác giao diện mẫu; tệp sẽ được kiểm tra thực tế phía server.
-          </p>
+          <p className="m-0 text-xs text-muted">Gói .zip sẽ được kiểm tra cấu trúc và tính hợp lệ trước khi gửi xét duyệt.</p>
 
           {error ? (
             <p role="alert" className="m-0 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
@@ -435,7 +421,7 @@ export default function NewProjectModal({ onClose, onCreate }) {
               disabled={loading}
               className="rounded-lg bg-accent px-4 py-2.5 font-bold disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? '⏳ Đang upload & xử lý...' : 'Quét Antivirus & Khởi tạo Dự án'}
+              {loading ? '⏳ Đang khởi tạo...' : 'Khởi tạo dự án'}
             </button>
           </div>
         </form>

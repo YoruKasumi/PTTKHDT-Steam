@@ -34,6 +34,8 @@ export const gameApi = {
     http.post('/game/xacNhanKhoiPhucPhienBan', { gameId, versionId }),
 
   layDanhSachDuAnCuaToi: () => http.get('/game/layDanhSachDuAnCuaToi'),
+  updateGameDetails: (gameId, details) => http.post('/game/capNhatThongTinGame', { gameId, ...details }),
+  updateGameStatus: (gameId, status) => http.post('/game/yeuCauCapNhatTrangThaiGame', { gameId, status }),
 
   // Aliases for compatibility
   createProject: (formData) =>

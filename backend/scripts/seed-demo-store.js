@@ -411,6 +411,9 @@ async function ensureDemoAccounts(password) {
       'INSERT INTO DEVELOPER (AccountID, CompanyName, FeePaid, VerifyStatus) VALUES (?, ?, 1, ?) ON DUPLICATE KEY UPDATE CompanyName = VALUES(CompanyName), FeePaid = 1, VerifyStatus = VALUES(VerifyStatus)',
       [accountIds.developer, 'Demo Studio', 'Verified'],
     );
+    await conn.execute('INSERT IGNORE INTO CUSTOMER (AccountID) VALUES (?)', [accountIds.developer]);
+    await conn.execute('INSERT IGNORE INTO WALLET (CustomerID) VALUES (?)', [accountIds.developer]);
+    await conn.execute('INSERT IGNORE INTO CART (CustomerID) VALUES (?)', [accountIds.developer]);
 
     for (let index = 0; index < DEMO_CUSTOMERS.length; index += 1) {
       const customerId = accountIds[`customer${index + 1}`];

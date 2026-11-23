@@ -68,39 +68,50 @@ export default function CatalogSearch() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 pb-20 pt-10 md:px-8">
-      <h1 className="m-0 text-2xl font-extrabold">Tìm kiếm trò chơi</h1>
-      <form onSubmit={submit} className="mt-6 grid gap-4 rounded-2xl border border-white/10 bg-card p-5 md:grid-cols-3">
-        <label className="text-sm font-bold md:col-span-3">Từ khóa
-          <input value={filters.keyword} onChange={update('keyword')} maxLength={200} placeholder="Tên hoặc mô tả game" className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal" />
-        </label>
-        <label className="text-sm font-bold">Thể loại
-          <select value={filters.genreId} onChange={update('genreId')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal">
-            <option value="">Tất cả thể loại</option>
-            {genres.map((genre) => <option key={genre.genreId} value={genre.genreId}>{genre.genreName}</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-bold">Giá tối thiểu
-          <input type="number" min="0" value={filters.minPrice} onChange={update('minPrice')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal" />
-        </label>
-        <label className="text-sm font-bold">Giá tối đa
-          <input type="number" min="0" value={filters.maxPrice} onChange={update('maxPrice')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal" />
-        </label>
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <input type="checkbox" checked={filters.onSale} onChange={update('onSale')} /> Chỉ game đang giảm giá
-        </label>
-        <label className="text-sm font-bold">Sắp xếp
-          <select value={filters.sort} onChange={update('sort')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal">
-            <option value="popularity">Phổ biến</option>
-            <option value="releaseDate">Ngày phát hành</option>
-            <option value="price">Giá tăng dần</option>
-            <option value="price-desc">Giá giảm dần</option>
-          </select>
-        </label>
-        <button className="self-end rounded-lg bg-accent px-5 py-3 font-bold">Áp dụng bộ lọc</button>
-      </form>
+    <div className="mx-auto grid w-full max-w-[1698px] grid-cols-1 items-start gap-6 px-4 pb-20 pt-8 md:px-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8">
+      <aside className="self-start lg:sticky lg:top-6">
+        <form onSubmit={submit} className="space-y-4 rounded-2xl border border-white/10 bg-card p-5">
+          <div className="border-b border-white/10 pb-3">
+            <h1 className="m-0 text-xl font-extrabold">Bộ lọc game</h1>
+            <p className="mb-0 mt-1 text-xs text-muted">Tùy chỉnh kết quả tìm kiếm</p>
+          </div>
+          <label className="block text-sm font-bold">Từ khóa
+            <input value={filters.keyword} onChange={update('keyword')} maxLength={200} placeholder="Tên hoặc mô tả game" className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal" />
+          </label>
+          <label className="block text-sm font-bold">Thể loại
+            <select value={filters.genreId} onChange={update('genreId')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal">
+              <option value="">Tất cả thể loại</option>
+              {genres.map((genre) => <option key={genre.genreId} value={genre.genreId}>{genre.genreName}</option>)}
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm font-bold">Giá từ
+              <input type="number" min="0" value={filters.minPrice} onChange={update('minPrice')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal" />
+            </label>
+            <label className="text-sm font-bold">Đến
+              <input type="number" min="0" value={filters.maxPrice} onChange={update('maxPrice')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal" />
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            <input type="checkbox" checked={filters.onSale} onChange={update('onSale')} className="accent-accent" /> Chỉ game đang giảm giá
+          </label>
+          <label className="block text-sm font-bold">Sắp xếp
+            <select value={filters.sort} onChange={update('sort')} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-normal">
+              <option value="popularity">Phổ biến</option>
+              <option value="releaseDate">Ngày phát hành</option>
+              <option value="price">Giá tăng dần</option>
+              <option value="price-desc">Giá giảm dần</option>
+            </select>
+          </label>
+          <button className="w-full rounded-lg bg-accent px-5 py-3 font-bold hover:bg-accent/80">Áp dụng bộ lọc</button>
+        </form>
+      </aside>
 
-      <section aria-label="Kết quả tìm kiếm" className="mt-8">
+      <section aria-label="Kết quả tìm kiếm" className="min-w-0">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
+          <div><p className="m-0 text-xs font-bold uppercase tracking-widest text-accent-light">Cửa hàng</p><h2 className="mb-0 mt-1 text-2xl font-extrabold">Tìm kiếm trò chơi</h2></div>
+          {!loading && !error ? <span className="text-sm text-muted">{games.length} trò chơi</span> : null}
+        </div>
         {loading ? <p role="status" className="text-muted">Đang tải kết quả…</p> : null}
         {error ? <p role="alert" className="rounded-lg border border-red-500/30 bg-card p-4 text-red-300">Không thể tải danh mục: {error}</p> : null}
         {!loading && !error ? (

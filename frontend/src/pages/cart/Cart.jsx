@@ -137,7 +137,7 @@ export default function Cart() {
             <CartIcon className="text-accent" /> Giỏ hàng của bạn ({items.length})
           </h1>
           <div className="flex flex-wrap items-center justify-end gap-4">
-            {user?.roles?.includes('Customer') ? <Link to="/orders" className="text-xs font-semibold text-accent-light hover:underline">Xem lịch sử đơn hàng</Link> : null}
+            {user?.roles?.some((role) => role === 'Customer' || role === 'Developer') ? <Link to="/orders" className="text-xs font-semibold text-accent-light hover:underline">Xem lịch sử đơn hàng</Link> : null}
             <Link to="/search/results" className="text-xs text-accent">+ Tiếp tục chọn game</Link>
           </div>
         </div>
@@ -171,7 +171,7 @@ export default function Cart() {
         <h2 className="m-0 flex items-center gap-3 font-display text-xl font-bold">
           <TicketIcon className="text-accent" /> Mã giảm giá &amp; Tóm tắt đơn hàng
         </h2>
-        <div className="mt-8 rounded-2xl border border-accent bg-[#0b0b0c] p-3">
+        <div className="mt-8 rounded-2xl bg-[#0b0b0c] p-3">
           <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap sm:gap-5">
             <label htmlFor="coupon" className="text-xl text-accent">Mã ưu đãi:</label>
             <input
@@ -180,9 +180,9 @@ export default function Cart() {
               onChange={(event) => setCouponCode(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && applyCoupon()}
               placeholder="Nhập mã giảm giá"
-              className="h-[34px] min-w-0 flex-1 rounded-xl border border-white/10 bg-field px-3.5 font-mono text-xs uppercase text-white outline-none placeholder:text-[#9ca3af] focus:border-accent"
+              className="h-[34px] min-w-0 flex-1 rounded-xl border-0 bg-field px-3.5 font-mono text-xs uppercase text-white outline-none placeholder:text-[#9ca3af] focus:ring-0"
             />
-            <button type="button" onClick={applyCoupon} className="h-[42px] w-full rounded-xl border border-accent/40 bg-accent/20 px-6 font-bold text-accent sm:w-[190px]">Áp dụng</button>
+            <button type="button" onClick={applyCoupon} className="h-[42px] w-full rounded-xl border-0 bg-accent/20 px-6 font-bold text-accent sm:w-[190px]">Áp dụng</button>
           </div>
           {couponMsg ? <p role="status" className="m-0 mt-3 text-sm text-accent-light">{couponMsg}</p> : null}
         </div>

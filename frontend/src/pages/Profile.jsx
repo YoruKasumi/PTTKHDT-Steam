@@ -51,7 +51,7 @@ function StatCard({ label, value, note }) {
 
 export default function Profile() {
   const { user, updateUser } = useShop();
-  const isCustomer = user?.roles?.includes('Customer') || false;
+  const isCustomer = user?.roles?.some((role) => role === 'Customer' || role === 'Developer') || false;
   const accountId = user?.accountId;
   const [profile, setProfile] = useState(null);
   const [displayName, setDisplayName] = useState('');
@@ -352,7 +352,7 @@ export default function Profile() {
             <h2 className="m-0 text-lg font-bold">Hoạt động gần đây</h2>
             <p className="mb-0 mt-1 text-sm text-muted">Các giao dịch ví gần nhất được trả về từ API.</p>
           </div>
-          {user?.roles?.includes('Customer') ? (
+          {isCustomer ? (
             <Link to="/wallet/transactions" className="text-sm font-bold text-accent-light hover:underline">Xem toàn bộ lịch sử</Link>
           ) : null}
         </div>
