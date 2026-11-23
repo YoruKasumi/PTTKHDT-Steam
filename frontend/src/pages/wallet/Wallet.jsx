@@ -66,8 +66,8 @@ export default function Wallet() {
   // Nạp tiền
   const handleDeposit = async () => {
     const amt = customDeposit ? Number(customDeposit) : Number(depositAmount);
-    if (!Number.isFinite(amt) || amt <= 0) {
-      setError('Vui lòng chọn hoặc nhập số tiền nạp hợp lệ lớn hơn 0.');
+    if (!Number.isFinite(amt) || amt < 10000 || amt > 50000000) {
+      setError('Số tiền nạp phải từ 10.000 VND đến tối đa 50.000.000 VND.');
       return;
     }
 
@@ -98,8 +98,8 @@ export default function Wallet() {
   const handleWithdraw = async (e) => {
     e.preventDefault();
     const amt = Number(withdrawAmount);
-    if (!Number.isFinite(amt) || amt <= 0) {
-      setError('Số tiền rút phải lớn hơn 0.');
+    if (!Number.isFinite(amt) || amt < 10000) {
+      setError('Số tiền rút tối thiểu là 10.000 VND.');
       return;
     }
     if (amt > balance) {
@@ -138,85 +138,87 @@ export default function Wallet() {
     <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 pb-20 pt-10 md:px-8">
       <FeedbackDialog open={Boolean(dialog || message || error)} title={dialog?.title || (error ? 'Đã xảy ra lỗi' : 'Thông báo')} message={dialog?.message || error || message} tone={dialog?.tone || (error ? 'error' : 'success')} onClose={() => { setDialog(null); setMessage(''); setError(''); }} onConfirm={dialog?.onConfirm} />
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="m-0 text-2xl font-extrabold">Ví điện tử &amp; Quản lý tài chính</h1>
-        <Link to="/wallet/transactions" className="text-sm font-bold text-accent-light hover:underline">
-          Xem toàn bộ biến động số dư →
+        <div>
+          <h1 className="m-0 text-2xl font-bold">Ví điện tử cá nhân</h1>
+          <p className="mb-0 mt-1 text-xs text-muted">Quản lý số dư, nạp tiền và theo dõi các giao dịch đã thực hiện.</p>
+        </div>
+        <Link to="/wallet/transactions" className="rounded-lg border border-line bg-page px-4 py-2 text-xs font-bold text-accent-light hover:border-accent">
+          Tra cứu giao dịch
         </Link>
       </div>
 
-      {/* Thẻ số dư ví */}
-      <section className="rounded-2xl border border-indigo-500/40 bg-gradient-to-r from-gray-950 via-violet-950 to-violet-900 p-6 md:p-9 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-6 border-b border-violet-400/30 pb-5">
-          <div>
-            <p className="m-0 text-xs font-bold uppercase tracking-wider text-indigo-300">Chủ tài khoản</p>
-            <p className="mb-0 mt-1 text-lg font-bold text-white uppercase">
-              {user?.displayName || user?.username || 'Khách hàng SteamStore'}
-            </p>
-          </div>
-          <div>
-            <p className="m-0 text-xs font-bold uppercase tracking-wider text-indigo-300">Đơn vị tiền tệ</p>
-            <p className="mb-0 mt-1 font-mono font-bold text-white">VND (₫)</p>
-          </div>
+      {/* Thẻ hiển thị số dư ví */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="relative overflow-hidden rounded-2xl border border-indigo-900 bg-gradient-to-br from-indigo-950/60 to-page p-6 shadow-xl">
+          <p className="m-0 text-xs font-bold uppercase tracking-wider text-muted">Số dư khả dụng</p>
+          <p className="mb-0 mt-3 font-mono text-3xl font-extrabold text-emerald-400">
+            {formatVnd(balance)}
+          </p>
+          <span className="mt-2 inline-block text-[11px] text-muted">● Sẵn sàng thanh toán đơn hàng & rút tiền</span>
         </div>
-        <div className="pt-6">
-          <p className="m-0 text-xs font-bold tracking-widest text-zinc-300 uppercase">SỐ DƯ KHẢ DỤNG</p>
-          <p className="mb-0 mt-2 text-4xl font-black text-emerald-400">{formatVnd(balance)}</p>
+
+        <div className="rounded-2xl border border-white/10 bg-card p-6">
+          <p className="m-0 text-xs font-bold uppercase tracking-wider text-muted">Trạng thái ví</p>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="size-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-sm font-bold text-white">Hoạt động bình thường</span>
+          </div>
+          <p className="mb-0 mt-2 text-[11px] text-muted">Bảo mật giao dịch mã hóa 2 chiều</p>
         </div>
-      </section>
 
-      {/* Thông báo trạng thái */}
-      {message ? (
-        <p role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-sm text-emerald-300">
-          {message}
-        </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3.5 text-sm text-red-400">
-          {error}
-        </p>
-      ) : null}
+        <div className="rounded-2xl border border-white/10 bg-card p-6 sm:col-span-2 lg:col-span-1">
+          <p className="m-0 text-xs font-bold uppercase tracking-wider text-muted">Hạn mức rút tối đa</p>
+          <p className="mb-0 mt-3 font-mono text-xl font-bold text-white">{formatVnd(balance)}</p>
+          <p className="mb-0 mt-2 text-[11px] text-muted">Tối thiểu: 10.000 ₫ · Tối đa: Số dư hiện tại</p>
+        </div>
+      </div>
 
-      {/* Tabs: Nạp tiền / Rút tiền */}
+      {/* Tabs hành động: Nạp tiền / Rút tiền */}
       <section className="rounded-2xl border border-white/10 bg-card p-5 md:p-7">
-        <div className="flex border-b border-white/10 pb-4 gap-3">
+        <div className="flex border-b border-white/10">
           <button
             type="button"
             onClick={() => { setActiveTab('deposit'); setError(''); setMessage(''); }}
-            className={`rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
+            className={`border-b-2 px-6 py-3 text-sm font-bold transition-colors ${
               activeTab === 'deposit'
-                ? 'bg-accent text-white shadow'
-                : 'border border-line bg-page text-muted hover:text-white'
+                ? 'border-accent text-accent-light'
+                : 'border-transparent text-muted hover:text-white'
             }`}
           >
-            💳 Nạp tiền vào ví
+            Nạp tiền vào ví
           </button>
-          {canWithdraw ? <button
-            type="button"
-            onClick={() => { setActiveTab('withdraw'); setError(''); setMessage(''); }}
-            className={`rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
-              activeTab === 'withdraw'
-                ? 'bg-accent text-white shadow'
-                : 'border border-line bg-page text-muted hover:text-white'
-            }`}
-          >
-            🏦 Rút tiền về ngân hàng
-          </button> : null}
+          {canWithdraw && (
+            <button
+              type="button"
+              onClick={() => { setActiveTab('withdraw'); setError(''); setMessage(''); }}
+              className={`border-b-2 px-6 py-3 text-sm font-bold transition-colors ${
+                activeTab === 'withdraw'
+                  ? 'border-accent text-accent-light'
+                  : 'border-transparent text-muted hover:text-white'
+              }`}
+            >
+              Rút tiền về ngân hàng
+            </button>
+          )}
         </div>
 
         {activeTab === 'deposit' ? (
           <div className="mt-6 space-y-6">
             <div>
-              <h2 className="m-0 text-lg font-bold">Chọn mệnh giá nạp nhanh</h2>
-              <p className="mb-0 mt-1 text-xs text-muted">Chiết khấu 0% phí nạp qua tất cả các cổng</p>
+              <label className="block text-xs font-bold uppercase text-muted">
+                Chọn mệnh giá nạp nhanh (VND)
+              </label>
+              <p className="mb-0 mt-1 text-xs text-muted">Hạn mức nạp: từ 10.000 ₫ đến 50.000.000 ₫</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[50000, 100000, 200000, 500000].map((val) => (
+            {/* Mệnh giá có sẵn */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
+              {[50000, 100000, 200000, 500000, 1000000, 2000000].map((val) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => { setDepositAmount(val); setCustomDeposit(''); }}
-                  className={`rounded-xl border px-4 py-3.5 font-bold transition-all ${
+                  className={`rounded-xl border px-4 py-3 text-sm font-bold transition-all ${
                     depositAmount === val && !customDeposit
                       ? 'border-accent bg-accent/25 text-accent-light shadow-md'
                       : 'border-line bg-page text-white hover:border-white/30'
@@ -229,12 +231,13 @@ export default function Wallet() {
 
             <div>
               <label htmlFor="custom-deposit" className="block text-xs font-bold uppercase text-muted">
-                Hoặc nhập số tiền tùy chọn (VND)
+                Hoặc nhập số tiền tùy chọn (VND, tối đa 50.000.000 ₫)
               </label>
               <input
                 id="custom-deposit"
                 type="number"
                 min="10000"
+                max="50000000"
                 step="1000"
                 placeholder="Nhập số tiền khác (VD: 350000)"
                 value={customDeposit}
@@ -287,7 +290,7 @@ export default function Wallet() {
 
             <div>
               <label htmlFor="withdraw-amount" className="block text-xs font-bold uppercase text-muted">
-                Số tiền cần rút (VND)
+                Số tiền cần rút (VND, tối thiểu 10.000 ₫, tối đa {formatVnd(balance)})
               </label>
               <input
                 id="withdraw-amount"

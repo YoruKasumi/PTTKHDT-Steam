@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { gameApi } from '../../api/game';
+import { catalogApi } from '../../api/catalog';
 import FeedbackDialog from '../common/FeedbackDialog';
-
-const genres = ['Hành động', 'Phiêu lưu', 'Kinh dị Co-op', 'Nhập vai RPG', 'Mô phỏng'];
 
 const inputClass =
   'mt-1.5 w-full rounded-lg border border-line bg-page px-3 py-2.5 text-sm text-white outline-none focus:border-accent';
@@ -17,13 +16,16 @@ export default function NewProjectModal({ onClose, onCreate }) {
   const [form, setForm] = useState({
     title: '',
     price: '290000',
-    genres: ['Hành động', 'Phiêu lưu'],
     minSpec: '',
     recommendedSpec: '',
     description: '',
     scanner: 'Gói cài đặt an toàn (Clean .zip)',
   });
+  const [availableGenres, setAvailableGenres] = useState([]);
+  const [selectedGenreIds, setSelectedGenreIds] = useState([]);
   const [file, setFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [trailerFile, setTrailerFile] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -31,15 +33,31 @@ export default function NewProjectModal({ onClose, onCreate }) {
   const formRef = useRef(null);
   const approvedUpload = useRef(false);
 
+  useEffect(() => {
+    let active = true;
+    catalogApi.listGenres()
+      .then((res) => {
+        if (!active) return;
+        const list = Array.isArray(res) ? res : (res?.data || []);
+        setAvailableGenres(list);
+        if (list.length > 0) {
+          setSelectedGenreIds([list[0].genreId]);
+        }
+      })
+      .catch((err) => {
+        console.error('Không thể tải danh sách thể loại:', err);
+      });
+    return () => { active = false; };
+  }, []);
+
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
-  const toggleGenre = (genre) => {
-    setForm((current) => ({
-      ...current,
-      genres: current.genres.includes(genre)
-        ? current.genres.filter((item) => item !== genre)
-        : [...current.genres, genre],
-    }));
+  const toggleGenreId = (genreId) => {
+    setSelectedGenreIds((current) =>
+      current.includes(genreId)
+        ? current.filter((id) => id !== genreId)
+        : [...current, genreId],
+    );
   };
 
   const submit = async (event) => {
@@ -51,12 +69,16 @@ export default function NewProjectModal({ onClose, onCreate }) {
       setError('Vui lòng điền tên game, cấu hình và mô tả.');
       return;
     }
-    if (!Number.isInteger(price) || price < 0) {
-      setError('Giá bán phải là số nguyên VND không âm.');
+    if (!Number.isInteger(price) || price < 0 || price > 5000000) {
+      setError('Giá bán phải là số nguyên từ 0 đến 5.000.000 VND.');
       return;
     }
-    if (form.genres.length === 0) {
-      setError('Hãy chọn ít nhất một thể loại.');
+    if (selectedGenreIds.length === 0) {
+      setError('Hãy chọn ít nhất một thể loại cho game.');
+      return;
+    }
+    if (!coverFile) {
+      setError('Vui lòng tải lên ảnh bìa đại diện (Cover Image) cho game (.jpg, .png, .webp).');
       return;
     }
     if (!file || !file.name.toLowerCase().endsWith('.zip')) {
@@ -81,22 +103,31 @@ export default function NewProjectModal({ onClose, onCreate }) {
       formData.append('price', String(price));
       formData.append('minSpec', form.minSpec.trim());
       formData.append('recSpec', form.recommendedSpec.trim());
-      // GenreID mapping: gửi mảng rỗng, server sẽ bỏ qua hoặc dùng tên
-      formData.append('genreIds', JSON.stringify([]));
+      formData.append('genreIds', JSON.stringify(selectedGenreIds));
       formData.append('versionNumber', '1.0.0');
       formData.append('changeLog', 'Phiên bản đầu tiên.');
-      // Field name phải khớp uploadZip('buildFile') trong game.routes.js
       formData.append('buildFile', file);
+      if (coverFile) {
+        formData.append('coverFile', coverFile);
+      }
+      if (trailerFile) {
+        formData.append('trailerFile', trailerFile);
+      }
 
       const data = await gameApi.createProject(formData);
 
       setResult(data);
 
+      const selectedGenreNames = availableGenres
+        .filter((g) => selectedGenreIds.includes(g.genreId))
+        .map((g) => g.genreName)
+        .join(', ');
+
       // Thông báo cho trang cha để thêm vào danh sách
       onCreate({
         gameId: data.gameId,
         title: form.title.trim(),
-        genres: form.genres.join(', '),
+        genres: selectedGenreNames || 'Chưa phân loại',
         price,
         status: 'Pending',
         build: `v${data.versionNumber ?? '1.0.0'}`,
@@ -121,8 +152,14 @@ export default function NewProjectModal({ onClose, onCreate }) {
       : { label: '🔧 Auto-DRM bởi nền tảng', cls: 'border-blue-500/30 bg-blue-500/10 text-blue-400' };
 
     return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-      <FeedbackDialog open={confirmUpload} title="Xác nhận đăng tải game" message={`Đăng tải “${form.title.trim()}” với giá ${Number(form.price).toLocaleString('vi-VN')} ₫ và gửi bản build để xét duyệt?`} onClose={() => setConfirmUpload(false)} onConfirm={() => { approvedUpload.current = true; setConfirmUpload(false); requestAnimationFrame(() => formRef.current?.requestSubmit()); }} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+        <FeedbackDialog
+          open={confirmUpload}
+          title="Xác nhận đăng tải game"
+          message={`Đăng tải “${form.title.trim()}” với giá ${Number(form.price).toLocaleString('vi-VN')} ₫ và gửi bản build để xét duyệt?`}
+          onClose={() => setConfirmUpload(false)}
+          onConfirm={() => { approvedUpload.current = true; setConfirmUpload(false); requestAnimationFrame(() => formRef.current?.requestSubmit()); }}
+        />
         <section className="w-full max-w-[500px] rounded-2xl border border-indigo-900 bg-zinc-950 p-7 shadow-2xl">
           <h2 className="mb-4 text-lg font-bold text-emerald-400">🎮 Dự án đã được tạo thành công!</h2>
           <div className="space-y-3 text-sm">
@@ -170,7 +207,13 @@ export default function NewProjectModal({ onClose, onCreate }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <FeedbackDialog open={confirmUpload} title="Xác nhận đăng tải game" message={`Đăng tải “${form.title.trim()}” với giá ${Number(form.price).toLocaleString('vi-VN')} ₫ và gửi bản build để xét duyệt?`} onClose={() => setConfirmUpload(false)} onConfirm={() => { approvedUpload.current = true; setConfirmUpload(false); requestAnimationFrame(() => formRef.current?.requestSubmit()); }} />
+      <FeedbackDialog
+        open={confirmUpload}
+        title="Xác nhận đăng tải game"
+        message={`Đăng tải “${form.title.trim()}” với giá ${Number(form.price).toLocaleString('vi-VN')} ₫ và gửi bản build để xét duyệt?`}
+        onClose={() => setConfirmUpload(false)}
+        onConfirm={() => { approvedUpload.current = true; setConfirmUpload(false); requestAnimationFrame(() => formRef.current?.requestSubmit()); }}
+      />
       <section
         role="dialog"
         aria-modal="true"
@@ -194,92 +237,143 @@ export default function NewProjectModal({ onClose, onCreate }) {
         <form ref={formRef} onSubmit={submit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm text-muted">
-              Tên trò chơi
+              Tên trò chơi *
               <input
                 value={form.title}
                 onChange={(event) => update('title', event.target.value)}
                 placeholder="VD: Cyber Samurai 2099"
                 className={inputClass}
+                required
               />
             </label>
             <label className="text-sm text-muted">
-              Giá bán niêm yết VND
+              Giá bán niêm yết VND (tối đa 5.000.000 VND) *
               <input
                 type="number"
                 min="0"
+                max="5000000"
                 step="1"
                 value={form.price}
                 onChange={(event) => update('price', event.target.value)}
                 className={inputClass}
+                required
               />
             </label>
           </div>
 
           <fieldset className="border-0 p-0">
-            <legend className="text-sm text-muted">Thể loại (bảng trung gian GAME_GENRE)</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {genres.map((genre) => (
-                <label
-                  key={genre}
-                  className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold ${
-                    form.genres.includes(genre)
-                      ? 'border-indigo-500 bg-indigo-950 text-white'
-                      : 'border-line bg-page text-muted'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.genres.includes(genre)}
-                    onChange={() => toggleGenre(genre)}
-                    className="sr-only"
-                  />
-                  {form.genres.includes(genre) ? '✓ ' : ''}
-                  {genre}
-                </label>
-              ))}
+            <legend className="text-sm text-muted">Thể loại (bảng trung gian GAME_GENRE) *</legend>
+            <div className="mt-2 flex flex-wrap gap-2 max-h-36 overflow-y-auto rounded-lg border border-line bg-page/50 p-2">
+              {availableGenres.length === 0 ? (
+                <p className="text-xs text-muted">Đang tải danh sách thể loại...</p>
+              ) : (
+                availableGenres.map((g) => {
+                  const isChecked = selectedGenreIds.includes(g.genreId);
+                  return (
+                    <label
+                      key={g.genreId}
+                      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        isChecked
+                          ? 'border-indigo-500 bg-indigo-950 text-white'
+                          : 'border-line bg-page text-muted hover:border-white/30'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleGenreId(g.genreId)}
+                        className="sr-only"
+                      />
+                      {isChecked ? '✓ ' : ''}
+                      {g.genreName}
+                    </label>
+                  );
+                })
+              )}
             </div>
           </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm text-muted">
-              Cấu hình tối thiểu (MinSpec)
+              Ảnh bìa Poster game (.jpg, .png, .webp) *
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)}
+                className={`${inputClass} file:mr-3 file:rounded file:border-0 file:bg-accent file:px-2 file:py-1 file:text-white`}
+                required
+              />
+            </label>
+            <label className="text-sm text-muted">
+              Video Trailer giới thiệu (.mp4, .webm - tùy chọn)
+              <input
+                type="file"
+                accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime"
+                onChange={(event) => setTrailerFile(event.target.files?.[0] ?? null)}
+                className={`${inputClass} file:mr-3 file:rounded file:border-0 file:bg-accent file:px-2 file:py-1 file:text-white`}
+              />
+            </label>
+          </div>
+
+          {(coverFile || trailerFile) && (
+            <div className="space-y-1 text-xs text-muted">
+              {coverFile && (
+                <p className="m-0 rounded border border-white/10 bg-page p-2">
+                  🖼 Ảnh bìa: <span className="font-mono text-white">{coverFile.name}</span> ({(coverFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+              {trailerFile && (
+                <p className="m-0 rounded border border-white/10 bg-page p-2">
+                  🎬 Trailer: <span className="font-mono text-white">{trailerFile.name}</span> ({(trailerFile.size / (1024 * 1024)).toFixed(2)} MB)
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm text-muted">
+              Cấu hình tối thiểu (MinSpec) *
               <input
                 value={form.minSpec}
                 onChange={(event) => update('minSpec', event.target.value)}
                 placeholder="Core i5-8400 | RAM 8GB | GTX 1060"
                 className={inputClass}
+                required
               />
             </label>
             <label className="text-sm text-muted">
-              Cấu hình đề nghị (RecSpec)
+              Cấu hình đề nghị (RecSpec) *
               <input
                 value={form.recommendedSpec}
                 onChange={(event) => update('recommendedSpec', event.target.value)}
                 placeholder="Core i7-12700 | RAM 16GB | RTX 3060"
                 className={inputClass}
+                required
               />
             </label>
           </div>
 
           <label className="block text-sm text-muted">
-            Mô tả chi tiết trò chơi
+            Mô tả chi tiết trò chơi *
             <textarea
               value={form.description}
               onChange={(event) => update('description', event.target.value)}
               placeholder="Giới thiệu cốt truyện, cơ chế chiến đấu..."
               rows="3"
               className={inputClass}
+              required
             />
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm text-muted">
-              Tệp gói cài đặt v1.0.0 (.zip)
+              Tệp gói cài đặt v1.0.0 (.zip) *
               <input
                 type="file"
                 accept=".zip,application/zip"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 className={`${inputClass} file:mr-3 file:rounded file:border-0 file:bg-accent file:px-2 file:py-1 file:text-white`}
+                required
               />
             </label>
             <label className="text-sm text-muted">

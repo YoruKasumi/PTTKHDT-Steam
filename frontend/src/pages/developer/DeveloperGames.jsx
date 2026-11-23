@@ -367,8 +367,8 @@ export default function DeveloperGames() {
       return;
     }
     const price = Number(newPrice);
-    if (!Number.isInteger(price) || price < 0) {
-      setMessage('Giá bán mới phải là số nguyên VND không âm.');
+    if (!Number.isInteger(price) || price < 0 || price > 5000000) {
+      setMessage('Giá bán mới phải là số nguyên VND từ 0 đến 5.000.000 ₫.');
       return;
     }
     try {
@@ -387,8 +387,8 @@ export default function DeveloperGames() {
   const saveSale = async (event) => {
     event.preventDefault();
     const percent = Number(discount);
-    if (!saleGame || !Number.isInteger(percent) || percent < 5 || percent > 100) {
-      setMessage('Mức giảm giá phải là số nguyên từ 5% đến 100%.');
+    if (!saleGame || !Number.isInteger(percent) || percent < 5 || percent > 90) {
+      setMessage('Mức giảm giá phải là số nguyên từ 5% đến 90%.');
       return;
     }
     if (!startDate || !endDate || startDate > endDate) {
@@ -603,11 +603,12 @@ export default function DeveloperGames() {
                 Giá gốc hiện tại: <strong>{priceGame ? formatVnd(priceGame.price) : '—'}</strong>
               </p>
               <label className="text-sm text-muted">
-                Mức giá bán mới (VND ≥ 0)
+                Mức giá bán mới (0 ₫ – 5.000.000 ₫)
                 <input
                   type="number"
                   min="0"
-                  step="1"
+                  max="5000000"
+                  step="1000"
                   value={newPrice}
                   onChange={(event) => setNewPrice(event.target.value)}
                   className={controlClass}
@@ -640,11 +641,11 @@ export default function DeveloperGames() {
                 </select>
               </label>
               <label className="text-sm font-semibold text-muted">
-                Tỷ lệ giảm giá (5%–100%)
+                Tỷ lệ giảm giá (5%–90%)
                 <input
                   type="number"
                   min="5"
-                  max="100"
+                  max="90"
                   value={discount}
                   onChange={(event) => setDiscount(event.target.value)}
                   className={controlClass}

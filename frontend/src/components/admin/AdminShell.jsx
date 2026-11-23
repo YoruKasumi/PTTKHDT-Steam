@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useShop } from '../../context/ShopContext';
 
 const links = [
   { to: '/admin/accounts', label: 'Tài khoản', permission: 'account.moderate', adminOnly: false },
@@ -16,15 +17,10 @@ const links = [
 ];
 
 export default function AdminShell({ title, description, children }) {
-  const rawUser = localStorage.getItem('user') || sessionStorage.getItem('user');
-  let user = {};
-  try {
-    user = rawUser ? JSON.parse(rawUser) : {};
-  } catch {
-    user = {};
-  }
-  const roles = user.roles || [];
-  const permissions = user.permissions || [];
+  const { user } = useShop();
+  const currentUser = user || {};
+  const roles = currentUser.roles || [];
+  const permissions = currentUser.permissions || [];
   const isAdmin = roles.includes('Admin');
   const visibleLinks = links.filter((link) => (
     (isAdmin || (!link.adminOnly && (link.permission === undefined

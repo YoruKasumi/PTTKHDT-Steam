@@ -48,8 +48,8 @@ export default function DeveloperKeys() {
   const generateKeys = async (event) => {
     event.preventDefault();
     const count = Number(quantity);
-    if (!Number.isInteger(count) || count < 1 || count > 199) {
-      setMessage('Số lượng mỗi đợt phải từ 1 đến 199 Key.');
+    if (!Number.isInteger(count) || count < 1 || count >= 200) {
+      setMessage('Số lượng key mỗi đợt phải nhỏ hơn 200 (từ 1 đến 199 Key).');
       return;
     }
     if (!selectedGameId) {
@@ -140,7 +140,7 @@ export default function DeveloperKeys() {
             </select>
           </label>
           <label className="block text-sm font-semibold text-muted">
-            Số lượng mã cần sinh
+            Số lượng mã cần sinh (tối đa 199 Key/đợt)
             <input
               type="number"
               min="1"

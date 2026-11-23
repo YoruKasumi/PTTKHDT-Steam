@@ -4,6 +4,7 @@ import { adminApi } from '../../api/admin';
 
 export default function AdminSystemConfig() {
   const [parameters, setParameters] = useState([]);
+  const [initialParameters, setInitialParameters] = useState([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
@@ -12,13 +13,16 @@ export default function AdminSystemConfig() {
     setLoading(true);
     setError('');
     try {
-      setParameters(await adminApi.getSystemConfig());
+      const data = await adminApi.getSystemConfig();
+      setParameters(data);
+      setInitialParameters(data);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => { load(); }, []);
 
   const updateValue = (key, value) => {
@@ -28,17 +32,56 @@ export default function AdminSystemConfig() {
   const save = async (event) => {
     event.preventDefault();
     setError('');
+    setNotice('');
+
+    // Kiểm tra validation cho PLATFORM_COMMISSION_PERCENT
+    const commissionParam = parameters.find((p) => p.key === 'PLATFORM_COMMISSION_PERCENT');
+    const initialCommissionParam = initialParameters.find((p) => p.key === 'PLATFORM_COMMISSION_PERCENT');
+
+    if (commissionParam) {
+      const rate = Number(commissionParam.value);
+      if (Number.isNaN(rate) || rate < 1 || rate > 50) {
+        setError('Tỷ lệ hoa hồng sàn (PLATFORM_COMMISSION_PERCENT) phải nằm trong khoảng từ 1% đến 50%.');
+        return;
+      }
+      if (initialCommissionParam && Number(initialCommissionParam.value) === rate) {
+        // Kiểm tra xem có tham số nào khác thay đổi không
+        const hasOtherChanges = parameters.some((p) => {
+          const init = initialParameters.find((i) => i.key === p.key);
+          return init && String(init.value) !== String(p.value);
+        });
+        if (!hasOtherChanges) {
+          setError('Tỷ lệ hoa hồng và các giá trị tham số chưa thay đổi so với cấu hình hiện tại.');
+          return;
+        }
+      }
+    }
+
+    // Kiểm tra có thay đổi nào không
+    const hasChanges = parameters.some((p) => {
+      const init = initialParameters.find((i) => i.key === p.key);
+      return !init || String(init.value) !== String(p.value);
+    });
+
+    if (!hasChanges) {
+      setError('Không có tham số nào thay đổi.');
+      return;
+    }
+
+    setLoading(true);
     try {
       await adminApi.updateSystemConfig(parameters.map(({ key, value }) => ({ key, value })));
-      setNotice('Đã lưu tham số hệ thống.');
+      setNotice('Đã lưu tham số hệ thống thành công.');
       await load();
     } catch (requestError) {
       setError(requestError.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <AdminShell title="Cấu hình hệ thống" description="Cập nhật tham số vận hành; hoa hồng sàn bị giới hạn từ 0 đến 50%.">
+    <AdminShell title="Cấu hình hệ thống" description="Cập nhật tham số vận hành; hoa hồng sàn giới hạn từ 1% đến 50%.">
       {error && <p role="alert" className="rounded-lg border border-red-500/30 p-3 text-sm text-red-400">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-emerald-500/30 p-3 text-sm text-emerald-300">{notice}</p>}
       <form onSubmit={save} className="rounded-2xl border border-white/10 bg-card p-5">
@@ -48,7 +91,17 @@ export default function AdminSystemConfig() {
             <tbody>{parameters.map((parameter) => (
               <tr key={parameter.key} className="border-t border-white/5">
                 <td className="p-3"><code>{parameter.key}</code></td>
-                <td className="p-3"><input type="number" step="any" value={parameter.value} onChange={(event) => updateValue(parameter.key, event.target.value)} className="w-48 rounded-lg border border-line bg-page p-2 text-white" /></td>
+                <td className="p-3">
+                  <input
+                    type="number"
+                    step="any"
+                    min={parameter.key === 'PLATFORM_COMMISSION_PERCENT' ? '1' : undefined}
+                    max={parameter.key === 'PLATFORM_COMMISSION_PERCENT' ? '50' : undefined}
+                    value={parameter.value}
+                    onChange={(event) => updateValue(parameter.key, event.target.value)}
+                    className="w-48 rounded-lg border border-line bg-page p-2 text-white"
+                  />
+                </td>
                 <td className="p-3 text-muted">{parameter.description}</td>
                 <td className="p-3 text-xs text-muted">{parameter.updatedAt ? new Date(parameter.updatedAt).toLocaleString() : '—'}</td>
               </tr>

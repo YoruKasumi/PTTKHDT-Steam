@@ -4,6 +4,10 @@ import { adminApi } from '../../api/admin';
 
 const emptyForm = { username: '', email: '', displayName: '', password: '', roleId: '' };
 
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_REGEX = /^[A-Za-z0-9._-]{3,30}$/;
+
 export default function AdminStaff() {
   const [staff, setStaff] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -38,6 +42,35 @@ export default function AdminStaff() {
   const submit = async (event) => {
     event.preventDefault();
     setError('');
+
+    // Validation
+    if (!editingId && !USERNAME_REGEX.test(form.username.trim())) {
+      setError('Tên tài khoản cần từ 3 đến 30 ký tự (chữ cái, số, dấu chấm, gạch dưới, gạch ngang).');
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(form.email.trim())) {
+      setError('Định dạng email không hợp lệ.');
+      return;
+    }
+
+    if (!form.displayName.trim() || form.displayName.trim().length > 50) {
+      setError('Tên hiển thị không được để trống và tối đa 50 ký tự.');
+      return;
+    }
+
+    if (!form.roleId) {
+      setError('Vui lòng chọn vai trò cho nhân sự.');
+      return;
+    }
+
+    if (!editingId) {
+      if (!PASSWORD_REGEX.test(form.password)) {
+        setError('Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (editingId) {
@@ -88,7 +121,12 @@ export default function AdminStaff() {
         <label className="text-sm text-muted">Username<input required minLength={3} maxLength={30} disabled={Boolean(editingId)} value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-page p-2.5 text-white disabled:opacity-50" /></label>
         <label className="text-sm text-muted">Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-page p-2.5 text-white" /></label>
         <label className="text-sm text-muted">Tên hiển thị<input required maxLength={50} value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-page p-2.5 text-white" /></label>
-        {!editingId && <label className="text-sm text-muted">Mật khẩu<input required minLength={8} type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-page p-2.5 text-white" /></label>}
+        {!editingId && (
+          <label className="text-sm text-muted">
+            Mật khẩu (≥ 8 ký tự, gồm chữ hoa, thường, số, ký tự đặc biệt)
+            <input required minLength={8} type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-page p-2.5 text-white" />
+          </label>
+        )}
         <label className="text-sm text-muted">Vai trò
           <select required value={form.roleId} onChange={(event) => setForm({ ...form, roleId: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-page p-2.5 text-white">
             <option value="">Chọn vai trò</option>

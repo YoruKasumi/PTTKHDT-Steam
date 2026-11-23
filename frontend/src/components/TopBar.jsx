@@ -4,8 +4,14 @@ import { useShop } from '../context/ShopContext';
 import { formatVnd } from '../utils/format';
 import { notificationApi } from '../api/notification';
 import { authApi } from '../api/auth';
+import { getRoleLandingPath } from '../utils/roleLanding';
 
-const links = [
+const guestLinks = [
+  { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
+  { to: '/search', icon: 'icon-filter.svg', label: 'Bộ lọc tìm kiếm' },
+];
+
+const customerLinks = [
   { to: '/', icon: 'icon-home.svg', label: 'Trang chủ' },
   { to: '/cart', icon: 'icon-cart.svg', label: 'Giỏ hàng' },
   { to: '/library', icon: 'icon-library.svg', label: 'Thư viện' },
@@ -19,17 +25,27 @@ const developerLinks = [
   { to: '/developer/keys', label: 'Mã bản quyền' },
   { to: '/developer/revenue', label: 'Doanh thu' },
 ];
+
 const adminLinks = [
   { to: '/admin/accounts', label: 'Tài khoản' },
   { to: '/admin/games', label: 'Duyệt game' },
   { to: '/admin/withdrawals', label: 'Lệnh rút tiền' },
+  { to: '/admin/staff', label: 'Nhân sự' },
+  { to: '/admin/rbac', label: 'Phân quyền' },
+  { to: '/admin/genres-banners', label: 'Thể loại & Banner' },
+  { to: '/finance/overview', label: 'Tài chính' },
+  { to: '/admin/system-config', label: 'Cấu hình' },
+  { to: '/admin/audit-logs', label: 'Nhật ký' },
 ];
+
 const managerLinks = [
   { to: '/admin/accounts', label: 'Tài khoản', permission: 'account.moderate' },
   { to: '/admin/games', label: 'Duyệt game', permission: 'game.approve' },
   { to: '/admin/reviews', label: 'Đánh giá', permission: 'review.moderate' },
   { to: '/moderation/community', label: 'Cộng đồng', permission: 'community.moderate' },
+  { to: '/admin/withdrawals', label: 'Lệnh rút tiền', permission: 'withdrawal.approve' },
   { to: '/finance/overview', label: 'Tài chính', permission: 'finance.read' },
+  { to: '/admin/genres-banners', label: 'Thể loại & Banner', permission: 'genres.manage' },
 ];
 
 const btn = ({ isActive }) =>
@@ -50,7 +66,7 @@ function timeAgo(dateString) {
   return date.toLocaleDateString('vi-VN');
 }
 
-/** Thanh điều hướng đen phía trên (Figma: node 1:319). */
+/** Thanh điều hướng phía trên (Figma: node 1:319). */
 export default function TopBar() {
   const navigate = useNavigate();
   const { cart, balance, user, shopError, logout } = useShop();
@@ -58,7 +74,10 @@ export default function TopBar() {
   const isAdmin = roles.includes('Admin');
   const isDeveloper = roles.includes('Developer') && !isAdmin;
   const isManager = roles.includes('Manager') && !isAdmin && !isDeveloper;
-  const isStoreUser = !user || (!isAdmin && !isDeveloper && !isManager);
+  const isCustomer = user && !isAdmin && !isDeveloper && !isManager;
+  const isGuest = !user;
+  const homePath = getRoleLandingPath(user);
+
   const portalLinks = isAdmin
     ? adminLinks
     : isDeveloper
@@ -66,6 +85,7 @@ export default function TopBar() {
       : isManager
         ? managerLinks.filter((link) => (user?.permissions || []).includes(link.permission))
         : [];
+
   const [openMenu, setOpenMenu] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -134,19 +154,45 @@ export default function TopBar() {
 
   return (
     <div className="flex h-[51px] items-center justify-between bg-topbar px-3 sm:px-[50px]">
-      <nav className="flex gap-2.5 sm:gap-[30px]" aria-label={isStoreUser ? 'Điều hướng cửa hàng' : 'Điều hướng khu vực làm việc'}>
-        {isStoreUser ? links.map((l) => (
-          <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.to === '/cart' ? `${l.label} (${cart.length})` : l.label} title={l.label}>
-            <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
-            {l.to === '/cart' && cart.length ? (
-              <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-white">{cart.length}</span>
-            ) : null}
-          </NavLink>
-        )) : portalLinks.map((link) => (
-          <NavLink key={link.to} to={link.to} className={({ isActive }) => `rounded px-2 py-2 text-xs font-semibold sm:px-3 sm:text-sm ${isActive ? 'bg-[#211833] text-white' : 'text-violet-200 hover:bg-white/5'}`}>
-            {link.label}
-          </NavLink>
-        ))}
+      <nav
+        className="flex items-center gap-2.5 sm:gap-[20px] overflow-x-auto"
+        aria-label={isGuest || isCustomer ? 'Điều hướng cửa hàng' : 'Điều hướng khu vực làm việc'}
+      >
+        {isGuest ? (
+          guestLinks.map((l) => (
+            <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.label} title={l.label}>
+              <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
+            </NavLink>
+          ))
+        ) : isCustomer ? (
+          customerLinks.map((l) => (
+            <NavLink key={l.to} to={l.to} end className={btn} aria-label={l.to === '/cart' ? `${l.label} (${cart.length})` : l.label} title={l.label}>
+              <img className="h-[30px] w-auto" src={`/assets/${l.icon}`} alt="" />
+              {l.to === '/cart' && cart.length ? (
+                <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-white">{cart.length}</span>
+              ) : null}
+            </NavLink>
+          ))
+        ) : (
+          <>
+            <NavLink to={homePath} end className={btn} aria-label="Trang chủ" title="Trang chủ">
+              <img className="h-[30px] w-auto" src="/assets/icon-home.svg" alt="" />
+            </NavLink>
+            {portalLinks.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                className={({ isActive }) =>
+                  `rounded px-2.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm whitespace-nowrap transition-colors ${
+                    isActive ? 'bg-[#211833] text-white shadow-[inset_0_-2px_0_0_#a18dff]' : 'text-violet-200 hover:bg-white/5'
+                  }`
+                }
+              >
+                {link.label}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
       <div className="flex gap-2.5 sm:gap-[30px]">
         {(user?.roles?.includes('Customer') || user?.roles?.includes('Developer')) ? (

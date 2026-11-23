@@ -120,7 +120,7 @@ export default function DeveloperRevenue() {
       return;
     }
     if (amount > available) {
-      setMessage('Số tiền yêu cầu vượt quá số dư doanh thu khả dụng.');
+      setMessage(`Số tiền yêu cầu vượt quá số dư doanh thu khả dụng (${formatVnd(available)}).`);
       return;
     }
 
@@ -158,60 +158,62 @@ export default function DeveloperRevenue() {
         <button type="button" onClick={exportCsv} disabled={loading || !games.length} className="rounded-lg border border-accent/40 bg-accent/10 px-4 py-2.5 text-sm font-bold text-accent-light disabled:opacity-50">
           ↓ Kết xuất bảng kê (.CSV)
         </button>
-        <button type="button" onClick={() => window.print()} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-bold">
-          In / Xuất PDF đối soát
-        </button>
       </form>
 
-      {error ? <p role="alert" className="rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-sm text-red-300">{error}</p> : null}
-      {message ? <p role="status" className="rounded-lg border border-accent/30 bg-card p-3 text-sm text-accent-light">{message}</p> : null}
-      {loading ? <p role="status" className="text-center text-muted">Đang tải dữ liệu đối soát...</p> : null}
+      {error ? <p role="alert" className="rounded-xl border border-red-500/40 bg-red-950 p-4 text-sm text-red-200">{error}</p> : null}
+      {message ? <p role="status" className="rounded-xl border border-accent/40 bg-card p-4 text-sm text-accent-light">{message}</p> : null}
 
-      {!loading && !error ? (
+      {!loading ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Doanh thu gộp', amount: Number(summary.totalGrossRevenue || 0), note: 'Từ báo cáo đơn hàng đã thanh toán', tone: 'text-white' },
-              { label: 'Hoàn tiền', amount: -totalRefunds, note: 'Các khoản hoàn đã được duyệt', tone: 'text-red-400' },
-              { label: `Phí nền tảng (${feeRate})`, amount: -Number(summary.platformFee || 0), note: 'Tính theo số liệu báo cáo', tone: 'text-amber-400' },
-              { label: 'Doanh thu ròng', amount: Number(summary.netRevenue || 0), note: `Khả dụng rút: ${formatVnd(available)}`, tone: 'text-emerald-400' },
-            ].map((stat) => (
-              <section key={stat.label} className="rounded-xl border border-white/10 bg-card p-5">
-                <p className="m-0 min-h-10 text-xs font-bold uppercase text-muted">{stat.label}</p>
-                <p className={`mb-0 mt-2 font-mono text-2xl font-extrabold ${stat.tone}`}>{formatVnd(stat.amount)}</p>
-                <p className="mb-0 mt-3 text-xs text-muted">{stat.note}</p>
-              </section>
-            ))}
+            <section className="rounded-xl border border-white/10 bg-card p-5">
+              <p className="m-0 text-xs font-bold uppercase text-muted">Doanh thu gộp</p>
+              <p className="mb-0 mt-2 font-mono text-2xl font-extrabold">{formatVnd(summary.grossRevenue || 0)}</p>
+              <p className="mb-0 mt-1 text-xs text-muted">Tổng tiền người dùng đã thanh toán</p>
+            </section>
+            <section className="rounded-xl border border-accent bg-card p-5 shadow-lg shadow-accent/10">
+              <p className="m-0 text-xs font-bold uppercase text-muted">Ước tính thực nhận (70%)</p>
+              <p className="mb-0 mt-2 font-mono text-2xl font-extrabold text-accent-light">{formatVnd(summary.netRevenue || summary.devShareEstimate || 0)}</p>
+              <p className="mb-0 mt-1 text-xs text-muted">Phí nền tảng cố định: {feeRate}</p>
+            </section>
+            <section className="rounded-xl border border-white/10 bg-card p-5">
+              <p className="m-0 text-xs font-bold uppercase text-muted">Tổng số lượt tải có phí</p>
+              <p className="mb-0 mt-2 font-mono text-2xl font-extrabold">{summary.totalUnitsSold || 0}</p>
+              <p className="mb-0 mt-1 text-xs text-muted">Không tính key kích hoạt miễn phí</p>
+            </section>
+            <section className="rounded-xl border border-white/10 bg-card p-5">
+              <p className="m-0 text-xs font-bold uppercase text-muted">Giá trị hoàn tiền trong kỳ</p>
+              <p className="mb-0 mt-2 font-mono text-2xl font-extrabold text-amber-400">{formatVnd(totalRefunds)}</p>
+              <p className="mb-0 mt-1 text-xs text-muted">Đã tự trừ vào số dư có thể rút</p>
+            </section>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.9fr)]">
-            <section className="min-w-0 space-y-5 rounded-2xl border border-white/10 bg-card p-5">
-              <h2 className="m-0 text-lg font-bold">Bảng kê theo từng tựa game</h2>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            <section className="space-y-5 rounded-2xl border border-white/10 bg-card p-5">
+              <h2 className="m-0 border-b border-white/10 pb-4 text-lg font-bold">Doanh số chi tiết theo sản phẩm</h2>
               {games.length ? (
                 <>
-                  <div className="space-y-4 rounded-xl border border-white/10 bg-page p-4">
+                  <div className="space-y-3">
                     {games.map((game) => (
-                      <div key={game.gameId}>
-                        <div className="flex flex-wrap justify-between gap-2 text-sm">
-                          <span className="font-semibold">{game.title} ({game.unitsSold} bản)</span>
-                          <span className="font-mono font-bold text-emerald-400">{formatVnd(game.devShareEstimate)}</span>
+                      <div key={game.gameId} className="space-y-1 text-xs">
+                        <div className="flex justify-between font-semibold">
+                          <span>{game.title} ({game.unitsSold} bản)</span>
+                          <span className="font-mono text-accent-light">{formatVnd(game.grossRevenue)}</span>
                         </div>
-                        <div className="mt-2 h-2 rounded-full bg-card">
-                          <div className="h-full rounded-full bg-gradient-to-r from-accent to-accent-light" style={{ width: `${(Number(game.grossRevenue || 0) / maxGross) * 100}%` }} />
+                        <div className="h-2 rounded-full bg-page">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-accent to-accent-light"
+                            style={{ width: `${Math.max(8, Math.round((Number(game.grossRevenue || 0) / maxGross) * 100))}%` }}
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px] border-collapse text-left text-xs">
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full min-w-[500px] border-collapse text-left text-xs">
                       <thead className="bg-page uppercase text-muted">
-                        <tr>
-                          <th className="px-3 py-3">Tựa game</th>
-                          <th className="px-3 py-3">Lượt bán</th>
-                          <th className="px-3 py-3">Doanh thu gộp</th>
-                          <th className="px-3 py-3">Thực nhận ước tính</th>
-                          <th className="px-3 py-3">Wishlist / hoàn</th>
-                        </tr>
+                        <tr><th className="px-3 py-2">Tựa game</th><th className="px-3 py-2">Lượt bán</th><th className="px-3 py-2">Doanh thu gộp</th><th className="px-3 py-2">Thực nhận (70%)</th><th className="px-3 py-2">Wishlist / Hoàn</th></tr>
                       </thead>
                       <tbody>
                         {games.map((game) => {
@@ -242,8 +244,16 @@ export default function DeveloperRevenue() {
                   <p className="mb-0 mt-1 text-xl font-extrabold text-emerald-400">{formatVnd(available)}</p>
                 </div>
                 <label className="block text-sm font-semibold text-muted">
-                  Số tiền yêu cầu rút (tối thiểu 1.000.000 ₫)
-                  <input type="number" min="1000000" step="1" value={withdrawAmount} onChange={(event) => setWithdrawAmount(event.target.value)} className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-mono text-white" />
+                  Số tiền yêu cầu rút (tối thiểu 1.000.000 ₫, tối đa {formatVnd(available)})
+                  <input
+                    type="number"
+                    min="1000000"
+                    max={available}
+                    step="1"
+                    value={withdrawAmount}
+                    onChange={(event) => setWithdrawAmount(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-mono text-white"
+                  />
                 </label>
                 <label className="block text-sm font-semibold text-muted">
                   Thông tin tài khoản nhận tiền
