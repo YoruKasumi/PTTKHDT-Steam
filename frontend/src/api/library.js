@@ -6,10 +6,4 @@ export const libraryApi = {
   yeuCauKhoiChay: (gameId) => http.post('/library/yeuCauKhoiChay', { gameId }),
   xacThucKhoiChay: (body) => http.post('/library/xacThucKhoiChay', body),
   yeuCauTaiGame: (gameId) => http.get('/library/yeuCauTaiGame', { params: { gameId } }),
-
-  // Aliases for compatibility
-  list: () => http.get('/library/yeuCauXemThuVien'),
-  redeemKey: (keyCode) => http.post('/library/kichHoatKey', { keyCode }),
-  launch: (gameId) => http.post('/library/yeuCauKhoiChay', { gameId }),
-  verifyLaunch: (body) => http.post('/library/xacThucKhoiChay', body),
 };

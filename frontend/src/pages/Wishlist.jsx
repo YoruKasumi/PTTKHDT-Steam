@@ -13,7 +13,7 @@ export default function Wishlist() {
 
   useEffect(() => {
     let active = true;
-    wishlistApi.list().then((result) => {
+    wishlistApi.layDanhSachWishlist().then((result) => {
       if (active) setItems(result);
     }).catch((requestError) => {
       if (active) setError(requestError.message);

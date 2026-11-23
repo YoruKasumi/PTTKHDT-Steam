@@ -8,8 +8,4 @@ export const walletApi = {
   yeuCauXemLichSuGiaoDich: (params = {}) => http.get('/wallet/yeuCauXemLichSuGiaoDich', { params }),
 
   // Aliases for compatibility
-  get: () => http.get('/wallet/yeuCauXemSoDu'),
-  deposit: (body) => http.post('/wallet/guiYeuCauNapTien', body),
-  withdraw: (body) => http.post('/wallet/guiYeuCauRutTien', body),
-  transactions: (params = {}) => http.get('/wallet/yeuCauXemLichSuGiaoDich', { params }),
 };

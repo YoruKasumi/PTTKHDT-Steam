@@ -27,14 +27,14 @@ class AuthService extends BaseService {
   // ---------------------------------------------------------------- Phương thức công khai (Route / Service khác gọi)
 
   /**
-   * Gửi mã OTP xác thực qua email (Đăng ký hoặc Quên mật khẩu)
-   * @param {{ email: string, purpose?: 'register'|'forgot_password' }} params
+   * Gửi mã OTP xác thực qua email (Đăng ký, Quên mật khẩu hoặc Đổi mật khẩu)
+   * @param {{ email: string, purpose?: 'register'|'forgot_password'|'change_password' }} params
    */
   async sendOtp(params = {}) {
     const email = typeof params.email === 'string' ? params.email.trim().toLowerCase() : '';
     const purpose = params.purpose === 'forgot_password' || params.purpose === 'reset_password'
       ? 'forgot_password'
-      : 'register';
+      : params.purpose === 'change_password' ? 'change_password' : 'register';
 
     if (!email || email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new ValidationException('Email không hợp lệ');
@@ -70,6 +70,14 @@ class AuthService extends BaseService {
       message: 'Mã xác thực OTP đã được gửi đến email của bạn',
       email,
     };
+  }
+
+  async guiMaOtpDoiMatKhau(params = {}) {
+    const accountId = params.user?.accountId;
+    if (!accountId) throw new UnauthorizedException();
+    const account = await this.accountDAO.layHoSoCaNhan({ accountId });
+    if (!account) throw new NotFoundException('Không tìm thấy tài khoản');
+    return this.sendOtp({ email: account.Email, purpose: 'change_password' });
   }
 
   /**
@@ -275,11 +283,17 @@ class AuthService extends BaseService {
     const accountId = params.user?.accountId;
     const currentPassword = typeof params.currentPassword === 'string' ? params.currentPassword : '';
     const newPassword = typeof params.newPassword === 'string' ? params.newPassword : '';
+    const otp = typeof params.otp === 'string' ? params.otp.trim() : '';
     if (!accountId) throw new UnauthorizedException();
     if (!currentPassword || newPassword.length < 8 || Buffer.byteLength(newPassword, 'utf8') > 72) {
       throw new ValidationException('Cần nhập mật khẩu hiện tại và mật khẩu mới từ 8 ký tự (tối đa 72 byte)');
     }
+    if (!/^\d{6}$/.test(otp)) {
+      throw new ValidationException('Mã OTP gồm đúng 6 chữ số');
+    }
 
+    const account = await this.accountDAO.layHoSoCaNhan({ accountId });
+    if (!account) throw new NotFoundException('Không tìm thấy tài khoản');
     const currentHash = await this.accountDAO.layMatKhauHienTai({ accountId });
     if (!currentHash) throw new NotFoundException('Không tìm thấy tài khoản');
     if (!(await password.compare(currentPassword, currentHash))) {
@@ -289,6 +303,7 @@ class AuthService extends BaseService {
       throw new ValidationException('Mật khẩu mới phải khác mật khẩu hiện tại');
     }
 
+    otpStore.verifyOtp(account.Email, 'change_password', otp);
     const passwordHash = await password.hash(newPassword);
     await this.accountDAO.capNhatMatKhauMoi({ accountId, passwordHash });
     return { updated: true };

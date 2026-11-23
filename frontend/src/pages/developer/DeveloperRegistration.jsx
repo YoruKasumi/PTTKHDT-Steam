@@ -60,7 +60,7 @@ export default function DeveloperRegistration() {
       return;
     }
     try {
-      await libraryApi.redeemKey(key);
+      await libraryApi.kichHoatKey(key);
       setMessage(`Đã kích hoạt thành công mã ${key} vào Thư viện.`);
       await refreshShop();
     } catch (err) {

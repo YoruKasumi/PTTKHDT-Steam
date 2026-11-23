@@ -21,7 +21,7 @@ export default function Cart() {
 
   useEffect(() => {
     let active = true;
-    orderApi.preview().then((result) => {
+    orderApi.kiemTraMaGiamGia().then((result) => {
       if (active) setPreview(result);
     }).catch((requestError) => {
       if (active) setError(requestError.message);
@@ -48,7 +48,7 @@ export default function Cart() {
     }
     setError('');
     try {
-      const result = await orderApi.preview(code);
+      const result = await orderApi.kiemTraMaGiamGia(code);
       setPreview(result);
       setAppliedCoupon(result.couponCode || '');
       setCouponMsg(`Đã áp dụng ${result.couponCode}: giảm ${formatVnd(result.couponDiscount)}.`);
@@ -56,7 +56,7 @@ export default function Cart() {
       setAppliedCoupon('');
       setCouponMsg('');
       try {
-        setPreview(await orderApi.preview());
+        setPreview(await orderApi.kiemTraMaGiamGia());
         setError(requestError.message);
       } catch (previewError) {
         setError(previewError.message);
@@ -68,7 +68,7 @@ export default function Cart() {
     setError('');
     try {
       await removeFromCart(gameId);
-      setPreview(await orderApi.preview(appliedCoupon));
+      setPreview(await orderApi.kiemTraMaGiamGia(appliedCoupon));
     } catch (requestError) {
       setError(requestError.message);
     }

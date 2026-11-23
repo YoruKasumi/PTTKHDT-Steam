@@ -9,6 +9,8 @@ const GameDAO = require('../src/dao/GameDAO');
 const GameService = require('../src/services/GameService');
 const ProfileService = require('../src/services/ProfileService');
 const password = require('../src/utils/password');
+const otpStore = require('../src/utils/otpStore');
+const mailer = require('../src/utils/mailer');
 
 test('new customer registration creates wallet and cart along with account and customer rows', async () => {
   const dao = new AccountDAO();
@@ -99,26 +101,48 @@ test('password change verifies the current secret, rejects reuse, and stores a n
   const currentHash = await password.hash('current-password');
   let savedHash;
   const service = new AuthService({
+    layHoSoCaNhan: async () => ({ Email: 'customer@example.test' }),
+    kiemTraTaiKhoan: async () => ({
+      AccountID: 'account-1',
+      Email: 'customer@example.test',
+      Status: 'Active',
+    }),
     layMatKhauHienTai: async () => currentHash,
     capNhatMatKhauMoi: async ({ passwordHash }) => { savedHash = passwordHash; },
   });
+
+  otpStore.clearAll();
+  mailer.clearMockSentMails();
+  await service.guiMaOtpDoiMatKhau({ user: { accountId: 'account-1' } });
+  const sentMail = mailer.getMockSentMails().at(-1);
+  assert.equal(sentMail.to, 'customer@example.test');
+  assert.match(sentMail.subject, /đổi mật khẩu/i);
+  const otp = sentMail.html.match(/<span[^>]*>\s*(\d{6})\s*<\/span>/)?.[1];
+  assert.ok(otp);
 
   assert.deepEqual(await service.guiYeuCauThayDoiMatKhau({
     user: { accountId: 'account-1' },
     currentPassword: 'current-password',
     newPassword: 'new-password-123',
+    otp,
   }), { updated: true });
   assert.equal(await password.compare('new-password-123', savedHash), true);
+  otpStore.setOtpForTest('customer@example.test', 'change_password', '123456');
   await assert.rejects(service.guiYeuCauThayDoiMatKhau({
     user: { accountId: 'account-1' },
     currentPassword: 'wrong-password',
     newPassword: 'another-password',
+    otp: '123456',
   }), { status: 422 });
+  otpStore.setOtpForTest('customer@example.test', 'change_password', '654321');
   await assert.rejects(service.guiYeuCauThayDoiMatKhau({
     user: { accountId: 'account-1' },
     currentPassword: 'current-password',
     newPassword: 'current-password',
+    otp: '654321',
   }), { status: 422 });
+  otpStore.clearAll();
+  mailer.clearMockSentMails();
 });
 
 test('catalog DAO composes approved-only filters and uses the sale-price view', async () => {

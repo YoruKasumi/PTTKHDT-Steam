@@ -61,7 +61,7 @@ export default function TopBar() {
     }
     try {
       setLoadingNotifs(true);
-      const res = await notificationApi.list();
+      const res = await notificationApi.layDanhSachThongBao();
       const items = res?.items || (Array.isArray(res) ? res : []);
       setNotifications(items);
       setUnreadCount(res?.unreadCount ?? items.filter((n) => !n.isRead).length);
@@ -78,7 +78,7 @@ export default function TopBar() {
 
   const handleMarkAllRead = async () => {
     try {
-      await notificationApi.markAllRead();
+      await notificationApi.danhDauTatCaDaDoc();
       setNotifications((current) => current.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (err) {
@@ -89,7 +89,7 @@ export default function TopBar() {
   const handleMarkOneRead = async (item) => {
     if (item.isRead) return;
     try {
-      await notificationApi.markRead(item.id || item.notificationId);
+      await notificationApi.danhDauDaDoc(item.id || item.notificationId);
       setNotifications((current) =>
         current.map((n) =>
           (n.id === item.id || n.notificationId === item.notificationId) ? { ...n, isRead: true } : n,

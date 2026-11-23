@@ -130,7 +130,7 @@ async function handleVerifyLaunch(req, res) {
 }
 
 router.post('/xacThucKhoiChay', asyncHandler(handleVerifyLaunch));
-router.post('/verify-launch', asyncHandler(handleVerifyLaunch)); // Hỗ trợ tương thích ngược cho drm.js đã đóng gói
+router.post('/verify-launch', asyncHandler(handleVerifyLaunch)); // Giữ tương thích với build game đã phát hành
 
 // ─── Phục vụ file tĩnh game (có bảo vệ DRM) ────────────────────────────────
 router.get(

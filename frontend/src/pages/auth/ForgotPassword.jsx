@@ -142,6 +142,7 @@ export default function ForgotPassword() {
                 label="Nhập mật khẩu mới"
                 icon="🔒"
                 type="password"
+                maxLength={72}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Ít nhất 8 ký tự"
@@ -152,6 +153,7 @@ export default function ForgotPassword() {
                 label="Nhập lại mật khẩu mới"
                 icon="🔒"
                 type="password"
+                maxLength={72}
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 placeholder="Xác nhận mật khẩu"

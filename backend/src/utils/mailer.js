@@ -76,13 +76,18 @@ async function sendMail({ to, subject, html, text }) {
 
 async function sendOtpEmail({ to, otp, purpose = 'register' }) {
   const isRegister = purpose === 'register';
+  const isChangePassword = purpose === 'change_password';
   const subject = isRegister
     ? '[Vortex Gaming] Mã xác thực đăng ký tài khoản'
-    : '[Vortex Gaming] Mã xác thực đặt lại mật khẩu';
+    : isChangePassword
+      ? '[Vortex Gaming] Mã xác thực đổi mật khẩu'
+      : '[Vortex Gaming] Mã xác thực đặt lại mật khẩu';
 
   const actionText = isRegister
     ? 'đăng ký tài khoản Vortex Gaming'
-    : 'đặt lại mật khẩu tài khoản Vortex Gaming';
+    : isChangePassword
+      ? 'đổi mật khẩu tài khoản Vortex Gaming'
+      : 'đặt lại mật khẩu tài khoản Vortex Gaming';
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #121212; color: #ffffff; border-radius: 8px;">

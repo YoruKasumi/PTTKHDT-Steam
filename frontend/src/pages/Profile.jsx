@@ -60,6 +60,9 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [savingName, setSavingName] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [requestingPasswordOtp, setRequestingPasswordOtp] = useState(false);
+  const [passwordOtpSent, setPasswordOtpSent] = useState(false);
+  const [passwordOtpCountdown, setPasswordOtpCountdown] = useState(0);
   const [error, setError] = useState('');
   const [activityError, setActivityError] = useState('');
   const [notice, setNotice] = useState('');
@@ -67,23 +70,32 @@ export default function Profile() {
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
+    otp: '',
   });
   const [avatarFailed, setAvatarFailed] = useState(false);
+
+  useEffect(() => {
+    if (passwordOtpCountdown <= 0) return undefined;
+    const timer = setInterval(() => {
+      setPasswordOtpCountdown((current) => current - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [passwordOtpCountdown]);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError('');
     setActivityError('');
     try {
-      const result = await profileApi.get();
+      const result = await profileApi.layThongTinHoSo();
       setProfile(result);
       setDisplayName(result.displayName || '');
 
       if (isCustomer) {
         const [libraryResult, walletResult, transactionsResult] = await Promise.allSettled([
-          libraryApi.list(),
-          walletApi.get(),
-          walletApi.transactions(),
+          libraryApi.yeuCauXemThuVien(),
+          walletApi.yeuCauXemSoDu(),
+          walletApi.yeuCauXemLichSuGiaoDich(),
         ]);
         const errors = [];
         if (libraryResult.status === 'fulfilled') {
@@ -147,12 +159,24 @@ export default function Profile() {
     event.preventDefault();
     setError('');
     setNotice('');
+    if (!passwordOtpSent) {
+      setError('Hãy yêu cầu mã OTP gửi tới email tài khoản trước khi đổi mật khẩu.');
+      return;
+    }
     if (passwords.newPassword.length < 8) {
       setError('Mật khẩu mới phải có ít nhất 8 ký tự.');
       return;
     }
+    if (passwords.newPassword.length > 72) {
+      setError('Mật khẩu mới tối đa 72 ký tự.');
+      return;
+    }
     if (passwords.newPassword !== passwords.confirmPassword) {
       setError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
+    if (!/^\d{6}$/.test(passwords.otp)) {
+      setError('Mã OTP phải gồm đúng 6 chữ số.');
       return;
     }
 
@@ -161,13 +185,32 @@ export default function Profile() {
       await profileApi.changePassword({
         currentPassword: passwords.currentPassword,
         newPassword: passwords.newPassword,
+        otp: passwords.otp,
       });
-      setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '', otp: '' });
+      setPasswordOtpSent(false);
+      setPasswordOtpCountdown(0);
       setNotice('Đã đổi mật khẩu.');
     } catch (changeError) {
       setError(changeError?.message || 'Không thể đổi mật khẩu.');
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const requestPasswordOtp = async () => {
+    setError('');
+    setNotice('');
+    setRequestingPasswordOtp(true);
+    try {
+      await profileApi.guiMaOtpDoiMatKhau();
+      setPasswordOtpSent(true);
+      setPasswordOtpCountdown(10);
+      setNotice(`Đã gửi mã OTP 6 chữ số tới email ${profile?.email || 'đăng ký tài khoản'}.`);
+    } catch (otpError) {
+      setError(otpError?.message || 'Không thể gửi mã OTP.');
+    } finally {
+      setRequestingPasswordOtp(false);
     }
   };
 
@@ -248,7 +291,7 @@ export default function Profile() {
         <form onSubmit={changePassword} className="space-y-4 rounded-2xl border border-white/10 bg-card p-5">
           <div>
             <h2 className="m-0 text-lg font-bold">Đổi mật khẩu</h2>
-            <p className="mb-0 mt-1 text-sm text-muted">Mật khẩu mới cần ít nhất 8 ký tự.</p>
+            <p className="mb-0 mt-1 text-sm text-muted">Mật khẩu mới từ 8 đến 72 ký tự; cần xác nhận OTP qua email.</p>
           </div>
           {[
             ['currentPassword', 'Mật khẩu hiện tại'],
@@ -262,12 +305,41 @@ export default function Profile() {
                 autoComplete={field === 'currentPassword' ? 'current-password' : 'new-password'}
                 value={passwords[field]}
                 onChange={(event) => setPasswords((current) => ({ ...current, [field]: event.target.value }))}
+                minLength={field === 'currentPassword' ? undefined : 8}
+                maxLength={72}
                 required
                 className="mt-1.5 w-full rounded-lg border border-line bg-page px-3 py-2.5 text-white"
               />
             </label>
           ))}
-          <button type="submit" disabled={changingPassword || loading} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold disabled:opacity-50">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label className="block text-sm font-semibold text-muted">
+              Mã OTP xác nhận
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={passwords.otp}
+                onChange={(event) => setPasswords((current) => ({ ...current, otp: event.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                maxLength={6}
+                pattern="\d{6}"
+                placeholder="Nhập mã 6 chữ số"
+                required
+                className="mt-1.5 w-full rounded-lg border border-line bg-page px-3 py-2.5 text-white"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={requestPasswordOtp}
+              disabled={requestingPasswordOtp || passwordOtpCountdown > 0 || loading}
+              className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold disabled:opacity-50"
+            >
+              {requestingPasswordOtp
+                ? 'Đang gửi...'
+                : passwordOtpCountdown > 0 ? `Gửi lại (${passwordOtpCountdown}s)` : 'Gửi mã OTP'}
+            </button>
+          </div>
+          <button type="submit" disabled={changingPassword || loading || requestingPasswordOtp} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold disabled:opacity-50">
             {changingPassword ? 'Đang cập nhật...' : 'Đổi mật khẩu'}
           </button>
         </form>

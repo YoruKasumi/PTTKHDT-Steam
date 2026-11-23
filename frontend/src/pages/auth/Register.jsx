@@ -121,9 +121,9 @@ export default function Register() {
         <p className="mb-0 mt-2 text-[11px] text-muted">Nhấn "Gửi mã OTP" để nhận mã xác minh 6 chữ số gửi về email của bạn (hết hạn sau 5 phút).</p>
 
         <div className="mt-5 grid gap-5 md:grid-cols-2">
-          <Field id="password" label="Mật khẩu" icon="🔒" type="password" value={form.password} onChange={set('password')}
+          <Field id="password" label="Mật khẩu" icon="🔒" type="password" maxLength={72} value={form.password} onChange={set('password')}
             placeholder="Ít nhất 8 ký tự" autoComplete="new-password" error={errors.password} />
-          <Field id="confirm" label="Xác nhận mật khẩu" icon="🔒" type="password" value={form.confirm} onChange={set('confirm')}
+          <Field id="confirm" label="Xác nhận mật khẩu" icon="🔒" type="password" maxLength={72} value={form.confirm} onChange={set('confirm')}
             placeholder="Nhập lại mật khẩu" autoComplete="new-password" error={errors.confirm} />
         </div>
 

@@ -63,7 +63,7 @@ export default function Library() {
     if (!user?.roles?.includes('Customer')) return;
     setLoading(true);
     try {
-      const data = await libraryApi.list();
+      const data = await libraryApi.yeuCauXemThuVien();
       const list = Array.isArray(data) ? data : [];
       setGames(list);
       if (selectGameId) {
@@ -104,7 +104,7 @@ export default function Library() {
     setRedeeming(true);
     setRedeemError('');
     try {
-      const result = await libraryApi.redeemKey(code);
+      const result = await libraryApi.kichHoatKey(code);
       setNotice(result.message || `Kích hoạt thành công "${result.title || 'Game'}"!`);
       setNoticeType('success');
       setKeyCode('');
@@ -129,7 +129,7 @@ export default function Library() {
     setLaunching(true);
     setNotice('');
     try {
-      const result = await libraryApi.launch(selectedGame.gameId);
+      const result = await libraryApi.yeuCauKhoiChay(selectedGame.gameId);
       // Mở tab mới với playUrl
       window.open(result.playUrl, '_blank', 'noopener,noreferrer');
       setNotice(`Đang mở ${selectedGame.title}... Nếu tab không mở tự động, hãy kiểm tra trình chặn cửa sổ bật lên (popup blocker).`);
