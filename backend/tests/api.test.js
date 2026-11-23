@@ -46,21 +46,20 @@ test('Swagger UI and generated OpenAPI document are available in development', a
   assert.equal(specResponse.status, 200);
   const spec = await specResponse.json();
   assert.equal(spec.openapi, '3.0.3');
-  assert.ok(spec.paths['/api/auth/register']);
-  assert.ok(spec.paths['/api/auth/login']);
-  assert.ok(spec.paths['/api/profile']);
-  assert.ok(spec.paths['/api/profile/password']);
-  assert.ok(spec.paths['/api/profile/notifications']);
-  assert.ok(spec.paths['/api/catalog/games']);
-  assert.ok(spec.paths['/api/catalog/games/{gameId}']);
-  assert.ok(spec.paths['/api/catalog/games/{gameId}/reviews']);
+  assert.ok(spec.paths['/api/auth/guiThongTinDangKy']);
   assert.ok(spec.paths['/api/auth/guiThongTinDangNhap']);
-  assert.ok(spec.paths['/api/library/{gameId}/download']);
-  assert.ok(spec.paths['/api/admin/roles']);
-  assert.ok(spec.paths['/api/admin/accounts/{accountId}/history']);
-  assert.ok(spec.paths['/api/moderation/reviews']);
-  assert.ok(spec.paths['/api/genres']);
-  assert.ok(spec.paths['/api/banners/active']);
+  assert.ok(spec.paths['/api/profile/layThongTinHoSo']);
+  assert.ok(spec.paths['/api/profile/guiYeuCauThayDoiMatKhau']);
+  assert.ok(spec.paths['/api/profile/capNhatTrangThaiThongBao']);
+  assert.ok(spec.paths['/api/catalog/layDanhSachGame']);
+  assert.ok(spec.paths['/api/catalog/yeuCauXemChiTietSanPham']);
+  assert.ok(spec.paths['/api/catalog/taoDanhGia']);
+  assert.ok(spec.paths['/api/library/yeuCauTaiGame']);
+  assert.ok(spec.paths['/api/admin/layDanhSachVaiTro']);
+  assert.ok(spec.paths['/api/admin/traCuuLichSuTaiKhoan']);
+  assert.ok(spec.paths['/api/moderation/layDanhSachDanhGia']);
+  assert.ok(spec.paths['/api/genres/layDanhSachTheLoaiCongKhai']);
+  assert.ok(spec.paths['/api/banners/layBannerHienThi']);
   assert.deepEqual(spec.paths['/api/cart/yeuCauXemGioHang'].get.security, [{ bearerAuth: [] }]);
   assert.ok(spec.paths['/health/database']);
 });
@@ -77,8 +76,8 @@ test('download metadata headers are readable by a cross-origin frontend', async 
   assert.deepEqual(exposedHeaders, ['Content-Disposition', 'X-Game-Version', 'X-Game-Sha256']);
 });
 
-test('REST auth aliases apply the same validation as the legacy endpoints', async () => {
-  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+test('auth validation on Vietnamese endpoints rejects missing credentials and bad OTP', async () => {
+  const loginResponse = await fetch(`${baseUrl}/api/auth/guiThongTinDangNhap`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{}',
@@ -86,12 +85,13 @@ test('REST auth aliases apply the same validation as the legacy endpoints', asyn
   assert.equal(loginResponse.status, 400);
   assert.equal((await loginResponse.json()).code, 'MISSING_CREDENTIALS');
 
-  const registerResponse = await fetch(`${baseUrl}/api/auth/register`, {
+  const registerResponse = await fetch(`${baseUrl}/api/auth/guiThongTinDangKy`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       username: 'rest_otp_failure',
       email: 'rest.otp.failure@example.test',
+      displayName: 'Rest Test',
       password: 'strong-password-123',
       otp: '0000',
     }),
@@ -101,10 +101,10 @@ test('REST auth aliases apply the same validation as the legacy endpoints', asyn
 });
 
 test('review endpoint requires a Customer session', async () => {
-  const response = await fetch(`${baseUrl}/api/catalog/games/game-1/reviews`, {
+  const response = await fetch(`${baseUrl}/api/catalog/taoDanhGia`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ rating: 5, content: 'Review' }),
+    body: JSON.stringify({ gameId: 'game-1', rating: 5, content: 'Review' }),
   });
   assert.equal(response.status, 401);
   assert.equal((await response.json()).code, 'UNAUTHORIZED');
@@ -192,14 +192,14 @@ test('customer-only routes still reject requests without a JWT', async () => {
     code: 'UNAUTHORIZED',
     message: 'Chưa đăng nhập hoặc phiên đã hết hạn',
   });
+});
 
-  test('admin endpoints require authentication', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/roles`);
-    assert.equal(response.status, 401);
-    assert.deepEqual(await response.json(), {
-      success: false,
-      code: 'UNAUTHORIZED',
-      message: 'Chưa đăng nhập hoặc phiên đã hết hạn',
-    });
+test('admin endpoints require authentication', async () => {
+  const response = await fetch(`${baseUrl}/api/admin/layDanhSachVaiTro`);
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), {
+    success: false,
+    code: 'UNAUTHORIZED',
+    message: 'Chưa đăng nhập hoặc phiên đã hết hạn',
   });
 });

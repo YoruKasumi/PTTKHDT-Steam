@@ -25,6 +25,14 @@ class AuditLogService extends BaseService {
     return (await this.auditLogDAO.listLogs(this.validateFilters(params))).map((row) => this.toLogResponse(row));
   }
 
+  async layDanhSachNhatKy(params = {}) {
+    return this.guiYeuCauLocNhatKy(params);
+  }
+
+  async layChiTietNhatKy(params = {}) {
+    return this.yeuCauChiTietBanGhiLog(params);
+  }
+
   async guiYeuCauLocNhatKy(params = {}) {
     return (await this.auditLogDAO.listLogs(this.validateFilters(params))).map((row) => this.toLogResponse(row));
   }

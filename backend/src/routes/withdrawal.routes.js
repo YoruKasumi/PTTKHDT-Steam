@@ -1,7 +1,6 @@
 'use strict';
 const express = require('express');
 const { authenticate, authorize, requirePermission } = require('../middlewares/auth');
-const upload = require('../middlewares/upload');
 const asyncHandler = require('../utils/asyncHandler');
 const requestContext = require('../utils/requestContext');
 const { ok } = require('../utils/response');
@@ -12,8 +11,9 @@ const router = express.Router();
 /** UC33. Rút doanh thu về ngân hàng (#2)  | quyền: Developer */
 router.post('/guiYeuCauRutDoanhThu', authenticate, authorize('Developer'), asyncHandler(async (req, res) => ok(res, await withdrawalService.guiYeuCauRutDoanhThu(requestContext(req)))));
 
-router.get('/myRequests', authenticate, authorize('Developer'), asyncHandler(async (req, res) => (
-  ok(res, await withdrawalService.yeuCauXemLichSuRutTien(requestContext(req)))
+/** Lấy danh sách lịch sử yêu cầu rút tiền của NPH */
+router.get('/layDanhSachYeuCauRutTien', authenticate, authorize('Developer'), asyncHandler(async (req, res) => (
+  ok(res, await withdrawalService.layDanhSachYeuCauRutTien(requestContext(req)))
 )));
 
 /** UC57. Phê duyệt rút doanh thu (#2)  | quyền: Admin, Manager */

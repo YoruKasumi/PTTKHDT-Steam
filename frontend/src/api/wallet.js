@@ -2,8 +2,14 @@
 import http from './http';
 
 export const walletApi = {
-  get: () => http.get('/wallet'),
-  deposit: (body) => http.post('/wallet/deposit', body),   // { amount, ... }
-  withdraw: (body) => http.post('/wallet/withdraw', body), // { amount, ... }
-  transactions: (params = {}) => http.get('/wallet/transactions', { params }), // type, from, to, keyword
+  yeuCauXemSoDu: () => http.get('/wallet/yeuCauXemSoDu'),
+  guiYeuCauNapTien: (body) => http.post('/wallet/guiYeuCauNapTien', body),
+  guiYeuCauRutTien: (body) => http.post('/wallet/guiYeuCauRutTien', body),
+  yeuCauXemLichSuGiaoDich: (params = {}) => http.get('/wallet/yeuCauXemLichSuGiaoDich', { params }),
+
+  // Aliases for compatibility
+  get: () => http.get('/wallet/yeuCauXemSoDu'),
+  deposit: (body) => http.post('/wallet/guiYeuCauNapTien', body),
+  withdraw: (body) => http.post('/wallet/guiYeuCauRutTien', body),
+  transactions: (params = {}) => http.get('/wallet/yeuCauXemLichSuGiaoDich', { params }),
 };

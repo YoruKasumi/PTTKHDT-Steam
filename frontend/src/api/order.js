@@ -1,9 +1,16 @@
 import http from './http';
 
 export const orderApi = {
-  list: () => http.get('/orders'),
-  preview: (couponCode = '') => http.post('/orders/preview', { couponCode }),
-  checkout: (couponCode = '') => http.post('/orders/checkout', { couponCode }),
+  layDanhSachDonHang: () => http.get('/orders/layDanhSachDonHang'),
+  kiemTraMaGiamGia: (couponCode = '') => http.post('/orders/kiemTraMaGiamGia', { couponCode }),
+  yeuCauThanhToan: (couponCode = '') => http.post('/orders/yeuCauThanhToan', { couponCode }),
+  guiYeuCauHoanTien: (orderId, reason, gameIds) =>
+    http.post('/orders/guiYeuCauHoanTien', { orderId, reason, gameIds }),
+
+  // Aliases for compatibility
+  list: () => http.get('/orders/layDanhSachDonHang'),
+  preview: (couponCode = '') => http.post('/orders/kiemTraMaGiamGia', { couponCode }),
+  checkout: (couponCode = '') => http.post('/orders/yeuCauThanhToan', { couponCode }),
   refund: (orderId, reason, gameIds) =>
-    http.post(`/orders/${encodeURIComponent(orderId)}/refund`, { reason, gameIds }),
+    http.post('/orders/guiYeuCauHoanTien', { orderId, reason, gameIds }),
 };

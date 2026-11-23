@@ -7,6 +7,7 @@ const { genreService } = require('../services');
 
 const router = express.Router();
 
-router.get('/', asyncHandler(async (req, res) => ok(res, await genreService.listGenres())));
+router.get('/layDanhSachTheLoaiCongKhai', asyncHandler(async (req, res) => ok(res, await genreService.layDanhSachTheLoai())));
+router.get('/', asyncHandler(async (req, res) => ok(res, await genreService.layDanhSachTheLoai())));
 
 module.exports = router;

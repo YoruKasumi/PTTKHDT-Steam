@@ -1,6 +1,10 @@
 import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import DeveloperShell from '../../components/developer/DeveloperShell';
 import { formatVnd } from '../../utils/format';
+import { useShop } from '../../context/ShopContext';
+import { developerApi } from '../../api/developer';
+import { libraryApi } from '../../api/library';
 
 const activationKeys = [
   'VORTX-8821A-REPO1',
@@ -11,35 +15,57 @@ const activationKeys = [
 ];
 
 export default function DeveloperRegistration() {
+  const navigate = useNavigate();
+  const { balance = 0, refreshShop } = useShop();
   const [studio, setStudio] = useState('Vortex');
   const [bankAccount, setBankAccount] = useState('VCB - 0071001294821 - NGUYEN VAN A');
   const [productKey, setProductKey] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
   const fee = 1000000;
-  const availableBalance = 1250000;
 
-  const activateDeveloper = (event) => {
+  const activateDeveloper = async (event) => {
     event.preventDefault();
     if (!studio.trim() || !bankAccount.trim()) {
       setMessage('Vui lòng nhập tên Studio và tài khoản ngân hàng.');
       return;
     }
-    if (availableBalance < fee) {
-      setMessage('Số dư ví không đủ để thanh toán phí kích hoạt hồ sơ.');
+    if ((balance ?? 0) < fee) {
+      setMessage('Số dư ví không đủ để thanh toán phí kích hoạt hồ sơ. Vui lòng nạp thêm tiền vào ví.');
       return;
     }
-    setMessage('Đã gửi yêu cầu. Xin vui lòng đợi xét duyệt của quản trị viên!');
+    setLoading(true);
+    try {
+      await developerApi.register({
+        companyName: studio.trim(),
+        bankAccount: bankAccount.trim(),
+        feeAmount: fee,
+      });
+      setMessage('Đăng ký Nhà phát hành thành công! Hệ thống đang chuyển hướng...');
+      await refreshShop();
+      setTimeout(() => navigate('/developer/games'), 1200);
+    } catch (err) {
+      setMessage(err.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const activateKey = (event) => {
+  const activateKey = async (event) => {
     event.preventDefault();
     const key = productKey.trim() || selectedKey;
     if (!key) {
       setMessage('Vui lòng nhập hoặc chọn mã bản quyền cần kích hoạt.');
       return;
     }
-    setMessage(`Đã ghi nhận yêu cầu kích hoạt mã ${key}.`);
+    try {
+      await libraryApi.redeemKey(key);
+      setMessage(`Đã kích hoạt thành công mã ${key} vào Thư viện.`);
+      await refreshShop();
+    } catch (err) {
+      setMessage(err.message || `Kích hoạt mã ${key} thất bại.`);
+    }
   };
 
   return (
@@ -75,11 +101,22 @@ export default function DeveloperRegistration() {
             </div>
             <div className="rounded-xl border border-accent/50 bg-page p-4">
               <p className="m-0 text-sm text-muted">Số dư Ví điện tử hiện tại</p>
-              <p className="mb-0 mt-2 text-lg font-extrabold text-emerald-400">{formatVnd(availableBalance)}</p>
+              <div className="flex items-center justify-between">
+                <p className="mb-0 mt-2 text-lg font-extrabold text-emerald-400">{formatVnd(balance)}</p>
+                {(balance ?? 0) < fee && (
+                  <Link to="/wallet" className="text-xs text-indigo-400 hover:underline">
+                    Nạp ví →
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
-          <button type="submit" className="w-full rounded-xl bg-accent px-5 py-3 font-bold">
-            Kích hoạt hồ sơ Developer
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-accent px-5 py-3 font-bold text-white transition-opacity disabled:opacity-50"
+          >
+            {loading ? 'Đang xử lý...' : 'Kích hoạt hồ sơ Developer'}
           </button>
         </form>
 
@@ -96,7 +133,7 @@ export default function DeveloperRegistration() {
               />
             </label>
             <label className="flex items-center gap-2 text-sm text-muted">
-              <input type="checkbox" className="accent-indigo-500" />
+              <input type="checkbox" className="accent-indigo-500" defaultChecked readOnly />
               Kích hoạt ngay vào Thư viện
             </label>
             <button type="submit" className="rounded-lg bg-accent px-5 py-2.5 font-bold">

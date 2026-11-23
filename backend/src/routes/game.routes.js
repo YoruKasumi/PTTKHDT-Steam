@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { uploadZip, uploadGameFiles } = require('../middlewares/upload');
+const { uploadGameFiles } = require('../middlewares/upload');
 const asyncHandler = require('../utils/asyncHandler');
 const { ok } = require('../utils/response');
 const { gameService } = require('../services');
@@ -15,14 +15,9 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await gameService.kiemTraThongTinGame({ user: req.user, ...req.body }))),
 );
 
-/**
- * UC24. Upload Patch & Changelog — multipart/form-data
- * POST /api/games/uploadPatch
- * Fields: gameId, versionNumber, changeLog
- * Files: buildFile (.zip), coverFile (optional), trailerFile (optional)
- */
+/** UC24. Upload Patch & Changelog — multipart/form-data */
 router.post(
-  '/uploadPatch',
+  '/guiGoiCapNhat',
   authenticate, authorize('Developer'),
   uploadGameFiles(),
   asyncHandler(async (req, res) => {
@@ -44,30 +39,6 @@ router.post(
   }),
 );
 
-/** UC24. Legacy route */
-router.post(
-  '/guiGoiCapNhat',
-  authenticate, authorize('Developer'),
-  uploadGameFiles(),
-  asyncHandler(async (req, res) => {
-    const files = req.files || {};
-    const buildFile = files.buildFile && files.buildFile[0];
-    if (!buildFile) {
-      return res.status(400).json({ success: false, code: 'NO_FILE', message: 'Không có tệp .zip được upload.' });
-    }
-    const result = await gameService.guiGoiCapNhat({
-      gameId: req.body.gameId,
-      versionNumber: req.body.versionNumber,
-      changeLog: req.body.changeLog,
-      tempFilePath: buildFile.path,
-      coverFile: files.coverFile && files.coverFile[0],
-      trailerFile: files.trailerFile && files.trailerFile[0],
-      user: req.user,
-    });
-    return ok(res, result);
-  }),
-);
-
 /** UC25. Gửi yêu cầu quét virus (mô phỏng) */
 router.post(
   '/guiYeuCauQuetVirus',
@@ -75,14 +46,9 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await gameService.guiYeuCauQuetVirus({ user: req.user, ...req.body }))),
 );
 
-/**
- * UC25. Khởi tạo dự án game mới — multipart/form-data
- * POST /api/games/createProject
- * Fields: title, slug (optional), description, price, minSpec, recSpec, genreIds (JSON array), versionNumber, changeLog
- * Files: buildFile (.zip), coverFile (optional), trailerFile (optional)
- */
+/** UC25. Khởi tạo dự án game mới — multipart/form-data */
 router.post(
-  '/createProject',
+  '/luuHoSoDuAnGame',
   authenticate, authorize('Developer'),
   uploadGameFiles(),
   asyncHandler(async (req, res) => {
@@ -115,33 +81,6 @@ router.post(
   }),
 );
 
-/** UC25. Legacy route */
-router.post(
-  '/luuHoSoDuAnGame',
-  authenticate, authorize('Developer'),
-  uploadGameFiles(),
-  asyncHandler(async (req, res) => {
-    const files = req.files || {};
-    const buildFile = files.buildFile && files.buildFile[0];
-    if (!buildFile) {
-      return res.status(400).json({ success: false, code: 'NO_FILE', message: 'Không có tệp .zip được upload.' });
-    }
-    let genreIds = [];
-    try { genreIds = JSON.parse(req.body.genreIds || '[]'); } catch (_) { genreIds = []; }
-    const result = await gameService.luuHoSoDuAnGame({
-      ...req.body,
-      price: Number(req.body.price),
-      genreIds,
-      slug: req.body.slug,
-      coverFile: files.coverFile && files.coverFile[0],
-      trailerFile: files.trailerFile && files.trailerFile[0],
-      tempFilePath: buildFile.path,
-      user: req.user,
-    });
-    return ok(res, result);
-  }),
-);
-
 /** UC26. Thiết lập giá bán VND */
 router.post(
   '/yeuCauThietLapGia',
@@ -149,19 +88,21 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await gameService.yeuCauThietLapGia({ user: req.user, ...req.body }))),
 );
 
+/** Lấy danh sách dự án game của Developer */
 router.get(
-  '/myGames',
+  '/layDanhSachDuAnCuaToi',
   authenticate, authorize('Developer'),
   asyncHandler(async (req, res) => ok(res, await gameService.layDanhSachDuAnCuaToi({ user: req.user }))),
 );
 
 /** UC29. Lấy danh sách phiên bản để rollback */
 router.get(
-  '/:gameId/versions',
+  '/layDanhSachPhienBan',
   authenticate, authorize('Developer'),
-  asyncHandler(async (req, res) => ok(res, await gameService.yeuCauRollbackPhienBan({
-    gameId: req.params.gameId, user: req.user,
-  }))),
+  asyncHandler(async (req, res) => {
+    const gameId = req.query.gameId || req.params.gameId || req.body.gameId;
+    return ok(res, await gameService.yeuCauRollbackPhienBan({ gameId, user: req.user }));
+  }),
 );
 
 router.post(
@@ -170,21 +111,15 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await gameService.yeuCauRollbackPhienBan({ user: req.user, ...req.body }))),
 );
 
-/** UC29. Xác nhận rollback */
-router.post(
-  '/:gameId/rollback',
-  authenticate, authorize('Developer'),
-  asyncHandler(async (req, res) => ok(res, await gameService.xacNhanKhoiPhucPhienBan({
-    gameId: req.params.gameId,
-    versionId: req.body.versionId,
-    user: req.user,
-  }))),
-);
-
+/** UC29. Xác nhận rollback phiên bản */
 router.post(
   '/xacNhanKhoiPhucPhienBan',
   authenticate, authorize('Developer'),
-  asyncHandler(async (req, res) => ok(res, await gameService.xacNhanKhoiPhucPhienBan({ user: req.user, ...req.body }))),
+  asyncHandler(async (req, res) => {
+    const gameId = req.body.gameId || req.params.gameId;
+    const versionId = req.body.versionId;
+    return ok(res, await gameService.xacNhanKhoiPhucPhienBan({ gameId, versionId, user: req.user }));
+  }),
 );
 
 /** UC34. Cập nhật trạng thái Game */

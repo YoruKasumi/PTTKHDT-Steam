@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "maildev": "npx maildev -s 1025 -w 1080",
     "test": "node --test",
     "db:schema": "mysql -u root -p < sql/steam_store_schema.sql",
     "db:sample": "mysql -u root -p < sql/steam_store_sample_data.sql",

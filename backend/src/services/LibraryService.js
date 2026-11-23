@@ -67,6 +67,10 @@ class LibraryService extends BaseService {
    *   - Chèn LICENSE (Source = 'Key', AccessToken SHA-256)
    * @param {object} params
    */
+  async kichHoatKey(params = {}) {
+    return this.redeemKey(params);
+  }
+
   async redeemKey(params = {}) {
     const { user } = params;
     const customerId = user?.accountId;
@@ -190,6 +194,10 @@ class LibraryService extends BaseService {
    * POST /api/library/verify-launch (Public)
    * Body: { launchToken, gameId }
    */
+  async xacThucKhoiChay(params = {}) {
+    return this.verifyLaunch(params);
+  }
+
   async verifyLaunch(params = {}) {
     const { launchToken, gameId } = params;
 

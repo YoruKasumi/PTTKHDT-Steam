@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import DeveloperShell from '../../components/developer/DeveloperShell';
+import { gameApi } from '../../api/game';
+import { promotionApi } from '../../api/promotion';
 
 const initialKeys = [
   { code: 'REPO9-8821A-VX901', game: 'R.E.P.O.', date: '15/11/2026', status: 'Chờ duyệt' },
@@ -8,8 +10,6 @@ const initialKeys = [
   { code: 'CYBER-9920X-OD881', game: 'Cyber Odyssey 2088', date: '10/11/2026', status: 'Sẵn sàng dùng' },
   { code: 'CYBER-1104Z-OD882', game: 'Cyber Odyssey 2088', date: '05/11/2026', status: 'Đã kích hoạt' },
 ];
-
-const games = ['R.E.P.O.', 'Tiny Pasture', 'Cyber Odyssey 2088', 'Sky: Light Awaits'];
 
 function KeyStatus({ status }) {
   const tone = status === 'Đã kích hoạt'
@@ -21,32 +21,65 @@ function KeyStatus({ status }) {
 }
 
 export default function DeveloperKeys() {
-  const [game, setGame] = useState(games[0]);
+  const [gamesList, setGamesList] = useState([]);
+  const [selectedGameId, setSelectedGameId] = useState('');
   const [quantity, setQuantity] = useState(5);
   const [keys, setKeys] = useState(initialKeys);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const generateKeys = (event) => {
+  useEffect(() => {
+    let mounted = true;
+    gameApi.layDanhSachDuAnCuaToi()
+      .then((res) => {
+        if (!mounted) return;
+        const list = Array.isArray(res) ? res : (res?.data || []);
+        setGamesList(list);
+        if (list.length > 0) {
+          setSelectedGameId(list[0].GameID || list[0].id);
+        }
+      })
+      .catch(() => {
+        // Fallback demo games if empty
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  const generateKeys = async (event) => {
     event.preventDefault();
     const count = Number(quantity);
     if (!Number.isInteger(count) || count < 1 || count > 199) {
       setMessage('Số lượng mỗi đợt phải từ 1 đến 199 Key.');
       return;
     }
-
-    const prefix = game === 'R.E.P.O.' ? 'REPO9' : game.split(' ').map((part) => part.slice(0, 3).toUpperCase()).join('');
-    const batch = Array.from({ length: count }, (_, index) => {
-      const serial = `${Date.now().toString(36).slice(-5)}${(index + 1).toString(36).padStart(2, '0')}`.toUpperCase();
-      return {
-        code: `${prefix}-${serial.slice(0, 5)}-${serial.slice(5)}`,
-        game,
-        date: new Intl.DateTimeFormat('vi-VN').format(new Date()),
+    if (!selectedGameId) {
+      setMessage('Vui lòng chọn một tựa game để sinh mã Key.');
+      return;
+    }
+    const selectedGame = gamesList.find((g) => (g.GameID || g.id) === selectedGameId);
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await promotionApi.generateKeys({
+        gameId: selectedGameId,
+        quantity: count,
+      });
+      const generatedCodes = res?.keys || res?.data?.keys || [];
+      const gameTitle = selectedGame?.Title || selectedGame?.title || 'Game';
+      const formattedDate = new Intl.DateTimeFormat('vi-VN').format(new Date());
+      const newKeyRows = generatedCodes.map((code) => ({
+        code,
+        game: gameTitle,
+        date: formattedDate,
         status: 'Chờ duyệt',
-      };
-    });
-
-    setKeys((current) => [...batch, ...current]);
-    setMessage(`Đã tạo ${count} mã mẫu cho ${game}. Mã chưa được lưu vào backend.`);
+      }));
+      setKeys((current) => [...newKeyRows, ...current]);
+      setMessage(`Đã sinh thành công ${generatedCodes.length || count} mã kích hoạt bản quyền cho ${gameTitle}.`);
+    } catch (error) {
+      setMessage(error?.message || 'Không thể sinh mã Key.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyCodes = async (codes) => {
@@ -91,11 +124,19 @@ export default function DeveloperKeys() {
           <label className="block text-sm font-semibold text-muted">
             Chọn tựa game phát hành mã Key
             <select
-              value={game}
-              onChange={(event) => setGame(event.target.value)}
+              value={selectedGameId}
+              onChange={(event) => setSelectedGameId(event.target.value)}
               className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 text-white"
             >
-              {games.map((item) => <option key={item}>{item}</option>)}
+              {gamesList.length === 0 ? (
+                <option value="">(Không có game tính phí)</option>
+              ) : (
+                gamesList.map((item) => (
+                  <option key={item.GameID || item.id} value={item.GameID || item.id}>
+                    {item.Title || item.title}
+                  </option>
+                ))
+              )}
             </select>
           </label>
           <label className="block text-sm font-semibold text-muted">
@@ -109,10 +150,14 @@ export default function DeveloperKeys() {
               className="mt-2 w-full rounded-lg border border-line bg-page px-3 py-2.5 font-mono text-white"
             />
           </label>
-          <button type="submit" className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-bold">
-            Sinh danh sách Key (PendingActivation)
+          <button
+            type="submit"
+            disabled={loading || !selectedGameId}
+            className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-bold text-white transition-opacity disabled:opacity-50"
+          >
+            {loading ? 'Đang tạo Key...' : 'Sinh danh sách Key (PendingActivation)'}
           </button>
-          <p className="m-0 text-xs text-muted">Mã được tạo ở frontend chỉ dùng để xem thử, chưa phải Key có hiệu lực.</p>
+          <p className="m-0 text-xs text-muted">Mã được sinh trực tiếp trên hệ thống và chuyển trạng thái chờ duyệt.</p>
           {message ? <p role="status" className="m-0 text-sm text-accent-light">{message}</p> : null}
         </form>
 

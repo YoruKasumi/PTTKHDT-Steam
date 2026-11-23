@@ -3,6 +3,7 @@ import DeveloperShell from '../../components/developer/DeveloperShell';
 import NewProjectModal from '../../components/developer/NewProjectModal';
 import { formatVnd } from '../../utils/format';
 import { gameApi } from '../../api/game';
+import { promotionApi } from '../../api/promotion';
 import http from '../../api/http';
 
 // ─── Lớp CSS dùng lại ────────────────────────────────────────────────────────
@@ -357,7 +358,7 @@ export default function DeveloperGames() {
     setMessage(`Đã hoàn nguyên về phiên bản v${data.versionNumber ?? ''} thành công!`);
   };
 
-  // ── Lưu giá bán (mock — gọi API thực khi có endpoint) ───────────────────
+  // ── Lưu giá bán (gọi API thực) ──────────────────────────────────────────
   const savePrice = async (event) => {
     event.preventDefault();
     if (!priceGame) return;
@@ -382,24 +383,34 @@ export default function DeveloperGames() {
     setMessage(`Đã cập nhật giá của ${priceGame.title} thành ${formatVnd(price)}.`);
   };
 
-  // ── Lưu chiến dịch Sale (mock) ───────────────────────────────────────────
-  const saveSale = (event) => {
+  // ── Lưu chiến dịch Sale ──────────────────────────────────────────────────
+  const saveSale = async (event) => {
     event.preventDefault();
     const percent = Number(discount);
-    if (!saleGame || !Number.isInteger(percent) || percent < 1 || percent > 90) {
-      setMessage('Mức giảm giá phải là số nguyên từ 1% đến 90%.');
+    if (!saleGame || !Number.isInteger(percent) || percent < 5 || percent > 100) {
+      setMessage('Mức giảm giá phải là số nguyên từ 5% đến 100%.');
       return;
     }
     if (!startDate || !endDate || startDate > endDate) {
       setMessage('Ngày bắt đầu và kết thúc của chiến dịch chưa hợp lệ.');
       return;
     }
-    setProjects((current) =>
-      current.map((p) =>
-        p.id === saleGame.id ? { ...p, discount: percent, startDate, endDate } : p,
-      ),
-    );
-    setMessage(`Đã lưu chiến dịch Sale ${percent}% cho ${saleGame.title}.`);
+    try {
+      await promotionApi.createSale({
+        gameId: saleGame.id,
+        percentOff: percent,
+        startDate,
+        endDate,
+      });
+      setProjects((current) =>
+        current.map((p) =>
+          p.id === saleGame.id ? { ...p, discount: percent, startDate, endDate } : p,
+        ),
+      );
+      setMessage(`Đã lưu chiến dịch Sale ${percent}% cho ${saleGame.title} thành công.`);
+    } catch (error) {
+      setMessage(error?.message || 'Không thể thiết lập chiến dịch Sale.');
+    }
   };
 
   const endSale = () => {
@@ -629,11 +640,11 @@ export default function DeveloperGames() {
                 </select>
               </label>
               <label className="text-sm font-semibold text-muted">
-                Tỷ lệ giảm giá (1%–90%)
+                Tỷ lệ giảm giá (5%–100%)
                 <input
                   type="number"
-                  min="1"
-                  max="90"
+                  min="5"
+                  max="100"
                   value={discount}
                   onChange={(event) => setDiscount(event.target.value)}
                   className={controlClass}

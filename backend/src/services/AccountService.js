@@ -54,6 +54,10 @@ class AccountService extends BaseService {
     });
   }
 
+  async traCuuLichSuTaiKhoan(params = {}) {
+    return this.layLichSuTaiKhoan(params);
+  }
+
   async layLichSuTaiKhoan(params = {}) {
     const result = await this.accountDAO.truyVanThongTinVaLichSuTaiKhoan({
       accountId: params.accountId,
@@ -110,6 +114,18 @@ class AccountService extends BaseService {
    *   #11 ← thongBaoTamKhoaThanhCong()
    * @param {object} params
    */
+  async tamKhoaTaiKhoan(params = {}) {
+    return this.yeuCauTamKhoaTaiKhoan(params);
+  }
+
+  async khoaVinhVienTaiKhoan(params = {}) {
+    return this.yeuCauKhoaVinhVien(params);
+  }
+
+  async moKhoaTaiKhoan(params = {}) {
+    return this.yeuCauMoKhoaTaiKhoan(params);
+  }
+
   async yeuCauTamKhoaTaiKhoan(params = {}) {
     return this.capNhatTrangThai(params, 'Suspended', 'ACCOUNT_SUSPEND', 'Tạm khóa');
   }

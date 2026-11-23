@@ -68,6 +68,10 @@ class GenreService extends BaseService {
     });
   }
 
+  async layDanhSachTheLoai(params = {}) {
+    return this.listGenres(params);
+  }
+
   async listGenres() {
     return (await this.genreDAO.listGenres()).map((row) => ({
       genreId: row.GenreID,

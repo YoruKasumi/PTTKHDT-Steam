@@ -201,6 +201,10 @@ class OrderService extends BaseService {
     }
   }
 
+  async layDanhSachDonHang(params = {}) {
+    return this.yeuCauXemDonHang(params);
+  }
+
   async yeuCauXemDonHang(params = {}) {
     const customerId = this.customerId(params);
     const rows = await this.orderDAO.layDanhSachDonHang({ customerId });

@@ -1,9 +1,17 @@
 import http from './http';
 
 export const profileApi = {
-  get: () => http.get('/profile'),
+  layThongTinHoSo: () => http.get('/profile/layThongTinHoSo'),
+  guiTenHienThiMoi: (displayName) => http.post('/profile/guiTenHienThiMoi', { displayName }),
+  guiAnhDaiDien: (body) => http.post('/profile/guiAnhDaiDien', body),
+  capNhatHoSo: (body) => http.post('/profile/capNhatHoSo', body),
+  guiYeuCauThayDoiMatKhau: (body) => http.post('/profile/guiYeuCauThayDoiMatKhau', body),
+  capNhatTrangThaiThongBao: (enabled) => http.post('/profile/capNhatTrangThaiThongBao', { enabled }),
+
+  // Aliases for compatibility
+  get: () => http.get('/profile/layThongTinHoSo'),
   updateDisplayName: (displayName) => http.post('/profile/guiTenHienThiMoi', { displayName }),
-  update: (body) => http.put('/profile', body),
-  changePassword: (body) => http.put('/profile/password', body),
-  updateNotifications: (enabled) => http.patch('/profile/notifications', { enabled }),
+  update: (body) => http.post('/profile/capNhatHoSo', body),
+  changePassword: (body) => http.post('/profile/guiYeuCauThayDoiMatKhau', body),
+  updateNotifications: (enabled) => http.post('/profile/capNhatTrangThaiThongBao', { enabled }),
 };

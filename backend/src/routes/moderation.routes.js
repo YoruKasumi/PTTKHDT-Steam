@@ -1,7 +1,6 @@
 'use strict';
 const express = require('express');
 const { authenticate, authorize, requirePermission } = require('../middlewares/auth');
-const { uploadZip } = require('../middlewares/upload');
 const asyncHandler = require('../utils/asyncHandler');
 const { ok } = require('../utils/response');
 const { moderationService } = require('../services');
@@ -11,32 +10,16 @@ const reviewModerators = [authenticate, authorize('Admin', 'Manager'), requirePe
 
 /** UC38. Danh sách game chờ duyệt */
 router.get(
-  '/games',
-  authenticate, authorize('Admin', 'Manager'), requirePermission('game.approve'),
-  asyncHandler(async (req, res) => ok(res, await moderationService.yeuCauLayHoSoGameChoDuyet({
-    user: req.user, ...req.query,
-  }))),
-);
-
-router.get(
   '/yeuCauLayHoSoGameChoDuyet',
   authenticate, authorize('Admin', 'Manager'), requirePermission('game.approve'),
-  asyncHandler(async (req, res) => ok(res, await moderationService.yeuCauLayHoSoGameChoDuyet({ user: req.user }))),
+  asyncHandler(async (req, res) => ok(res, await moderationService.yeuCauLayHoSoGameChoDuyet({ user: req.user, ...req.query }))),
 );
 
 /** UC38. Chi tiết hồ sơ game */
-router.get(
-  '/games/:gameId',
-  authenticate, authorize('Admin', 'Manager'), requirePermission('game.approve'),
-  asyncHandler(async (req, res) => ok(res, await moderationService.layChiTietHoSoGame({
-    gameId: req.params.gameId, user: req.user,
-  }))),
-);
-
 router.post(
   '/layChiTietHoSoGame',
   authenticate, authorize('Admin', 'Manager'), requirePermission('game.approve'),
-  asyncHandler(async (req, res) => ok(res, await moderationService.layChiTietHoSoGame({ user: req.user, ...req.body }))),
+  asyncHandler(async (req, res) => ok(res, await moderationService.layChiTietHoSoGame({ user: req.user, ...req.body, ...req.query }))),
 );
 
 /** UC38. Ghi audit khi hoàn tất kiểm tra hồ sơ game */
@@ -47,16 +30,16 @@ router.post(
 );
 
 /**
- * UC39/40/41. Duyệt / Từ chối / Gỡ game — Endpoint chính (RESTful)
- * POST /api/moderation/games/:gameId/review
- * Body: { decision: 'Approved'|'Rejected'|'EmergencyDelist', reason?: string }
+ * UC39/40/41. Phê duyệt hoặc từ chối hoặc gỡ bỏ game
+ * Body: { gameId, decision: 'Approved'|'Rejected'|'EmergencyDelist', reason?: string }
  */
 router.post(
-  '/games/:gameId/review',
+  '/pheDuyetHoacTuChoiGame',
   authenticate, authorize('Admin', 'Manager'), requirePermission('game.approve'),
   asyncHandler(async (req, res) => {
+    const gameId = req.body.gameId || req.params.gameId;
     const result = await moderationService.reviewGame({
-      gameId: req.params.gameId,
+      gameId,
       decision: req.body.decision,
       reason: req.body.reason,
       user: req.user,
@@ -86,7 +69,21 @@ router.post(
   asyncHandler(async (req, res) => ok(res, await moderationService.yeuCauGoBoGameKhanCap({ user: req.user, ...req.body }))),
 );
 
-/** UC43. Xử lý đánh giá vi phạm */
+/** Lấy danh sách đánh giá của hệ thống */
+router.get(
+  '/layDanhSachDanhGia',
+  ...reviewModerators,
+  asyncHandler(async (req, res) => ok(res, await moderationService.listReviews())),
+);
+
+/** Xử lý đánh giá vi phạm */
+router.post(
+  '/xuLyDanhGiaViPham',
+  ...reviewModerators,
+  asyncHandler(async (req, res) => ok(res, await moderationService.yeuCauXuLyDanhGiaViPham({ user: req.user, ...req.body }))),
+);
+
+/** UC43. Xử lý đánh giá vi phạm (legacy) */
 router.post(
   '/yeuCauXuLyDanhGiaViPham',
   ...reviewModerators,
@@ -106,14 +103,5 @@ router.post(
   authenticate, authorize('Admin', 'Manager'), requirePermission('community.moderate'),
   asyncHandler(async (req, res) => ok(res, await moderationService.capNhatTrangThaiKiemDuyet({ user: req.user, ...req.body }))),
 );
-
-/** Danh sách đánh giá */
-router.get('/reviews', ...reviewModerators, asyncHandler(async (req, res) => (
-  ok(res, await moderationService.listReviews())
-)));
-
-router.patch('/reviews/:reviewId/status', ...reviewModerators, asyncHandler(async (req, res) => (
-  ok(res, await moderationService.yeuCauXuLyDanhGiaViPham({ user: req.user, reviewId: req.params.reviewId, ...req.body }))
-)));
 
 module.exports = router;

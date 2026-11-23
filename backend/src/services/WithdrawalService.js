@@ -124,6 +124,10 @@ class WithdrawalService extends BaseService {
     return detail;
   }
 
+  async layDanhSachYeuCauRutTien(params = {}) {
+    return this.yeuCauXemLichSuRutTien(params);
+  }
+
   async yeuCauXemLichSuRutTien(params = {}) {
     const developerId = params.user?.accountId;
     if (!developerId) throw new UnauthorizedException();

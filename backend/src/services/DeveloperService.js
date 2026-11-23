@@ -82,6 +82,23 @@ class DeveloperService extends BaseService {
     if (!dev) throw new NotFoundException('Không tìm thấy thông tin Nhà phát hành');
     return dev;
   }
+
+  async capNhatHoSo(params = {}) {
+    const accountId = params.user?.accountId || params.accountId;
+    if (!accountId) throw new ValidationException('Thiếu accountId');
+    const companyName = typeof params.companyName === 'string' ? params.companyName.trim() : undefined;
+    const bankAccount = typeof params.bankAccount === 'string' ? params.bankAccount.trim() : undefined;
+    const current = await this.developerDAO.layDeveloperTheoAccountId(accountId);
+    if (!current) throw new NotFoundException('Không tìm thấy thông tin Nhà phát hành');
+    const updated = await this.developerDAO.capNhatVaiTroTaiKhoan({
+      accountId,
+      companyName: companyName || current.CompanyName,
+      bankAccount: bankAccount || current.BankAccount,
+      feePaid: current.FeePaid,
+      verifyStatus: current.VerifyStatus,
+    });
+    return updated;
+  }
 }
 
 module.exports = DeveloperService;

@@ -144,6 +144,10 @@ class StaffService extends BaseService {
     };
   }
 
+  async capNhatTrangThaiNhanSu(params = {}) {
+    return this.capNhatTrangThai(params);
+  }
+
   async capNhatTrangThai(params = {}) {
     const status = params.status;
     if (!['Active', 'Suspended'].includes(status)) {

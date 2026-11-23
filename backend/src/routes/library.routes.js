@@ -11,7 +11,6 @@ const { ForbiddenException } = require('../exceptions');
 const router = express.Router();
 
 // ─── Hàm tiện ích lấy MIME type ─────────────────────────────────────────────
-
 const MIME_MAP = {
   '.html': 'text/html; charset=utf-8',
   '.js':   'application/javascript; charset=utf-8',
@@ -38,30 +37,6 @@ function getMimeType(filePath) {
 }
 
 // ─── UC16. Xem thư viện cá nhân ─────────────────────────────────────────────
-
-/** GET /api/library — Lấy danh sách game đã sở hữu */
-router.get(
-  '/',
-  authenticate,
-  authorize('Customer'),
-  asyncHandler(async (req, res) => ok(res, await libraryService.yeuCauXemThuVien({ user: req.user }))),
-);
-
-/** POST /api/library/redeem-key — Đổi activation key nhận bản quyền game */
-router.post(
-  '/redeem-key',
-  authenticate,
-  authorize('Customer'),
-  asyncHandler(async (req, res) => {
-    const result = await libraryService.redeemKey({
-      keyCode: req.body.keyCode || req.body.code,
-      user: req.user,
-    });
-    return ok(res, result, 201, result.message || 'Kích hoạt game thành công.');
-  }),
-);
-
-// Legacy route
 router.get(
   '/yeuCauXemThuVien',
   authenticate,
@@ -69,77 +44,62 @@ router.get(
   asyncHandler(async (req, res) => ok(res, await libraryService.yeuCauXemThuVien({ user: req.user }))),
 );
 
-// ─── UC17. Khởi chạy game ────────────────────────────────────────────────────
-
-/**
- * POST /api/library/:gameId/launch
- * Trả về: { allowed, gameId, versionNumber, launchToken, playUrl }
- */
+/** Kích hoạt Key nhận bản quyền game */
 router.post(
-  '/:gameId/launch',
+  '/kichHoatKey',
   authenticate,
   authorize('Customer'),
   asyncHandler(async (req, res) => {
+    const result = await libraryService.kichHoatKey({
+      keyCode: req.body.keyCode || req.body.code,
+      user: req.user,
+    });
+    return ok(res, result, 201, result.message || 'Kích hoạt game thành công.');
+  }),
+);
+
+// ─── UC17. Khởi chạy game ────────────────────────────────────────────────────
+router.post(
+  '/yeuCauKhoiChay',
+  authenticate,
+  authorize('Customer'),
+  asyncHandler(async (req, res) => {
+    const gameId = req.body.gameId || req.params.gameId || req.query.gameId;
     const result = await libraryService.yeuCauKhoiChay({
-      gameId: req.params.gameId,
+      gameId,
       user: req.user,
     });
     return ok(res, result, 200, 'Khởi chạy game thành công.');
   }),
 );
 
-// Legacy route
-router.post(
-  '/yeuCauKhoiChay',
-  authenticate,
-  authorize('Customer'),
-  asyncHandler(async (req, res) => ok(res, await libraryService.yeuCauKhoiChay({
-    gameId: req.body.gameId,
-    user: req.user,
-  }))),
-);
-
 // ─── verify-launch (Public endpoint — được drm.js gọi về) ──────────────────
+async function handleVerifyLaunch(req, res) {
+  const result = await libraryService.xacThucKhoiChay({
+    launchToken: req.body.launchToken,
+    gameId: req.body.gameId,
+  });
 
-/**
- * POST /api/library/verify-launch
- * Body: { launchToken, gameId }
- * Public (không cần authenticate — drm.js gọi từ trong iframe)
- */
-router.post(
-  '/verify-launch',
-  asyncHandler(async (req, res) => {
-    const result = await libraryService.verifyLaunch({
-      launchToken: req.body.launchToken,
-      gameId: req.body.gameId,
-    });
+  if (!result.valid) {
+    return res.status(403).json({ success: true, data: result });
+  }
+  return ok(res, result, 200, 'Xác thực bản quyền thành công.');
+}
 
-    if (!result.valid) {
-      // Trả 403 kèm payload để drm.js xử lý
-      return res.status(403).json({ success: true, data: result });
-    }
-    return ok(res, result, 200, 'Xác thực bản quyền thành công.');
-  }),
-);
+router.post('/xacThucKhoiChay', asyncHandler(handleVerifyLaunch));
+router.post('/verify-launch', asyncHandler(handleVerifyLaunch)); // Hỗ trợ tương thích ngược cho drm.js đã đóng gói
 
 // ─── Phục vụ file tĩnh game (có bảo vệ DRM) ────────────────────────────────
-
-/**
- * GET /api/library/play/:gameId/:version/*
- * Query: ?launchToken=...&gameId=...
- * Cookie: __sstore_lt_<gameId> (HttpOnly, short-lived) — fallback cho sub-resources
- */
 router.get(
   '/play/:gameId/:version/*',
   asyncHandler(async (req, res) => {
     const { gameId, version } = req.params;
-    // Express wildcard: req.params[0] hoặc '*'
     const requestedPath = req.params[0] || req.params['*'] || 'index.html';
 
     const launchToken = req.query.launchToken;
     const cookieToken = req.cookies ? req.cookies[`__sstore_lt_${gameId}`] : undefined;
 
-    const result = await libraryService.serveGameFile({
+    const fileMeta = await libraryService.serveGameFile({
       gameId,
       version,
       filePath: requestedPath,
@@ -147,41 +107,30 @@ router.get(
       cookieToken,
     });
 
-    // Nếu đây là index.html và có launchToken query param → set HttpOnly cookie ngắn hạn
-    if (result.setCookieOnIndexHtml && launchToken) {
-      res.cookie(`__sstore_lt_${gameId}`, launchToken, {
+    if (fileMeta.setCookieOnIndexHtml && fileMeta.launchToken) {
+      res.cookie(`__sstore_lt_${gameId}`, fileMeta.launchToken, {
         httpOnly: true,
         sameSite: 'strict',
-        maxAge: 10 * 60 * 1000, // 10 phút
-        path: `/api/library/play/${gameId}/`,
+        maxAge: 10 * 60 * 1000,
       });
     }
 
-    const mimeType = getMimeType(result.resolvedPath);
-    res.setHeader('Content-Type', mimeType);
+    const contentType = getMimeType(fileMeta.resolvedPath);
+    res.setHeader('Content-Type', contentType);
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    // Ngăn browser cache các file game (tránh bypass DRM)
-    res.setHeader('Cache-Control', 'no-store');
 
-    return res.sendFile(result.resolvedPath);
+    return res.sendFile(fileMeta.resolvedPath);
   }),
 );
 
-// ─── Tải game về máy (mô phỏng luồng cài đặt thật) ──────────────────────────
-
-/**
- * GET /api/library/:gameId/download
- * Stream gói build.zip của phiên bản hiện hành cho khách đang sở hữu (LICENSE Active).
- * Headers trả thêm X-Game-Version / X-Game-Sha256 để client xác minh tệp sau khi tải.
- * LƯU Ý: tải file không đổi trạng thái bản quyền — người chơi có thể tải lại bất cứ lúc nào.
- * Bản quyền chỉ bị thu hồi khi hoàn tiền hoặc khóa tài khoản (server-side).
- */
+// ─── Tải game về máy ────────────────────────────────────────────────────────
 router.get(
-  '/:gameId/download',
+  '/yeuCauTaiGame',
   authenticate,
   authorize('Customer'),
   asyncHandler(async (req, res) => {
-    const meta = await libraryService.yeuCauTaiGame({ gameId: req.params.gameId, user: req.user });
+    const gameId = req.query.gameId || req.params.gameId || req.body.gameId;
+    const meta = await libraryService.yeuCauTaiGame({ gameId, user: req.user });
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Length', meta.fileSize);
@@ -202,7 +151,6 @@ router.get(
   }),
 );
 
-// Legacy route
 router.post(
   '/yeuCauTaiGame',
   authenticate,

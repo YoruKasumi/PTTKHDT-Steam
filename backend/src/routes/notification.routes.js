@@ -8,9 +8,9 @@ const { notificationService } = require('../services');
 
 const router = express.Router();
 
-/** GET /api/notifications — Danh sách thông báo & unreadCount */
+/** Lấy danh sách thông báo & unreadCount */
 router.get(
-  '/',
+  '/layDanhSachThongBao',
   authenticate,
   asyncHandler(async (req, res) => {
     const result = await notificationService.layDanhSachThongBao({
@@ -22,9 +22,9 @@ router.get(
   }),
 );
 
-/** PATCH /api/notifications/read-all — Đánh dấu tất cả đã đọc */
-router.patch(
-  '/read-all',
+/** Đánh dấu tất cả thông báo đã đọc */
+router.post(
+  '/danhDauTatCaDaDoc',
   authenticate,
   asyncHandler(async (req, res) => {
     const result = await notificationService.danhDauTatCaDaDoc({ user: req.user });
@@ -32,13 +32,14 @@ router.patch(
   }),
 );
 
-/** PATCH /api/notifications/:id/read — Đánh dấu 1 thông báo đã đọc */
-router.patch(
-  '/:id/read',
+/** Đánh dấu 1 thông báo đã đọc */
+router.post(
+  '/danhDauDaDoc',
   authenticate,
   asyncHandler(async (req, res) => {
+    const notificationId = req.body.notificationId || req.body.id || req.params.id;
     const result = await notificationService.danhDauDaDoc({
-      notificationId: req.params.id,
+      notificationId,
       user: req.user,
     });
     return ok(res, result, 200, 'Đã đánh dấu thông báo là đã đọc.');

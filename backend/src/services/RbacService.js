@@ -55,6 +55,30 @@ class RbacService extends BaseService {
     return this.updatePermissions(params);
   }
 
+  async layDanhSachVaiTro(params = {}) {
+    return this.listRoles(params);
+  }
+
+  async layDanhSachQuyen(params = {}) {
+    return this.listPermissions(params);
+  }
+
+  async taoVaiTro(params = {}) {
+    return this.createRole(params);
+  }
+
+  async suaVaiTro(params = {}) {
+    return this.updateRole(params);
+  }
+
+  async xoaVaiTro(params = {}) {
+    return this.deleteRole(params);
+  }
+
+  async capNhatQuyenVaiTro(params = {}) {
+    return this.updatePermissions(params);
+  }
+
   async listRoles() {
     const rows = await this.roleDAO.truyVanDanhSachVaiTroVaQuyen();
     return rows.map((row) => ({

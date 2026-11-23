@@ -1,7 +1,12 @@
 import http from './http';
 
 export const wishlistApi = {
-  list: () => http.get('/wishlist'),
-  add: (gameId) => http.post('/wishlist', { gameId }),
-  remove: (gameId) => http.delete(`/wishlist/${encodeURIComponent(gameId)}`),
+  layDanhSachWishlist: () => http.get('/wishlist/layDanhSachWishlist'),
+  yeuCauThemWishlist: (gameId) => http.post('/wishlist/yeuCauThemWishlist', { gameId }),
+  yeuCauXoaWishlist: (gameId) => http.post('/wishlist/yeuCauXoaWishlist', { gameId }),
+
+  // Aliases for compatibility
+  list: () => http.get('/wishlist/layDanhSachWishlist'),
+  add: (gameId) => http.post('/wishlist/yeuCauThemWishlist', { gameId }),
+  remove: (gameId) => http.post('/wishlist/yeuCauXoaWishlist', { gameId }),
 };

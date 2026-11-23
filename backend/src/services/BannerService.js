@@ -31,6 +31,22 @@ class BannerService extends BaseService {
     });
   }
 
+  async layDanhSachBanner(params = {}) {
+    return this.listBanners(params);
+  }
+
+  async layBannerHienThi(params = {}) {
+    return this.listActiveBanners(params);
+  }
+
+  async suaBanner(params = {}) {
+    return this.updateBanner(params);
+  }
+
+  async xoaBanner(params = {}) {
+    return this.deleteBanner(params);
+  }
+
   async listBanners() {
     return (await this.bannerDAO.listBanners()).map((banner) => this.toBannerResponse(banner));
   }

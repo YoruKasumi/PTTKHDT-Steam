@@ -28,112 +28,153 @@ const contentManagers = (permission) => [
   requirePermission(permission),
 ];
 
-router.get('/permissions', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await rbacService.listPermissions())
+// ─── 1. RBAC (Vai trò & Quyền hạn) ──────────────────────────────────────────
+
+/** Lấy danh mục quyền hạn */
+router.get('/layDanhSachQuyen', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await rbacService.layDanhSachQuyen())
 )));
 
-router.get('/roles', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await rbacService.listRoles(requestContext(req)))
+/** Lấy danh sách vai trò */
+router.get('/layDanhSachVaiTro', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await rbacService.layDanhSachVaiTro(requestContext(req)))
 )));
 
-router.post('/roles', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await rbacService.createRole(requestContext(req)), 201, 'Role created')
+/** Tạo vai trò mới */
+router.post('/taoVaiTro', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await rbacService.taoVaiTro(requestContext(req)), 201, 'Role created')
 )));
 
-router.put('/roles/:roleId', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await rbacService.updateRole(requestContext(req)))
+/** Sửa vai trò */
+router.post('/suaVaiTro', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await rbacService.suaVaiTro(requestContext(req)))
 )));
 
-router.delete('/roles/:roleId', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await rbacService.deleteRole(requestContext(req)))
+/** Xóa vai trò */
+router.post('/xoaVaiTro', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await rbacService.xoaVaiTro(requestContext(req)))
 )));
 
-router.put('/roles/:roleId/permissions', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await rbacService.updatePermissions(requestContext(req)))
+/** Cập nhật quyền hạn cho vai trò */
+router.post('/capNhatQuyenVaiTro', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await rbacService.capNhatQuyenVaiTro(requestContext(req)))
 )));
 
-router.get('/accounts', ...accountManagers, asyncHandler(async (req, res) => (
+// ─── 2. QUẢN LÝ TÀI KHOẢN (ACCOUNTS) ────────────────────────────────────────
+
+/** Lấy danh sách tài khoản người dùng */
+router.get('/layDanhSachTaiKhoan', ...accountManagers, asyncHandler(async (req, res) => (
   ok(res, await accountService.layDanhSachTaiKhoan(requestContext(req)))
 )));
 
-router.get('/accounts/:accountId/history', ...accountManagers, asyncHandler(async (req, res) => (
-  ok(res, await accountService.layLichSuTaiKhoan(requestContext(req)))
+/** Tra cứu lịch sử vi phạm / hoạt động tài khoản */
+router.post('/traCuuLichSuTaiKhoan', ...accountManagers, asyncHandler(async (req, res) => (
+  ok(res, await accountService.traCuuLichSuTaiKhoan(requestContext(req)))
 )));
 
-router.patch('/accounts/:accountId/suspend', ...accountManagers, asyncHandler(async (req, res) => (
-  ok(res, await accountService.yeuCauTamKhoaTaiKhoan(requestContext(req)))
+/** Tạm khóa tài khoản */
+router.post('/tamKhoaTaiKhoan', ...accountManagers, asyncHandler(async (req, res) => (
+  ok(res, await accountService.tamKhoaTaiKhoan(requestContext(req)))
 )));
 
-router.patch('/accounts/:accountId/ban', ...accountManagers, asyncHandler(async (req, res) => (
-  ok(res, await accountService.yeuCauKhoaVinhVien(requestContext(req)))
+/** Khóa vĩnh viễn tài khoản */
+router.post('/khoaVinhVienTaiKhoan', ...accountManagers, asyncHandler(async (req, res) => (
+  ok(res, await accountService.khoaVinhVienTaiKhoan(requestContext(req)))
 )));
 
-router.patch('/accounts/:accountId/unban', ...accountManagers, asyncHandler(async (req, res) => (
-  ok(res, await accountService.yeuCauMoKhoaTaiKhoan(requestContext(req)))
+/** Mở khóa tài khoản */
+router.post('/moKhoaTaiKhoan', ...accountManagers, asyncHandler(async (req, res) => (
+  ok(res, await accountService.moKhoaTaiKhoan(requestContext(req)))
 )));
 
-router.get('/staff', ...adminOnly, asyncHandler(async (req, res) => (
+// ─── 3. NHÂN SỰ & QUẢN TRỊ VIÊN (STAFF) ──────────────────────────────────────
+
+/** Lấy danh sách nhân sự */
+router.get('/layDanhSachNhanSu', ...adminOnly, asyncHandler(async (req, res) => (
   ok(res, await staffService.layDanhSachNhanSu())
 )));
 
-router.post('/staff', ...adminOnly, asyncHandler(async (req, res) => (
+/** Tạo tài khoản nhân sự mới */
+router.post('/guiYeuCauTaoTaiKhoan', ...adminOnly, asyncHandler(async (req, res) => (
   ok(res, await staffService.guiYeuCauTaoTaiKhoan(requestContext(req)), 201, 'Staff account created')
 )));
 
-router.put('/staff/:accountId', ...adminOnly, asyncHandler(async (req, res) => (
+/** Cập nhật thông tin nhân sự */
+router.post('/guiYeuCauCapNhatThongTin', ...adminOnly, asyncHandler(async (req, res) => (
   ok(res, await staffService.guiYeuCauCapNhatThongTin(requestContext(req)))
 )));
 
-router.patch('/staff/:accountId/status', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await staffService.capNhatTrangThai(requestContext(req)))
+/** Cập nhật trạng thái nhân sự (Active/Suspended) */
+router.post('/capNhatTrangThaiNhanSu', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await staffService.capNhatTrangThaiNhanSu(requestContext(req)))
 )));
 
-router.get('/genres', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
-  ok(res, await genreService.listGenres())
+// ─── 4. THỂ LOẠI (GENRES) ───────────────────────────────────────────────────
+
+/** Lấy danh sách thể loại quản trị */
+router.get('/layDanhSachTheLoai', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
+  ok(res, await genreService.layDanhSachTheLoai())
 )));
 
-router.post('/genres', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
+/** Thêm thể loại mới */
+router.post('/yeuCauThemTheLoai', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
   ok(res, await genreService.yeuCauThemTheLoai(requestContext(req)), 201, 'Genre created')
 )));
 
-router.put('/genres/:genreId', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
+/** Sửa thể loại */
+router.post('/yeuCauSuaTheLoai', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
   ok(res, await genreService.yeuCauSuaTheLoai(requestContext(req)))
 )));
 
-router.delete('/genres/:genreId', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
+/** Xóa thể loại */
+router.post('/yeuCauXoaTheLoai', ...contentManagers('genres.manage'), asyncHandler(async (req, res) => (
   ok(res, await genreService.yeuCauXoaTheLoai(requestContext(req)))
 )));
 
-router.get('/banners', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
-  ok(res, await bannerService.listBanners())
+// ─── 5. BANNER QUẢNG BÁ ──────────────────────────────────────────────────────
+
+/** Lấy danh sách banner */
+router.get('/layDanhSachBanner', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
+  ok(res, await bannerService.layDanhSachBanner())
 )));
 
-router.post('/banners', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
+/** Tạo banner quảng bá mới */
+router.post('/guiThongTinBannerMoi', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
   ok(res, await bannerService.guiThongTinBannerMoi(requestContext(req)), 201, 'Banner created')
 )));
 
-router.put('/banners/:bannerId', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
-  ok(res, await bannerService.updateBanner(requestContext(req)))
+/** Sửa banner */
+router.post('/suaBanner', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
+  ok(res, await bannerService.suaBanner(requestContext(req)))
 )));
 
-router.delete('/banners/:bannerId', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
-  ok(res, await bannerService.deleteBanner(requestContext(req)))
+/** Xóa banner */
+router.post('/xoaBanner', ...contentManagers('banners.manage'), asyncHandler(async (req, res) => (
+  ok(res, await bannerService.xoaBanner(requestContext(req)))
 )));
 
-router.get('/system-config', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await systemConfigService.yeuCauLayDanhSachThamSo(requestContext(req)))
+// ─── 6. CẤU HÌNH HỆ THỐNG (SYSTEM CONFIG) ───────────────────────────────────
+
+/** Lấy danh sách tham số cấu hình sàn */
+router.get('/layDanhSachThamSo', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await systemConfigService.layDanhSachThamSo(requestContext(req)))
 )));
 
-router.put('/system-config', ...adminOnly, asyncHandler(async (req, res) => (
+/** Cập nhật thông số cấu hình hệ thống */
+router.post('/guiYeuCauCapNhatThamSo', ...adminOnly, asyncHandler(async (req, res) => (
   ok(res, await systemConfigService.guiYeuCauCapNhatThamSo(requestContext(req)))
 )));
 
-router.get('/audit-logs', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await auditLogService.guiYeuCauLocNhatKy(requestContext(req)))
+// ─── 7. NHẬT KÝ KIỂM TOÁN (AUDIT LOGS) ──────────────────────────────────────
+
+/** Lọc và xem danh sách nhật ký quản trị */
+router.get('/layDanhSachNhatKy', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await auditLogService.layDanhSachNhatKy(requestContext(req)))
 )));
 
-router.get('/audit-logs/:logId', ...adminOnly, asyncHandler(async (req, res) => (
-  ok(res, await auditLogService.yeuCauChiTietBanGhiLog(requestContext(req)))
+/** Xem chi tiết bản ghi nhật ký */
+router.post('/layChiTietNhatKy', ...adminOnly, asyncHandler(async (req, res) => (
+  ok(res, await auditLogService.layChiTietNhatKy(requestContext(req)))
 )));
 
 module.exports = router;

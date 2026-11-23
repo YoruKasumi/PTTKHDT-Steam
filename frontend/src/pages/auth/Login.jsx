@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout';
 import Field from '../../components/auth/Field';
 import { authApi } from '../../api/auth';
@@ -90,11 +90,16 @@ export default function Login() {
           </button>
         </div>
 
-        <label className="mt-9 flex cursor-pointer items-center gap-2.5 pl-[15px] text-xs text-muted">
-          <input type="checkbox" className="peer sr-only" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-          <span className="flex size-4 items-center justify-center rounded bg-line text-[10px] font-bold text-transparent peer-checked:bg-accent peer-checked:text-white">✓</span>
-          Ghi nhớ tài khoản này (Tự động đăng nhập)
-        </label>
+        <div className="mt-9 flex items-center justify-between pl-[15px] pr-2 text-xs">
+          <label className="flex cursor-pointer items-center gap-2.5 text-muted">
+            <input type="checkbox" className="peer sr-only" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            <span className="flex size-4 items-center justify-center rounded bg-line text-[10px] font-bold text-transparent peer-checked:bg-accent peer-checked:text-white">✓</span>
+            Ghi nhớ tài khoản này
+          </label>
+          <Link to="/forgot-password" className="text-accent-light hover:underline">
+            Quên mật khẩu?
+          </Link>
+        </div>
 
         {message ? <p role="alert" className="mt-4 text-center text-xs text-red-400">{message}</p> : null}
 

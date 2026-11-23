@@ -1,9 +1,15 @@
 import http from './http';
 
 export const libraryApi = {
-  list: () => http.get('/library'),
-  redeemKey: (keyCode) => http.post('/library/redeem-key', { keyCode }),
-  launch: (gameId) =>
-    http.post(`/library/${encodeURIComponent(gameId)}/launch`),
-  verifyLaunch: (body) => http.post('/library/verify-launch', body),
+  yeuCauXemThuVien: () => http.get('/library/yeuCauXemThuVien'),
+  kichHoatKey: (keyCode) => http.post('/library/kichHoatKey', { keyCode }),
+  yeuCauKhoiChay: (gameId) => http.post('/library/yeuCauKhoiChay', { gameId }),
+  xacThucKhoiChay: (body) => http.post('/library/xacThucKhoiChay', body),
+  yeuCauTaiGame: (gameId) => http.get('/library/yeuCauTaiGame', { params: { gameId } }),
+
+  // Aliases for compatibility
+  list: () => http.get('/library/yeuCauXemThuVien'),
+  redeemKey: (keyCode) => http.post('/library/kichHoatKey', { keyCode }),
+  launch: (gameId) => http.post('/library/yeuCauKhoiChay', { gameId }),
+  verifyLaunch: (body) => http.post('/library/xacThucKhoiChay', body),
 };

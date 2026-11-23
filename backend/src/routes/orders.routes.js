@@ -8,19 +8,23 @@ const { orderService } = require('../services');
 
 const router = express.Router();
 
-router.get('/', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
-  ok(res, await orderService.yeuCauXemDonHang(requestContext(req)))
+/** Lấy danh sách đơn hàng đã mua */
+router.get('/layDanhSachDonHang', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await orderService.layDanhSachDonHang(requestContext(req)))
 )));
 
-router.post('/preview', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
-  ok(res, await orderService.preview(requestContext(req)))
+/** UC15. Kiểm tra mã giảm giá / Xem trước thanh toán (#4)  | quyền: Customer */
+router.post('/kiemTraMaGiamGia', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await orderService.kiemTraMaGiamGia(requestContext(req)))
 )));
 
-router.post('/checkout', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
-  ok(res, await orderService.checkout(requestContext(req)), 201, 'Thanh toán thành công')
+/** UC15. Thanh toán đơn hàng (#2)  | quyền: Customer */
+router.post('/yeuCauThanhToan', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await orderService.yeuCauThanhToan(requestContext(req)), 201, 'Thanh toán thành công')
 )));
 
-router.post('/:orderId/refund', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+/** UC21. Yêu cầu hoàn tiền đơn hàng (#2)  | quyền: Customer */
+router.post('/guiYeuCauHoanTien', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
   ok(res, await orderService.guiYeuCauHoanTien(requestContext(req)), 200, 'Hoàn tiền thành công')
 )));
 

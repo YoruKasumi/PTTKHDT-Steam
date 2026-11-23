@@ -9,13 +9,16 @@ let transporter = null;
 function getTransporter() {
   if (transporter) return transporter;
   const { host, port, secure, user, pass } = env.smtp || {};
-  if (user && pass) {
-    transporter = nodemailer.createTransport({
+  if (host) {
+    const transportOptions = {
       host,
-      port,
-      secure,
-      auth: { user, pass },
-    });
+      port: port || 1025,
+      secure: Boolean(secure),
+    };
+    if (user && pass) {
+      transportOptions.auth = { user, pass };
+    }
+    transporter = nodemailer.createTransport(transportOptions);
   }
   return transporter;
 }
@@ -43,6 +46,9 @@ async function sendMail({ to, subject, html, text }) {
       sentAt: new Date(),
     };
     mockSentMails.push(record);
+    if (!isTestEnvironment()) {
+      console.log(`[Mailer Fallback] Gửi email tới ${to} | Tiêu đề: ${subject}`);
+    }
     return {
       success: true,
       mock: true,
@@ -98,6 +104,10 @@ async function sendOtpEmail({ to, otp, purpose = 'register' }) {
       </p>
     </div>
   `;
+
+  if (!getTransporter() || isTestEnvironment()) {
+    console.log(`[OTP Fallback] Email: ${to} | OTP: ${otp} | Mục đích: ${purpose}`);
+  }
 
   return sendMail({
     to,

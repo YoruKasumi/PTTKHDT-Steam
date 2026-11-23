@@ -37,6 +37,10 @@ class SystemConfigService extends BaseService {
    *   #5 ← traVeDuLieuThamSo()
    * @param {object} params
    */
+  async layDanhSachThamSo(params = {}) {
+    return this.yeuCauLayDanhSachThamSo(params);
+  }
+
   async yeuCauLayDanhSachThamSo(params = {}) {
     const rows = await this.systemConfigDAO.truyVanThamSoToanCuc();
     return rows.map((row) => ({
