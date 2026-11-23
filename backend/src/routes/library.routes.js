@@ -36,6 +36,49 @@ function getMimeType(filePath) {
   return MIME_MAP[ext] || 'application/octet-stream';
 }
 
+function addLicenseRecheck(html, launchToken, gameId) {
+  const tokenLiteral = JSON.stringify(launchToken).replace(/</g, '\\u003c');
+  const gameLiteral = JSON.stringify(gameId).replace(/</g, '\\u003c');
+  const script = `<script>
+(() => {
+  const launchToken = ${tokenLiteral};
+  const gameId = ${gameLiteral};
+  async function recheckLicense() {
+    let valid = false;
+    let messageText = 'Bản quyền không còn hợp lệ.';
+    try {
+      const response = await fetch('/api/library/verify-launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ launchToken, gameId }),
+      });
+      const payload = await response.json();
+      const result = payload.data || payload;
+      valid = response.ok && Boolean(result.valid);
+      if (!valid && result.reason) messageText = result.reason;
+    } catch {
+      messageText = 'Không thể kết nối máy chủ xác thực; game đã bị khóa.';
+    }
+    if (valid) return;
+    const lock = document.createElement('main');
+    lock.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-content:center;background:#0f0f17;color:#fff;text-align:center;font:16px sans-serif;padding:24px';
+    const message = document.createElement('p');
+    message.textContent = messageText + ' Hãy khởi chạy lại game từ Thư viện.';
+    const link = document.createElement('a');
+    link.href = '/library';
+    link.textContent = 'Về Thư viện';
+    link.style.color = '#a78bfa';
+    document.body.replaceChildren(lock);
+    lock.append(message, link);
+  }
+  window.setInterval(recheckLicense, 60000);
+})();
+</script>`;
+  const closingBody = /<\/body\s*>/i;
+  return closingBody.test(html) ? html.replace(closingBody, `${script}</body>`) : `${html}${script}`;
+}
+
 // ─── UC16. Xem thư viện cá nhân ─────────────────────────────────────────────
 router.get(
   '/yeuCauXemThuVien',
@@ -87,7 +130,7 @@ async function handleVerifyLaunch(req, res) {
 }
 
 router.post('/xacThucKhoiChay', asyncHandler(handleVerifyLaunch));
-router.post('/verify-launch', asyncHandler(handleVerifyLaunch)); // Hỗ trợ tương thích ngược cho drm.js đã đóng gói
+router.post('/verify-launch', asyncHandler(handleVerifyLaunch)); // Giữ tương thích với build game đã phát hành
 
 // ─── Phục vụ file tĩnh game (có bảo vệ DRM) ────────────────────────────────
 router.get(
@@ -118,6 +161,11 @@ router.get(
     const contentType = getMimeType(fileMeta.resolvedPath);
     res.setHeader('Content-Type', contentType);
     res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    if (path.basename(requestedPath).toLowerCase() === 'index.html') {
+      const html = await fs.promises.readFile(fileMeta.resolvedPath, 'utf8');
+      return res.send(addLicenseRecheck(html, fileMeta.launchToken, gameId));
+    }
 
     return res.sendFile(fileMeta.resolvedPath);
   }),

@@ -63,7 +63,7 @@ export default function Library() {
     if (!user?.roles?.includes('Customer')) return;
     setLoading(true);
     try {
-      const data = await libraryApi.list();
+      const data = await libraryApi.yeuCauXemThuVien();
       const list = Array.isArray(data) ? data : [];
       setGames(list);
       if (selectGameId) {
@@ -104,7 +104,7 @@ export default function Library() {
     setRedeeming(true);
     setRedeemError('');
     try {
-      const result = await libraryApi.redeemKey(code);
+      const result = await libraryApi.kichHoatKey(code);
       setNotice(result.message || `Kích hoạt thành công "${result.title || 'Game'}"!`);
       setNoticeType('success');
       setKeyCode('');
@@ -121,10 +121,15 @@ export default function Library() {
   // ─── Launch game ───────────────────────────────────────────────────────────
   const handlePlay = useCallback(async () => {
     if (!selectedGame) return;
+    if (!installed[selectedGame.gameId]) {
+      setNotice('Hãy tải và cài đặt game trước khi khởi chạy.');
+      setNoticeType('info');
+      return;
+    }
     setLaunching(true);
     setNotice('');
     try {
-      const result = await libraryApi.launch(selectedGame.gameId);
+      const result = await libraryApi.yeuCauKhoiChay(selectedGame.gameId);
       // Mở tab mới với playUrl
       window.open(result.playUrl, '_blank', 'noopener,noreferrer');
       setNotice(`Đang mở ${selectedGame.title}... Nếu tab không mở tự động, hãy kiểm tra trình chặn cửa sổ bật lên (popup blocker).`);
@@ -135,7 +140,7 @@ export default function Library() {
     } finally {
       setLaunching(false);
     }
-  }, [selectedGame]);
+  }, [selectedGame, installed]);
 
   // ─── Cài đặt / Gỡ cài đặt tại máy người chơi ──────────────────────────────
   // Load trạng thái đã cài từ localStorage khi mở trang.
@@ -151,46 +156,44 @@ export default function Library() {
     setNotice('');
     setProgress({ received: 0, total: 0, percent: 0 });
     try {
-      // 1. Thư mục cài đặt trên máy người chơi (File System Access API)
       const useFs = supportsFsAccess();
       let dirHandle = null;
       if (useFs) {
-        dirHandle = (await loadInstallFolder()) || (await pickInstallFolder());
+        const savedHandle = await loadInstallFolder(selectedGame.gameId);
+        if (savedHandle) dirHandle = await ensureWritePermission(savedHandle);
+        if (!dirHandle) dirHandle = await pickInstallFolder(selectedGame.gameId);
         if (!dirHandle) {
-          setNotice('Bạn chưa chọn thư mục cài đặt — đã hủy tải game.');
-          setNoticeType('error');
-          return;
+          throw new Error('Chưa chọn thư mục cài đặt. Hãy chọn thư mục thường trong Documents, không chọn thư mục hệ thống.');
         }
         dirHandle = await ensureWritePermission(dirHandle);
         if (!dirHandle) {
-          setNotice('Không có quyền ghi vào thư mục đã chọn. Hãy chọn lại thư mục cài đặt.');
-          setNoticeType('error');
-          return;
+          throw new Error('Không có quyền ghi vào thư mục đã chọn. Hãy cấp quyền rồi thử lại.');
         }
       }
 
-      // 2. Tải stream build.zip kèm tiến trình %
+      // Tải stream build.zip kèm tiến trình %
       const result = await downloadGameBuild({ gameId: selectedGame.gameId, onProgress: setProgress });
 
-      // 3. Xác minh checksum như launcher thật
+      // Xác minh checksum như launcher thật
       if (result.verified === false) {
         setNotice('❌ Tệp tải về sai checksum SHA-256 — đã hủy cài đặt để đảm bảo an toàn. Vui lòng thử tải lại.');
         setNoticeType('error');
         return;
       }
 
-      // 4. Ghi file vào thư mục của người chơi + ghi nhận trạng thái đã cài
       if (useFs) {
         await writeInstalledFile(dirHandle, result.fileName, result.blob);
       } else {
-        // Trình duyệt không hỗ trợ chọn thư mục (Firefox/Safari): lưu về Downloads mặc định
         const url = URL.createObjectURL(result.blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = result.fileName;
+        document.body.appendChild(a);
         a.click();
+        a.remove();
         URL.revokeObjectURL(url);
       }
+
       const info = markInstalled(selectedGame.gameId, {
         fileName: result.fileName,
         versionNumber: result.versionNumber,
@@ -208,44 +211,46 @@ export default function Library() {
       );
       setNoticeType('success');
     } catch (err) {
-      if (err?.name === 'AbortError') {
-        setNotice('Đã hủy chọn thư mục cài đặt.');
-        setNoticeType('info');
-      } else {
-        setNotice(`Lỗi tải game: ${err.message}`);
-        setNoticeType('error');
-      }
+      setNotice(err?.name === 'AbortError'
+        ? 'Đã hủy chọn thư mục cài đặt.'
+        : `Lỗi cài đặt game: ${err.message}`);
+      setNoticeType('error');
     } finally {
       setInstalling(false);
       setProgress(null);
     }
   }, [selectedGame]);
 
-  // Gỡ cài đặt: CHỈ xóa tệp trong thư mục của người chơi — không gọi bất kỳ API
-  // bản quyền nào. Thu hồi bản quyền chỉ xảy ra khi hoàn tiền/khóa tài khoản (server-side).
+  // Gỡ cài đặt chỉ xóa bản build trên máy, không ảnh hưởng license phía server.
   const handleUninstall = useCallback(async () => {
     if (!selectedGame || !installed[selectedGame.gameId]) return;
     const info = installed[selectedGame.gameId];
-    if (!confirm(
-      `Gỡ cài đặt "${selectedGame.title}" khỏi máy?\n\n`
-      + 'Chỉ xóa tệp cài đặt trong thư mục của bạn — BẢN QUYỀN VẪN GIỮ NGUYÊN, có thể tải lại bất cứ lúc nào.',
-    )) return;
     setUninstalling(true);
     setNotice('');
+    let fileRemoved = false;
     try {
-      const manualOnly = info.canAutoUninstall === false;
-      let removed = false;
-      if (!manualOnly) {
-        const dirHandle = await ensureWritePermission(await loadInstallFolder());
-        if (dirHandle) removed = await removeInstalledFile(dirHandle, info.fileName);
-      }
+      if (info.canAutoUninstall) {
+        const dirHandle = await ensureWritePermission(await loadInstallFolder(selectedGame.gameId));
+        if (!dirHandle) {
+          throw new Error('Không có quyền truy cập thư mục cài đặt. Hãy cấp quyền rồi thử gỡ lại.');
+        }
+        if (!confirm(
+          `Gỡ cài đặt "${selectedGame.title}" khỏi thư mục "${dirHandle.name}"?\n\n`
+          + 'Bản quyền vẫn giữ nguyên và bạn có thể tải lại bất cứ lúc nào.',
+        )) return;
+        fileRemoved = await removeInstalledFile(dirHandle, info.fileName);
+      } else if (!confirm(
+        `Xóa "${selectedGame.title}" khỏi danh sách cài đặt?\n\n`
+        + `File ${info.fileName} nằm trong Downloads và cần được xóa thủ công. Bản quyền vẫn giữ nguyên.`,
+      )) return;
+
       clearInstalled(selectedGame.gameId);
       setInstalled(getInstalledMap());
-      setNotice(manualOnly
-        ? `🗑 Đã gỡ cài đặt "${selectedGame.title}" khỏi danh sách. Tệp ${info.fileName} nằm trong thư mục Downloads — xóa thủ công nếu muốn. Bản quyền vẫn còn, có thể tải lại.`
-        : removed
-          ? `🗑 Đã xóa "${info.fileName}" khỏi thư mục "${info.folder}". Bản quyền vẫn còn trong thư viện — bấm "Tải lại" để cài đặt lại bất cứ lúc nào.`
-          : `🗑 Đã gỡ cài đặt "${selectedGame.title}". Không truy cập được thư mục "${info.folder}" — xóa thủ công tệp "${info.fileName}" nếu còn. Bản quyền vẫn còn.`);
+      setNotice(info.canAutoUninstall
+        ? fileRemoved
+          ? `🗑 Đã xóa tệp cài đặt của "${selectedGame.title}" khỏi thư mục "${info.folder}". Bản quyền vẫn giữ nguyên.`
+          : `🗑 Tệp cài đặt của "${selectedGame.title}" không còn trong thư mục "${info.folder}". Bản quyền vẫn giữ nguyên.`
+        : `🗑 Đã xóa "${selectedGame.title}" khỏi danh sách cài đặt. Hãy xóa ${info.fileName} khỏi Downloads nếu muốn.`);
       setNoticeType('success');
     } finally {
       setUninstalling(false);
@@ -384,10 +389,12 @@ export default function Library() {
                   <button
                     type="button"
                     onClick={handlePlay}
-                    disabled={launching || !selectedGame.versionNumber || selectedGame.licenseStatus !== 'Active'}
+                    disabled={launching || !installInfo || !selectedGame.versionNumber || selectedGame.licenseStatus !== 'Active'}
                     className="rounded-lg bg-indigo-500 hover:bg-indigo-600 px-6 py-3 font-bold text-white shadow-lg shadow-indigo-500/30 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {launching ? '⏳ Đang khởi chạy...' : '▶ CHƠI NGAY (DRM)'}
+                    {launching
+                      ? '⏳ Đang khởi chạy...'
+                      : installInfo ? '▶ CHƠI NGAY (DRM)' : '🔒 CÀI ĐẶT ĐỂ CHƠI'}
                   </button>
                   <button
                     type="button"
@@ -475,12 +482,13 @@ export default function Library() {
               </p>
             ) : (
               <p className="m-0 text-xs leading-relaxed text-zinc-400">
-                Bấm "Tải xuống & Cài đặt" để tải gói build.zip vào thư mục bạn chọn trên máy — hệ thống tự xác minh checksum SHA-256 sau khi tải.
+                Bấm "Tải xuống & Cài đặt" để chọn thư mục cài đặt và tải build.zip — hệ thống tự xác minh checksum SHA-256.
+                Hãy chọn thư mục thường trong Documents, chẳng hạn Vortex Games; không chọn thư mục hệ thống.
               </p>
             )}
             <p className="m-0 mt-2 text-xs leading-relaxed text-amber-300/80">
-              ⚠ "Gỡ cài đặt" chỉ xóa tệp trong máy của bạn — bản quyền vẫn giữ nguyên, có thể tải lại bất cứ lúc nào.
-              Bản quyền chỉ bị thu hồi khi hoàn tiền hoặc tài khoản bị khóa (do server xử lý).
+              ⚠ Gỡ cài đặt chỉ xóa file build khỏi máy; bản quyền vẫn giữ nguyên và có thể tải lại.
+              Với game cũ đã tải vào Downloads, trình duyệt không thể xóa tự động; các lượt cài mới trong thư mục đã chọn sẽ được xóa khi gỡ.
             </p>
           </div>
 

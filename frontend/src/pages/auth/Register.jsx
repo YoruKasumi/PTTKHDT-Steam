@@ -5,14 +5,6 @@ import Field from '../../components/auth/Field';
 import { authApi } from '../../api/auth';
 import { passwordStrength } from '../../utils/passwordStrength';
 
-const promo = {
-  badge: '✨ TÀI KHOẢN MỚI',
-  title: 'Khởi đầu hành trình\nGaming của bạn',
-  description: 'Nhận ngay gói quà chào mừng tân thủ và\nvoucher giảm 50.000 ₫ cho đơn hàng đầu tiên.',
-  giftTitle: '🎁 Quà tân thủ: 50.000 ₫ Voucher',
-  giftNote: '● Tặng khi đăng ký thành công',
-};
-
 /** Màn hình Đăng ký (Figma: node 8:284). Sequence UC1: nhapThongTinDangKy → guiThongTinDangKy. */
 export default function Register() {
   const navigate = useNavigate();
@@ -51,7 +43,7 @@ export default function Register() {
       await authApi.sendOtp({ email: form.email.trim(), purpose: 'register' });
       setOtpNotice('Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư đến (và mục Spam).');
       setOtpNoticeType('success');
-      setOtpCountdown(60);
+      setOtpCountdown(10);
     } catch (err) {
       setOtpNotice(err.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
       setOtpNoticeType('error');
@@ -96,8 +88,8 @@ export default function Register() {
   };
 
   return (
-    <AuthLayout active="register" promo={promo} sideClass="lg:w-[30%]">
-      <h1 className="mb-3 mt-[42px] text-2xl font-bold">Tạo tài khoản Game thủ</h1>
+    <AuthLayout active="register">
+      <h1 className="mb-3 mt-8 text-2xl font-bold">Tạo tài khoản Game thủ</h1>
       <p className="m-0 mb-9 text-xs text-muted">Tham gia cộng đồng Vortex hoàn toàn miễn phí chỉ trong 1 phút.</p>
 
       <form className="w-full max-w-[739px]" onSubmit={submit} noValidate>
@@ -129,9 +121,9 @@ export default function Register() {
         <p className="mb-0 mt-2 text-[11px] text-muted">Nhấn "Gửi mã OTP" để nhận mã xác minh 6 chữ số gửi về email của bạn (hết hạn sau 5 phút).</p>
 
         <div className="mt-5 grid gap-5 md:grid-cols-2">
-          <Field id="password" label="Mật khẩu" icon="🔒" type="password" value={form.password} onChange={set('password')}
+          <Field id="password" label="Mật khẩu" icon="🔒" type="password" maxLength={72} value={form.password} onChange={set('password')}
             placeholder="Ít nhất 8 ký tự" autoComplete="new-password" error={errors.password} />
-          <Field id="confirm" label="Xác nhận mật khẩu" icon="🔒" type="password" value={form.confirm} onChange={set('confirm')}
+          <Field id="confirm" label="Xác nhận mật khẩu" icon="🔒" type="password" maxLength={72} value={form.confirm} onChange={set('confirm')}
             placeholder="Nhập lại mật khẩu" autoComplete="new-password" error={errors.confirm} />
         </div>
 

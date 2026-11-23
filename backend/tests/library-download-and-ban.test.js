@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const jwt = require('jsonwebtoken');
 const { describe, it, after } = require('node:test');
 
 // Phải đặt TRƯỚC các require: env.js đọc STORAGE_LOCAL_DIR đúng 1 lần khi load module.
@@ -16,6 +17,7 @@ process.env.STORAGE_LOCAL_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sstore-dl
 const LibraryService = require('../src/services/LibraryService');
 const AccountService = require('../src/services/AccountService');
 const storagePaths = require('../src/utils/storagePaths');
+const env = require('../src/config/env');
 const {
   ValidationException,
   ForbiddenException,
@@ -105,6 +107,33 @@ describe('Luồng: Tải game (yeuCauTaiGame)', () => {
 
     const meta = await service.yeuCauTaiGame({ gameId: 'game-dl-legacy', user: { accountId: 'cus-1' } });
     assert.ok(meta.filePath.startsWith(storagePaths.LEGACY_BUILDS_ROOT));
+  });
+
+  it('Phục vụ tệp game: kiểm tra lại license đang hoạt động trước mỗi yêu cầu tệp', async () => {
+    const service = new LibraryService();
+    service.licenseDAO.kiemTraHopLeTheoThoiGianThuc = async () => null;
+    const gameId = 'game-revoked';
+    const launchToken = jwt.sign({
+      type: 'GAME_LAUNCH',
+      licenseId: 'license-revoked',
+      customerId: 'customer-1',
+      gameId,
+      developerId: 'dev-1',
+    }, env.jwtSecret, { expiresIn: '1m' });
+
+    await assert.rejects(
+      () => service.serveGameFile({
+        gameId,
+        version: '1.0.0',
+        filePath: 'index.html',
+        launchToken,
+      }),
+      (error) => {
+        assert.ok(error instanceof ForbiddenException);
+        assert.match(error.message, /Bản quyền không tồn tại/i);
+        return true;
+      },
+    );
   });
 });
 

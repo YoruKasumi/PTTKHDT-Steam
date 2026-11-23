@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const { NghiepVuException, ValidationException } = require('../exceptions');
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 phút
-const COOLDOWN_MS = 60 * 1000;    // 60 giây
+const COOLDOWN_MS = 10 * 1000;    // 10 giây
 const MAX_ATTEMPTS = 5;
 
 function hashOtp(otp) {

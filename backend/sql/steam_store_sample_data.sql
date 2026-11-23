@@ -7,6 +7,53 @@
 USE steam_store;
 SET NAMES utf8mb4;
 
+-- Xóa các game không còn/không có ảnh bìa hợp lệ khỏi dữ liệu đang tồn tại.
+-- Các game hợp lệ trong seed đều dùng cover từ /api/media/games/<slug>/.
+DELETE FROM ACTIVATIONKEY
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM CARTITEM
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM COUPON
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM ORDERITEM
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM LICENSE
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM WISHLISTITEM
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM REVIEW
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM REFUNDREQUEST
+WHERE GameID IN (
+  SELECT GameID FROM GAME
+  WHERE CoverImage IS NULL OR TRIM(CoverImage) = '' OR CoverImage NOT LIKE '/api/media/games/%'
+);
+DELETE FROM GAME
+WHERE CoverImage IS NULL
+   OR TRIM(CoverImage) = ''
+   OR CoverImage NOT LIKE '/api/media/games/%';
+
 -- ---------------------------------------------------------------------
 -- 1. THAM SỐ CẤU HÌNH HỆ THỐNG
 -- ---------------------------------------------------------------------
@@ -23,16 +70,27 @@ INSERT INTO SYSTEM_PARAMETER (ParamKey, ParamValue, Description) VALUES
 -- ---------------------------------------------------------------------
 -- 2. TÀI KHOẢN VÀ PHÂN QUYỀN
 -- ---------------------------------------------------------------------
+-- Tài khoản seed dùng chung mật khẩu đăng nhập: Vortex123!
+-- Danh sách:
+-- admin01 (admin@steamstore.vn) | Vortex123! | Quản trị viên
+-- mod_lan (lan.kiemduyet@steamstore.vn) | Vortex123! | Kiểm duyệt
+-- nvh_studio (contact@nvhstudio.vn) | Vortex123! | Khách hàng + Nhà phát hành
+-- minhanh (minhanh@gmail.com) | Vortex123! | Khách hàng
+-- baotran (baotran@gmail.com) | Vortex123! | Khách hàng
+-- mekong_pixel (hello@mekongpixel.example) | Vortex123! | Nhà phát hành
+-- lotus_forge (contact@lotusforge.example) | Vortex123! | Nhà phát hành
+-- ngoc_demo (ngoc.demo@example.test) | Vortex123! | Khách hàng
+-- hoang_demo (hoang.demo@example.test) | Vortex123! | Khách hàng
 INSERT INTO ACCOUNT (AccountID, Username, PasswordHash, Email, DisplayName, AvatarUrl, Status, NotifyEnabled, CreatedAt) VALUES
-  ('A001', 'admin01', 'SAMPLE_ADMIN_DISABLED', 'admin@steamstore.vn', 'Quản trị viên', NULL, 'Active', 1, '2026-10-20 08:00:00'),
-  ('A002', 'mod_lan', '$2b$10$6cfec6bad14e5d1f96092df43eca706090977bbc39a34a203f9cb', 'lan.kiemduyet@steamstore.vn', 'Lan - Kiểm duyệt', NULL, 'Active', 1, '2026-10-21 09:30:00'),
-  ('A003', 'nvh_studio', '$2b$10$825dadeff067f14458f7436c0755dcb7c7a8357f0c4d85144245b', 'contact@nvhstudio.vn', 'NVH Studio', 'avatars/a003.png', 'Active', 1, '2026-10-25 10:00:00'),
-  ('A004', 'minhanh', '$2b$10$33132f41e49a1017cac84b9dbae616c3c9047d64eae5b1fa85b7a', 'minhanh@gmail.com', 'Minh Anh', NULL, 'Active', 1, '2026-11-05 19:20:00'),
-  ('A005', 'baotran', '$2b$10$cb353c20b8f0bd9439163f9353c53d9b627fe40e2b19af2956c4a', 'baotran@gmail.com', 'Bảo Trân', 'avatars/a005.png', 'Active', 0, '2026-11-06 21:05:00'),
-  ('A006', 'mekong_pixel', 'SAMPLE_PASSWORD_DISABLED', 'hello@mekongpixel.example', 'Mekong Pixel', NULL, 'Active', 1, '2026-10-28 10:00:00'),
-  ('A007', 'lotus_forge', 'SAMPLE_PASSWORD_DISABLED', 'contact@lotusforge.example', 'Lotus Forge', NULL, 'Active', 1, '2026-10-29 10:00:00'),
-  ('A008', 'ngoc_demo', 'SAMPLE_PASSWORD_DISABLED', 'ngoc.demo@example.test', 'Ngọc Demo', NULL, 'Active', 1, '2026-11-12 09:00:00'),
-  ('A009', 'hoang_demo', 'SAMPLE_PASSWORD_DISABLED', 'hoang.demo@example.test', 'Hoàng Demo', NULL, 'Active', 1, '2026-11-12 09:30:00');
+  ('A001', 'admin01', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'admin@steamstore.vn', 'Quản trị viên', NULL, 'Active', 1, '2026-10-20 08:00:00'),
+  ('A002', 'mod_lan', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'lan.kiemduyet@steamstore.vn', 'Lan - Kiểm duyệt', NULL, 'Active', 1, '2026-10-21 09:30:00'),
+  ('A003', 'nvh_studio', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'contact@nvhstudio.vn', 'NVH Studio', 'avatars/a003.png', 'Active', 1, '2026-10-25 10:00:00'),
+  ('A004', 'minhanh', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'minhanh@gmail.com', 'Minh Anh', NULL, 'Active', 1, '2026-11-05 19:20:00'),
+  ('A005', 'baotran', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'baotran@gmail.com', 'Bảo Trân', 'avatars/a005.png', 'Active', 0, '2026-11-06 21:05:00'),
+  ('A006', 'mekong_pixel', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'hello@mekongpixel.example', 'Mekong Pixel', NULL, 'Active', 1, '2026-10-28 10:00:00'),
+  ('A007', 'lotus_forge', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'contact@lotusforge.example', 'Lotus Forge', NULL, 'Active', 1, '2026-10-29 10:00:00'),
+  ('A008', 'ngoc_demo', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'ngoc.demo@example.test', 'Ngọc Demo', NULL, 'Active', 1, '2026-11-12 09:00:00'),
+  ('A009', 'hoang_demo', '$2a$12$SBs7KcqTnSibrODGVqnQRekYvJ2C44TG8Cm8rmH9ipzfs/b.bOq72', 'hoang.demo@example.test', 'Hoàng Demo', NULL, 'Active', 1, '2026-11-12 09:30:00');
 
 INSERT INTO CUSTOMER (AccountID) VALUES
   ('A003'),

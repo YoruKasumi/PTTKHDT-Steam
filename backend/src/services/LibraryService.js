@@ -273,6 +273,11 @@ class LibraryService extends BaseService {
       throw new ForbiddenException('Launch Token không khớp với game này.');
     }
 
+    const authorization = await this.verifyLaunch({ launchToken: token, gameId });
+    if (!authorization.valid) {
+      throw new ForbiddenException(authorization.reason || 'Bản quyền không còn hợp lệ.');
+    }
+
     // Chống path traversal
     let versionDir = getGameVersionDir(claims.developerId, gameId, version);
     if (!fs.existsSync(path.join(versionDir, 'unpacked'))) {

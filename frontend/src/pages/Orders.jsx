@@ -66,7 +66,7 @@ function RefundModal({ order, selectedItems, onClose, onSuccess }) {
     setError('');
 
     try {
-      const res = await orderApi.refund(
+      const res = await orderApi.guiYeuCauHoanTien(
         order.orderId,
         reason.trim(),
         selectedItems.map((item) => item.gameId),
@@ -211,7 +211,7 @@ export default function Orders() {
   const fetchOrders = () => {
     setLoading(true);
     orderApi
-      .list()
+      .layDanhSachDonHang()
       .then((result) => {
         const orderList = result || [];
         setOrders(orderList);

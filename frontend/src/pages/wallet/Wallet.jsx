@@ -26,8 +26,8 @@ export default function Wallet() {
   const loadData = useCallback(async () => {
     try {
       const [walletRes, txRes] = await Promise.all([
-        walletApi.get().catch(() => null),
-        walletApi.transactions({ limit: 5 }).catch(() => null),
+        walletApi.yeuCauXemSoDu().catch(() => null),
+        walletApi.yeuCauXemLichSuGiaoDich({ limit: 5 }).catch(() => null),
       ]);
 
       if (walletRes?.data?.balance !== undefined) {
@@ -69,7 +69,7 @@ export default function Wallet() {
     setMessage('');
 
     try {
-      const res = await walletApi.deposit({
+      const res = await walletApi.guiYeuCauNapTien({
         amount: amt,
         paymentMethod,
       });
@@ -109,7 +109,7 @@ export default function Wallet() {
     setMessage('');
 
     try {
-      const res = await walletApi.withdraw({
+      const res = await walletApi.guiYeuCauRutTien({
         amount: amt,
         bankInfo: bankInfo.trim(),
       });

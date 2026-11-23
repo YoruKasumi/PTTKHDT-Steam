@@ -33,6 +33,11 @@ router.post('/guiYeuCauThayDoiMatKhau', authenticate, asyncHandler(async (req, r
   ok(res, await authService.guiYeuCauThayDoiMatKhau(requestContext(req)), 200, 'Password updated')
 )));
 
+/** Gửi OTP xác nhận đổi mật khẩu tới email của tài khoản đang đăng nhập */
+router.post('/guiMaOtpDoiMatKhau', authenticate, asyncHandler(async (req, res) => (
+  ok(res, await authService.guiMaOtpDoiMatKhau(requestContext(req)))
+)));
+
 /** Cập nhật tùy chọn nhận thông báo */
 router.post('/capNhatTrangThaiThongBao', authenticate, asyncHandler(async (req, res) => (
   ok(res, await profileService.updateNotifications(requestContext(req)), 200, 'Notification preference updated')

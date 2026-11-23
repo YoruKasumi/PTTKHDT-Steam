@@ -9,7 +9,7 @@ const { authService } = require('../services');
 const router = express.Router();
 
 /** Gửi mã OTP xác thực đăng ký tài khoản */
-router.post('/guiMaOtp', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.sendOtp(requestContext(req)))));
+router.post('/guiMaOtp', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.sendOtp({ ...requestContext(req), purpose: 'register' }))));
 
 /** Gửi mã OTP quên mật khẩu */
 router.post('/quenMatKhauGuiMaOtp', authorize('Guest'), asyncHandler(async (req, res) => ok(res, await authService.sendOtp({ ...requestContext(req), purpose: 'forgot_password' }))));

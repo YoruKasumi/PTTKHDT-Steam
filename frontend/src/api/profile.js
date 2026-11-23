@@ -5,13 +5,12 @@ export const profileApi = {
   guiTenHienThiMoi: (displayName) => http.post('/profile/guiTenHienThiMoi', { displayName }),
   guiAnhDaiDien: (body) => http.post('/profile/guiAnhDaiDien', body),
   capNhatHoSo: (body) => http.post('/profile/capNhatHoSo', body),
+  guiMaOtpDoiMatKhau: () => http.post('/profile/guiMaOtpDoiMatKhau', {}),
   guiYeuCauThayDoiMatKhau: (body) => http.post('/profile/guiYeuCauThayDoiMatKhau', body),
   capNhatTrangThaiThongBao: (enabled) => http.post('/profile/capNhatTrangThaiThongBao', { enabled }),
 
   // Aliases for compatibility
-  get: () => http.get('/profile/layThongTinHoSo'),
   updateDisplayName: (displayName) => http.post('/profile/guiTenHienThiMoi', { displayName }),
-  update: (body) => http.post('/profile/capNhatHoSo', body),
   changePassword: (body) => http.post('/profile/guiYeuCauThayDoiMatKhau', body),
   updateNotifications: (enabled) => http.post('/profile/capNhatTrangThaiThongBao', { enabled }),
 };

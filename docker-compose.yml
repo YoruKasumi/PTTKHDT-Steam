@@ -1,6 +1,15 @@
 name: pttkhdt-steam
 
 services:
+  maildev:
+    container_name: steam-maildev
+    image: maildev/maildev:latest
+    command: ["maildev", "--smtp", "1025", "--web", "1080"]
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+    restart: unless-stopped
+
   db:
     container_name: steam-db
     image: mysql:8.0.44
@@ -45,6 +54,12 @@ services:
       STORAGE_LOCAL_DIR: /app/storage
       JWT_SECRET: ${JWT_SECRET:-steam-store-jwt-secret-key-32chars-min!}
       JWT_EXPIRES_IN: 24h
+      SMTP_HOST: maildev
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: "Vortex Gaming <no-reply@vortex.local>"
     ports:
       - "3000:3000"
     volumes:

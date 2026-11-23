@@ -45,7 +45,6 @@ export default function Settings() {
     displayName: user?.displayName || '',
     avatarUrl: user?.avatarUrl || '',
   });
-  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' });
   const [saving, setSaving] = useState(false);
   const update = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
 
@@ -69,7 +68,7 @@ export default function Settings() {
     setMessage('');
     setSaving(true);
     try {
-      const updated = await profileApi.update({
+      const updated = await profileApi.capNhatHoSo({
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl.trim() || null,
       });
@@ -78,21 +77,6 @@ export default function Settings() {
       setMessage('Đã cập nhật hồ sơ.');
     } catch (error) {
       setMessage(`Không thể cập nhật hồ sơ: ${error.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const changePassword = async (event) => {
-    event.preventDefault();
-    setMessage('');
-    setSaving(true);
-    try {
-      await profileApi.changePassword(passwords);
-      setPasswords({ currentPassword: '', newPassword: '' });
-      setMessage('Đã đổi mật khẩu.');
-    } catch (error) {
-      setMessage(`Không thể đổi mật khẩu: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -199,17 +183,6 @@ export default function Settings() {
                   <input maxLength={255} value={profile.avatarUrl} onChange={(event) => setProfile((current) => ({ ...current, avatarUrl: event.target.value }))} className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2" />
                 </label>
                 <button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-bold disabled:opacity-50">Lưu hồ sơ</button>
-              </form>
-
-              <form onSubmit={changePassword} className="space-y-3 rounded-xl border border-line bg-page p-4">
-                <h2 className="m-0 font-bold">Đổi mật khẩu</h2>
-                <label className="block text-sm">Mật khẩu hiện tại
-                  <input required type="password" autoComplete="current-password" value={passwords.currentPassword} onChange={(event) => setPasswords((current) => ({ ...current, currentPassword: event.target.value }))} className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2" />
-                </label>
-                <label className="block text-sm">Mật khẩu mới (ít nhất 8 ký tự)
-                  <input required minLength={8} type="password" autoComplete="new-password" value={passwords.newPassword} onChange={(event) => setPasswords((current) => ({ ...current, newPassword: event.target.value }))} className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2" />
-                </label>
-                <button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-bold disabled:opacity-50">Đổi mật khẩu</button>
               </form>
 
               <ToggleRow

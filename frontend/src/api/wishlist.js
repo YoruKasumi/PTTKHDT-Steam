@@ -6,7 +6,4 @@ export const wishlistApi = {
   yeuCauXoaWishlist: (gameId) => http.post('/wishlist/yeuCauXoaWishlist', { gameId }),
 
   // Aliases for compatibility
-  list: () => http.get('/wishlist/layDanhSachWishlist'),
-  add: (gameId) => http.post('/wishlist/yeuCauThemWishlist', { gameId }),
-  remove: (gameId) => http.post('/wishlist/yeuCauXoaWishlist', { gameId }),
 };

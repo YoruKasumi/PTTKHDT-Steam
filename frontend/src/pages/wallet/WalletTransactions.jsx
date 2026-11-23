@@ -33,7 +33,7 @@ export default function WalletTransactions() {
       if (toDate) params.to = toDate;
       if (keyword.trim()) params.keyword = keyword.trim();
 
-      const res = await walletApi.transactions(params);
+      const res = await walletApi.yeuCauXemLichSuGiaoDich(params);
       const list = res?.data || res || [];
       setTransactions(Array.isArray(list) ? list : []);
     } catch (err) {

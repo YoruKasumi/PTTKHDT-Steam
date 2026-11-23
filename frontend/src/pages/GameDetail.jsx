@@ -10,6 +10,7 @@ export default function GameDetail() {
   const { cart, addToCart, toggleWishlist, wishlist, user } = useShop();
   const [game, setGame] = useState(null);
   const [isOwned, setIsOwned] = useState(false);
+  const [checkingOwnership, setCheckingOwnership] = useState(false);
   const [rating, setRating] = useState(5);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
@@ -35,13 +36,18 @@ export default function GameDetail() {
     let active = true;
     if (!user?.roles?.includes('Customer')) {
       setIsOwned(false);
+      setCheckingOwnership(false);
       return () => { active = false; };
     }
 
-    libraryApi.list().then((games) => {
+    setIsOwned(false);
+    setCheckingOwnership(true);
+    libraryApi.yeuCauXemThuVien().then((games) => {
       if (active) setIsOwned(games.some((ownedGame) => ownedGame.gameId === id));
     }).catch((requestError) => {
       if (active) setError(requestError.message);
+    }).finally(() => {
+      if (active) setCheckingOwnership(false);
     });
     return () => { active = false; };
   }, [id, user?.accountId, user?.roles]);
@@ -167,7 +173,9 @@ export default function GameDetail() {
 
         <article className="rounded-2xl border border-white/10 bg-card p-5">
           <h2 className="m-0 text-xl font-bold">Đánh giá của người chơi</h2>
-          {user?.roles?.includes('Customer') ? (
+          {user?.roles?.includes('Customer') && checkingOwnership ? (
+            <p role="status" className="mt-4 text-sm text-muted">Đang kiểm tra bản quyền trò chơi...</p>
+          ) : user?.roles?.includes('Customer') && isOwned ? (
             <form onSubmit={submitReview} className="mt-4 space-y-3">
               <fieldset>
                 <legend className="mb-2 text-sm font-bold">Số sao</legend>
@@ -187,6 +195,8 @@ export default function GameDetail() {
                 {submitting ? 'Đang gửi…' : 'Gửi đánh giá'}
               </button>
             </form>
+          ) : user?.roles?.includes('Customer') ? (
+            <p className="mt-3 text-sm text-muted">Chỉ tài khoản có bản quyền game này mới được gửi đánh giá.</p>
           ) : <p className="mt-3 text-sm text-muted">Đăng nhập bằng tài khoản khách hàng để gửi đánh giá. Chỉ chủ sở hữu trò chơi được phép đánh giá.</p>}
 
           <ul className="mt-5 max-h-[440px] list-none space-y-3 overflow-y-auto p-0">

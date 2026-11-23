@@ -6,7 +6,4 @@ export const notificationApi = {
   danhDauDaDoc: (notificationId) => http.post('/notifications/danhDauDaDoc', { notificationId }),
 
   // Aliases for compatibility
-  list: (params = {}) => http.get('/notifications/layDanhSachThongBao', { params }),
-  markRead: (id) => http.post('/notifications/danhDauDaDoc', { notificationId: id }),
-  markAllRead: () => http.post('/notifications/danhDauTatCaDaDoc', {}),
 };

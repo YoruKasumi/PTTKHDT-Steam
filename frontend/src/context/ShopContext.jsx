@@ -26,10 +26,10 @@ export function ShopProvider({ children }) {
 
   const loadShopState = useCallback(async () => {
     const [cartResult, wishlistResult, libraryResult, preview] = await Promise.all([
-      cartApi.list(),
-      wishlistApi.list(),
-      libraryApi.list(),
-      orderApi.preview(),
+      cartApi.yeuCauXemGioHang(),
+      wishlistApi.layDanhSachWishlist(),
+      libraryApi.yeuCauXemThuVien(),
+      orderApi.kiemTraMaGiamGia(),
     ]);
     return {
       cart: cartResult.items.map((item) => item.gameId),
@@ -74,7 +74,7 @@ export function ShopProvider({ children }) {
 
   const addToCart = useCallback(async (id) => {
     try {
-      const result = await cartApi.add(id);
+      const result = await cartApi.yeuCauThemSanPham(id);
       setCart((current) => [...new Set([...current, result.gameId])]);
       setShopError('');
       return { ok: true, message: 'Đã thêm vào giỏ hàng' };
@@ -96,18 +96,18 @@ export function ShopProvider({ children }) {
   }, [addToCart]);
 
   const removeFromCart = useCallback(async (id) => {
-    await cartApi.remove(id);
+    await cartApi.yeuCauXoaSanPham(id);
     setCart((current) => current.filter((gameId) => gameId !== id));
   }, []);
 
   const toggleWishlist = useCallback(async (id) => {
     if (wishlist.includes(id)) {
-      await wishlistApi.remove(id);
+      await wishlistApi.yeuCauXoaWishlist(id);
       setWishlist((current) => current.filter((gameId) => gameId !== id));
       return { added: false };
     }
     try {
-      await wishlistApi.add(id);
+      await wishlistApi.yeuCauThemWishlist(id);
       setWishlist((current) => [...new Set([...current, id])]);
       return { added: true };
     } catch (error) {
@@ -117,7 +117,7 @@ export function ShopProvider({ children }) {
   }, [wishlist]);
 
   const checkout = useCallback(async (couponCode) => {
-    const result = await orderApi.checkout(couponCode);
+    const result = await orderApi.yeuCauThanhToan(couponCode);
     const purchasedIds = result.items.map((item) => item.gameId);
     setCart([]);
     setWishlist((current) => current.filter((id) => !purchasedIds.includes(id)));
