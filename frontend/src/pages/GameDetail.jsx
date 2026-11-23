@@ -4,6 +4,7 @@ import { catalogApi } from '../api/catalog';
 import { libraryApi } from '../api/library';
 import { useShop } from '../context/ShopContext';
 import { formatVnd } from '../utils/format';
+import FeedbackDialog from '../components/common/FeedbackDialog';
 
 export default function GameDetail() {
   const { id } = useParams();
@@ -17,6 +18,8 @@ export default function GameDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [editingReviewId, setEditingReviewId] = useState(null);
+  const [dialog, setDialog] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -58,19 +61,41 @@ export default function GameDetail() {
     setNotice('');
     setSubmitting(true);
     try {
-      const review = await catalogApi.createReview(id, { rating, content });
+      const review = editingReviewId
+        ? await catalogApi.updateReview(editingReviewId, { rating, content })
+        : await catalogApi.createReview(id, { rating, content });
       setGame((current) => ({
         ...current,
-        reviews: [review, ...current.reviews],
-        ratingCount: current.ratingCount + 1,
-        rating: (current.rating * current.ratingCount + review.rating) / (current.ratingCount + 1),
+        reviews: editingReviewId
+          ? current.reviews.map((item) => item.reviewId === editingReviewId ? { ...item, ...review } : item)
+          : [review, ...current.reviews],
+        ratingCount: editingReviewId ? current.ratingCount : current.ratingCount + 1,
+        rating: editingReviewId
+          ? (current.rating * current.ratingCount - Number(current.reviews.find((item) => item.reviewId === editingReviewId)?.rating || 0) + Number(review.rating)) / current.ratingCount
+          : (current.rating * current.ratingCount + review.rating) / (current.ratingCount + 1),
       }));
       setContent('');
+      setNotice(editingReviewId ? 'Đã cập nhật đánh giá.' : 'Đã gửi đánh giá.');
+      setEditingReviewId(null);
       setNotice('Đã gửi đánh giá.');
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const removeReview = async (reviewId) => {
+    try {
+      await catalogApi.deleteReview(reviewId);
+      setGame((current) => {
+        const reviews = current.reviews.filter((review) => review.reviewId !== reviewId);
+        const ratingCount = reviews.length;
+        return { ...current, reviews, ratingCount, rating: ratingCount ? reviews.reduce((sum, item) => sum + Number(item.rating), 0) / ratingCount : 0 };
+      });
+      setNotice('Đã xóa đánh giá.');
+    } catch (requestError) {
+      setError(requestError.message);
     }
   };
 
@@ -153,8 +178,7 @@ export default function GameDetail() {
         </div>
       </section>
 
-      {notice ? <p role="status" className="mt-4 rounded-lg border border-indigo-500/40 bg-card p-3 text-sm text-accent-light">{notice}</p> : null}
-      {error ? <p role="alert" className="mt-4 rounded-lg border border-red-500/30 bg-card p-3 text-sm text-red-300">{error}</p> : null}
+      <FeedbackDialog open={Boolean(notice || error)} title={error ? 'Đã xảy ra lỗi' : 'Thông báo'} message={error || notice} tone={error ? 'error' : 'success'} onClose={() => { setError(''); setNotice(''); }} />
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-white/10 bg-card p-5">
@@ -175,7 +199,7 @@ export default function GameDetail() {
           <h2 className="m-0 text-xl font-bold">Đánh giá của người chơi</h2>
           {user?.roles?.includes('Customer') && checkingOwnership ? (
             <p role="status" className="mt-4 text-sm text-muted">Đang kiểm tra bản quyền trò chơi...</p>
-          ) : user?.roles?.includes('Customer') && isOwned ? (
+          ) : user?.roles?.includes('Customer') && isOwned && !game.reviews.some((review) => review.customerId === user.accountId) ? (
             <form onSubmit={submitReview} className="mt-4 space-y-3">
               <fieldset>
                 <legend className="mb-2 text-sm font-bold">Số sao</legend>
@@ -194,6 +218,7 @@ export default function GameDetail() {
               <button disabled={submitting} className="rounded-lg bg-accent px-4 py-2.5 font-bold disabled:opacity-50">
                 {submitting ? 'Đang gửi…' : 'Gửi đánh giá'}
               </button>
+              {editingReviewId ? <button type="button" onClick={() => { setEditingReviewId(null); setContent(''); setRating(5); }} className="ml-2 rounded-lg border border-line px-4 py-2.5 font-semibold">Hủy sửa</button> : null}
             </form>
           ) : user?.roles?.includes('Customer') ? (
             <p className="mt-3 text-sm text-muted">Chỉ tài khoản có bản quyền game này mới được gửi đánh giá.</p>
@@ -208,12 +233,17 @@ export default function GameDetail() {
                 </div>
                 <p className="mb-0 mt-2 whitespace-pre-wrap text-sm text-zinc-300">{review.content}</p>
                 <time className="mt-2 block text-xs text-muted">{new Date(review.reviewDate).toLocaleDateString()}</time>
+                {user?.accountId === review.customerId ? <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={() => { setEditingReviewId(review.reviewId); setRating(review.rating); setContent(review.content); }} className="rounded-lg border border-line px-3 py-1.5 text-xs font-bold hover:border-accent">Sửa</button>
+                  <button type="button" onClick={() => setDialog({ title: 'Xóa đánh giá?', message: 'Bạn có chắc muốn xóa đánh giá này?', onConfirm: async () => { setDialog(null); await removeReview(review.reviewId); } })} className="rounded-lg border border-rose-400/40 px-3 py-1.5 text-xs font-bold text-rose-200">Xóa</button>
+                </div> : null}
               </li>
             ))}
             {!game.reviews.length ? <li className="py-5 text-sm text-muted">Chưa có đánh giá hiển thị.</li> : null}
           </ul>
         </article>
       </section>
+      {dialog ? <FeedbackDialog open title={dialog.title} message={dialog.message} tone={dialog.tone} onClose={() => setDialog(null)} onConfirm={dialog.onConfirm} /> : null}
     </div>
   );
 }

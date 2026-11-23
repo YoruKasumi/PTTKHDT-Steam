@@ -140,6 +140,30 @@ class CatalogService extends BaseService {
     }
   }
 
+  async updateReview(params = {}) {
+    const customerId = params.user?.accountId;
+    const reviewId = params.reviewId;
+    const rating = Number(params.rating);
+    const content = typeof params.content === 'string' ? params.content.trim() : '';
+    if (!customerId) throw new UnauthorizedException();
+    if (!reviewId) throw new ValidationException('reviewId là bắt buộc');
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new ValidationException('Rating phải là số nguyên từ 1 đến 5');
+    if (!content || content.length > 1000) throw new ValidationException('Nội dung đánh giá là bắt buộc và tối đa 1000 ký tự');
+    const exists = await this.gameDAO.layDanhGiaCuaKhach({ reviewId, customerId });
+    if (!exists) throw new NotFoundException('Không tìm thấy đánh giá của bạn');
+    await this.gameDAO.capNhatDanhGia({ reviewId, customerId, rating, content });
+    return this.toReviewResponse({ ...exists, Rating: rating, Content: content });
+  }
+
+  async deleteReview(params = {}) {
+    const customerId = params.user?.accountId;
+    if (!customerId) throw new UnauthorizedException();
+    if (!params.reviewId) throw new ValidationException('reviewId là bắt buộc');
+    const deleted = await this.gameDAO.xoaDanhGia({ reviewId: params.reviewId, customerId });
+    if (!deleted) throw new NotFoundException('Không tìm thấy đánh giá của bạn');
+    return { reviewId: params.reviewId };
+  }
+
   validateFilters(params = {}) {
     const keyword = typeof params.keyword === 'string' ? params.keyword.trim() : '';
     if (keyword.length > 200) throw new ValidationException('Từ khóa tối đa 200 ký tự');

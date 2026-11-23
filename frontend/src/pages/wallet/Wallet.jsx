@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { walletApi } from '../../api/wallet';
 import { useShop } from '../../context/ShopContext';
 import { formatVnd } from '../../utils/format';
+import FeedbackDialog from '../../components/common/FeedbackDialog';
 
 export default function Wallet() {
   const { user, balance: contextBalance, refreshShop } = useShop();
@@ -21,6 +22,7 @@ export default function Wallet() {
   const [submitting, setSubmitting] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [loadingTx, setLoadingTx] = useState(true);
+  const [dialog, setDialog] = useState(null);
 
   // Đồng bộ số dư và lịch sử giao dịch
   const loadData = useCallback(async () => {
@@ -129,6 +131,7 @@ export default function Wallet() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 pb-20 pt-10 md:px-8">
+      <FeedbackDialog open={Boolean(dialog || message || error)} title={dialog?.title || (error ? 'Đã xảy ra lỗi' : 'Thông báo')} message={dialog?.message || error || message} tone={dialog?.tone || (error ? 'error' : 'success')} onClose={() => { setDialog(null); setMessage(''); setError(''); }} onConfirm={dialog?.onConfirm} />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="m-0 text-2xl font-extrabold">Ví điện tử &amp; Quản lý tài chính</h1>
         <Link to="/wallet/transactions" className="text-sm font-bold text-accent-light hover:underline">
@@ -263,7 +266,7 @@ export default function Wallet() {
 
             <button
               type="button"
-              onClick={handleDeposit}
+              onClick={() => setDialog({ title: 'Xác nhận nạp tiền', message: `Nạp ${formatVnd(customDeposit ? Number(customDeposit) || 0 : depositAmount)} vào ví bằng ${paymentMethod}?`, onConfirm: async () => { setDialog(null); await handleDeposit(); } })}
               disabled={submitting}
               className="rounded-xl bg-accent px-6 py-3 font-bold text-white shadow-lg hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -271,7 +274,7 @@ export default function Wallet() {
             </button>
           </div>
         ) : (
-          <form onSubmit={handleWithdraw} className="mt-6 max-w-lg space-y-4">
+          <form onSubmit={(event) => { event.preventDefault(); setDialog({ title: 'Xác nhận rút tiền', message: `Gửi yêu cầu rút ${formatVnd(Number(withdrawAmount) || 0)} về tài khoản ngân hàng đã nhập?`, onConfirm: async () => { setDialog(null); await handleWithdraw({ preventDefault() {} }); } }); }} className="mt-6 max-w-lg space-y-4">
             <div>
               <h2 className="m-0 text-lg font-bold">Rút tiền từ ví về tài khoản ngân hàng</h2>
               <p className="mb-0 mt-1 text-xs text-muted">Số dư khả dụng hiện tại: {formatVnd(balance)}</p>

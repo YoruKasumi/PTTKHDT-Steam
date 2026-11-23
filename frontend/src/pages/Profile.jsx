@@ -5,6 +5,7 @@ import { profileApi } from '../api/profile';
 import { walletApi } from '../api/wallet';
 import { useShop } from '../context/ShopContext';
 import { formatVnd } from '../utils/format';
+import FeedbackDialog from '../components/common/FeedbackDialog';
 
 const transactionLabels = {
   Deposit: 'Nạp tiền',
@@ -73,6 +74,7 @@ export default function Profile() {
     otp: '',
   });
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [dialog, setDialog] = useState(null);
 
   useEffect(() => {
     if (passwordOtpCountdown <= 0) return undefined;
@@ -249,8 +251,7 @@ export default function Profile() {
         </p>
       </header>
 
-      {error ? <p role="alert" className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p> : null}
-      {notice ? <p role="status" className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">{notice}</p> : null}
+      <FeedbackDialog open={Boolean(dialog || error || notice)} title={dialog?.title || (error ? 'Đã xảy ra lỗi' : 'Thông báo')} message={dialog?.message || error || notice} tone={dialog?.tone || (error ? 'error' : 'success')} onClose={() => { setDialog(null); setError(''); setNotice(''); }} onConfirm={dialog?.onConfirm} />
       {loading ? <p className="mt-5 text-sm text-muted">Đang tải dữ liệu hồ sơ...</p> : null}
 
       <section aria-label="Thống kê tài khoản" className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -264,7 +265,7 @@ export default function Profile() {
       </p>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
-        <form onSubmit={saveDisplayName} className="space-y-4 rounded-2xl border border-white/10 bg-card p-5">
+        <form onSubmit={(event) => { event.preventDefault(); setDialog({ title: 'Xác nhận đổi thông tin', message: 'Bạn muốn cập nhật tên hiển thị tài khoản?', onConfirm: async () => { setDialog(null); await saveDisplayName({ preventDefault() {} }); } }); }} className="space-y-4 rounded-2xl border border-white/10 bg-card p-5">
           <div>
             <h2 className="m-0 text-lg font-bold">Thông tin tài khoản</h2>
             <p className="mb-0 mt-1 text-sm text-muted">Email và tên đăng nhập chỉ đọc; có thể cập nhật tên hiển thị.</p>
@@ -288,7 +289,7 @@ export default function Profile() {
           </button>
         </form>
 
-        <form onSubmit={changePassword} className="space-y-4 rounded-2xl border border-white/10 bg-card p-5">
+        <form onSubmit={(event) => { event.preventDefault(); setDialog({ title: 'Xác nhận đổi mật khẩu', message: 'Bạn muốn đổi mật khẩu tài khoản bằng thông tin đã nhập?', onConfirm: async () => { setDialog(null); await changePassword({ preventDefault() {} }); } }); }} className="space-y-4 rounded-2xl border border-white/10 bg-card p-5">
           <div>
             <h2 className="m-0 text-lg font-bold">Đổi mật khẩu</h2>
             <p className="mb-0 mt-1 text-sm text-muted">Mật khẩu mới từ 8 đến 72 ký tự; cần xác nhận OTP qua email.</p>

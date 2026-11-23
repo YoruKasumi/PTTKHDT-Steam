@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminShell from '../../components/admin/AdminShell';
 import { adminApi } from '../../api/admin';
+import FeedbackDialog from '../../components/common/FeedbackDialog';
 
 const statuses = ['Active', 'Suspended', 'Banned'];
 
@@ -84,6 +85,7 @@ export default function AdminAccounts() {
 
   return (
     <AdminShell title="Kiểm soát tài khoản" description="Tìm tài khoản, xem lịch sử và áp dụng chế tài có ghi nhận lý do.">
+      <FeedbackDialog open={Boolean(notice)} title="Trạng thái tài khoản" message={notice} onClose={() => setNotice('')} />
       <section className="grid gap-3 sm:grid-cols-3">
         {statuses.map((status) => (
           <div key={status} className="rounded-xl border border-white/10 bg-card p-4">
@@ -158,7 +160,6 @@ export default function AdminAccounts() {
         </div>
       </section>
 
-      {notice && <p role="status" className="rounded-lg border border-emerald-500/30 p-3 text-sm text-emerald-300">{notice}</p>}
 
       {pendingAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { gameApi } from '../../api/game';
+import FeedbackDialog from '../common/FeedbackDialog';
 
 const genres = ['Hành động', 'Phiêu lưu', 'Kinh dị Co-op', 'Nhập vai RPG', 'Mô phỏng'];
 
@@ -26,6 +27,9 @@ export default function NewProjectModal({ onClose, onCreate }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [confirmUpload, setConfirmUpload] = useState(false);
+  const formRef = useRef(null);
+  const approvedUpload = useRef(false);
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -60,6 +64,11 @@ export default function NewProjectModal({ onClose, onCreate }) {
       return;
     }
 
+    if (!approvedUpload.current) {
+      setConfirmUpload(true);
+      return;
+    }
+    approvedUpload.current = false;
     setError('');
     setLoading(true);
     setResult(null);
@@ -112,7 +121,8 @@ export default function NewProjectModal({ onClose, onCreate }) {
       : { label: '🔧 Auto-DRM bởi nền tảng', cls: 'border-blue-500/30 bg-blue-500/10 text-blue-400' };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+      <FeedbackDialog open={confirmUpload} title="Xác nhận đăng tải game" message={`Đăng tải “${form.title.trim()}” với giá ${Number(form.price).toLocaleString('vi-VN')} ₫ và gửi bản build để xét duyệt?`} onClose={() => setConfirmUpload(false)} onConfirm={() => { approvedUpload.current = true; setConfirmUpload(false); requestAnimationFrame(() => formRef.current?.requestSubmit()); }} />
         <section className="w-full max-w-[500px] rounded-2xl border border-indigo-900 bg-zinc-950 p-7 shadow-2xl">
           <h2 className="mb-4 text-lg font-bold text-emerald-400">🎮 Dự án đã được tạo thành công!</h2>
           <div className="space-y-3 text-sm">
@@ -160,6 +170,7 @@ export default function NewProjectModal({ onClose, onCreate }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
+      <FeedbackDialog open={confirmUpload} title="Xác nhận đăng tải game" message={`Đăng tải “${form.title.trim()}” với giá ${Number(form.price).toLocaleString('vi-VN')} ₫ và gửi bản build để xét duyệt?`} onClose={() => setConfirmUpload(false)} onConfirm={() => { approvedUpload.current = true; setConfirmUpload(false); requestAnimationFrame(() => formRef.current?.requestSubmit()); }} />
       <section
         role="dialog"
         aria-modal="true"
@@ -180,7 +191,7 @@ export default function NewProjectModal({ onClose, onCreate }) {
           </button>
         </div>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form ref={formRef} onSubmit={submit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm text-muted">
               Tên trò chơi

@@ -17,5 +17,7 @@ export const catalogApi = {
   listGames: (params = {}) => http.get('/catalog/layDanhSachGame', { params }),
   getGame: (gameId) => http.get('/catalog/yeuCauXemChiTietSanPham', { params: { gameId } }),
   createReview: (gameId, body) => http.post('/catalog/taoDanhGia', { gameId, ...body }),
+  updateReview: (reviewId, body) => http.put(`/catalog/capNhatDanhGia/${reviewId}`, body),
+  deleteReview: (reviewId) => http.delete(`/catalog/xoaDanhGia/${reviewId}`),
   listGenres: () => http.get('/genres/layDanhSachTheLoaiCongKhai'),
 };

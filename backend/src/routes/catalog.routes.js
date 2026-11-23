@@ -42,4 +42,11 @@ router.post('/taoDanhGia', authenticate, authorize('Customer'), asyncHandler(asy
   ok(res, await catalogService.taoDanhGia(requestContext(req)), 201, 'Review created')
 )));
 
+router.put('/capNhatDanhGia/:reviewId', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await catalogService.updateReview({ ...requestContext(req), reviewId: req.params.reviewId }))
+)));
+router.delete('/xoaDanhGia/:reviewId', authenticate, authorize('Customer'), asyncHandler(async (req, res) => (
+  ok(res, await catalogService.deleteReview({ ...requestContext(req), reviewId: req.params.reviewId }))
+)));
+
 module.exports = router;

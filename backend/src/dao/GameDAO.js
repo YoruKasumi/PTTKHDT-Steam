@@ -185,6 +185,33 @@ class GameDAO extends BaseDAO {
     );
   }
 
+  async capNhatDanhGia(params = {}, conn = null) {
+    const result = await this.query(
+      `UPDATE REVIEW SET Rating = ?, Content = ?
+       WHERE ReviewID = ? AND CustomerID = ?`,
+      [params.rating, params.content, params.reviewId, params.customerId], conn,
+    );
+    return result.affectedRows > 0;
+  }
+
+  async xoaDanhGia(params = {}, conn = null) {
+    const result = await this.query(
+      'DELETE FROM REVIEW WHERE ReviewID = ? AND CustomerID = ?',
+      [params.reviewId, params.customerId], conn,
+    );
+    return result.affectedRows > 0;
+  }
+
+  async layDanhGiaCuaKhach(params = {}, conn = null) {
+    return this.one(
+      `SELECT review.ReviewID, review.CustomerID, review.Rating, review.Content,
+              review.ReviewDate, account.DisplayName
+       FROM REVIEW AS review INNER JOIN ACCOUNT AS account ON account.AccountID = review.CustomerID
+       WHERE review.ReviewID = ? AND review.CustomerID = ? LIMIT 1`,
+      [params.reviewId, params.customerId], conn,
+    );
+  }
+
   async luuBanQuyenGame(params = {}, conn = null) {
     throw new NotImplementedException('GameDAO.luuBanQuyenGame');
   }
