@@ -67,13 +67,19 @@ backend/
    npm run db:bootstrap-demo
    ```
 
-4. **Chạy kiểm thử (Unit Tests)**:
+4. **Tạo lại build demo bị thiếu**:
+   ```powershell
+   npm run db:repair-demo-builds
+   ```
+   Lệnh này chỉ tạo archive cho các phiên bản demo đã duyệt nhưng thiếu file trong storage; không thay đổi tài khoản, đơn hàng hay bản quyền.
+
+5. **Chạy kiểm thử (Unit Tests)**:
    ```powershell
    npm test
    ```
    *(Toàn bộ 151 test cases phải pass 100%).*
 
-5. **Khởi động server phát triển**:
+6. **Khởi động server phát triển**:
    ```powershell
    npm run dev
    ```

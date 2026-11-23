@@ -5,14 +5,6 @@ import Field from '../../components/auth/Field';
 import { authApi } from '../../api/auth';
 import { passwordStrength } from '../../utils/passwordStrength';
 
-const promo = {
-  badge: '✨ TÀI KHOẢN MỚI',
-  title: 'Khởi đầu hành trình\nGaming của bạn',
-  description: 'Nhận ngay gói quà chào mừng tân thủ và\nvoucher giảm 50.000 ₫ cho đơn hàng đầu tiên.',
-  giftTitle: '🎁 Quà tân thủ: 50.000 ₫ Voucher',
-  giftNote: '● Tặng khi đăng ký thành công',
-};
-
 /** Màn hình Đăng ký (Figma: node 8:284). Sequence UC1: nhapThongTinDangKy → guiThongTinDangKy. */
 export default function Register() {
   const navigate = useNavigate();
@@ -51,7 +43,7 @@ export default function Register() {
       await authApi.sendOtp({ email: form.email.trim(), purpose: 'register' });
       setOtpNotice('Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư đến (và mục Spam).');
       setOtpNoticeType('success');
-      setOtpCountdown(60);
+      setOtpCountdown(10);
     } catch (err) {
       setOtpNotice(err.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
       setOtpNoticeType('error');
@@ -96,8 +88,8 @@ export default function Register() {
   };
 
   return (
-    <AuthLayout active="register" promo={promo} sideClass="lg:w-[30%]">
-      <h1 className="mb-3 mt-[42px] text-2xl font-bold">Tạo tài khoản Game thủ</h1>
+    <AuthLayout active="register">
+      <h1 className="mb-3 mt-8 text-2xl font-bold">Tạo tài khoản Game thủ</h1>
       <p className="m-0 mb-9 text-xs text-muted">Tham gia cộng đồng Vortex hoàn toàn miễn phí chỉ trong 1 phút.</p>
 
       <form className="w-full max-w-[739px]" onSubmit={submit} noValidate>

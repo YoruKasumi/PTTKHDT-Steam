@@ -20,13 +20,14 @@ function parseFileName(disposition) {
 }
 
 /**
- * GET /library/:gameId/download (Authorization: Bearer) — nhận stream build.zip.
+ * GET /library/yeuCauTaiGame?gameId=:gameId (Authorization: Bearer) — nhận stream build.zip.
  * @param {{ gameId: string, onProgress?: (p: {received:number, total:number, percent:number|null}) => void }} args
  * @returns {Promise<{blob: Blob, fileName: string, versionNumber: string, sha256: string|null, verified: boolean|null, size: number}>}
  * verified: true/false khi server trả checksum để đối chiếu; null khi không đối chiếu được.
  */
 export async function downloadGameBuild({ gameId, onProgress }) {
-  const res = await fetch(`${API_BASE}/library/${encodeURIComponent(gameId)}/download`, {
+  const params = new URLSearchParams({ gameId });
+  const res = await fetch(`${API_BASE}/library/yeuCauTaiGame?${params}`, {
     headers: { Authorization: `Bearer ${getAuthToken()}` },
   });
   if (!res.ok) {

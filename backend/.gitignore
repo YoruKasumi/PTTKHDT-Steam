@@ -2,5 +2,7 @@ node_modules/
 .env
 storage/uploads/*
 storage/builds/*
+storage/private/*
 !storage/uploads/.gitkeep
 !storage/builds/.gitkeep
+!storage/private/.gitkeep

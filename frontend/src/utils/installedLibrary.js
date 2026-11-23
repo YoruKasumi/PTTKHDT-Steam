@@ -83,18 +83,24 @@ async function idbGet(key) {
 }
 
 // Cho người chơi chọn thư mục cài đặt (lần đầu) và lưu lại handle.
-export async function pickInstallFolder() {
+export async function pickInstallFolder(gameId) {
   if (!supportsFsAccess()) return null;
-  const handle = await window.showDirectoryPicker({ id: 'sstore-games', mode: 'readwrite' });
+  const handle = await window.showDirectoryPicker({
+    id: 'sstore-games',
+    mode: 'readwrite',
+    startIn: 'documents',
+  });
   await idbSet(HANDLE_KEY, handle);
+  if (gameId) await idbSet(`${HANDLE_KEY}:${gameId}`, handle);
   return handle;
 }
 
 // Lấy lại thư mục đã chọn từ phiên trước (null nếu chưa chọn / không hỗ trợ).
-export async function loadInstallFolder() {
+export async function loadInstallFolder(gameId) {
   if (!supportsFsAccess()) return null;
   try {
-    return await idbGet(HANDLE_KEY);
+    return (gameId ? await idbGet(`${HANDLE_KEY}:${gameId}`) : null)
+      || await idbGet(HANDLE_KEY);
   } catch {
     return null;
   }
@@ -119,13 +125,16 @@ export async function writeInstalledFile(dirHandle, fileName, blob) {
 }
 
 // Xóa tệp cài đặt trong thư mục (chỉ khi tệp thật sự còn đó).
-// Trả true nếu đã xóa, false nếu tệp không còn hoặc thư mục không truy cập được.
+// Trả false khi tệp đã không còn trong thư mục.
 export async function removeInstalledFile(dirHandle, fileName) {
+  let fileHandle;
   try {
-    await dirHandle.getFileHandle(fileName, { create: false });
-    await dirHandle.removeEntry(fileName);
-    return true;
-  } catch {
-    return false;
+    fileHandle = await dirHandle.getFileHandle(fileName, { create: false });
+  } catch (error) {
+    if (error?.name === 'NotFoundError') return false;
+    throw error;
   }
+  if (!fileHandle) return false;
+  await dirHandle.removeEntry(fileName);
+  return true;
 }

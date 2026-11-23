@@ -5,13 +5,6 @@ import Field from '../../components/auth/Field';
 import { authApi } from '../../api/auth';
 import { useShop } from '../../context/ShopContext';
 
-const promo = {
-  badge: '⚡ MÙA GIẢI 2026',
-  title: 'Gia nhập Đấu Trường\nHuyền Thoại',
-  description: 'Kết nối với hơn 10 triệu game thủ toàn cầu.\nLưu trữ cloud & nhận ưu đãi mỗi tuần.',
-  giftTitle: '🎮 Game của tuần: Sky Echoes',
-  giftNote: '● Sẵn sàng tải • Giảm 40%',
-};
 const socials = ['Steam', 'Discord', 'Google', 'Apple ID'];
 
 /** Màn hình Đăng nhập (Figma: node 8:240). Sequence UC2: nhapThongTinDangNhap → guiThongTinDangNhap. */
@@ -53,8 +46,8 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout active="login" promo={promo} sideClass="lg:w-[41%]">
-      <h1 className="mb-3 mt-[60px] text-2xl font-bold">Chào mừng trở lại!</h1>
+    <AuthLayout active="login">
+      <h1 className="mb-3 mt-8 text-2xl font-bold">Chào mừng trở lại!</h1>
       <p className="m-0 mb-12 text-xs text-muted">Đăng nhập tài khoản Vortex để tiếp tục chiến game.</p>
 
       <form className="w-full max-w-[699px]" onSubmit={submit} noValidate>

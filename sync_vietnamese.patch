@@ -1,0 +1,423 @@
+diff --git a/backend/src/routes/banners.public.routes.js b/backend/src/routes/banners.public.routes.js
+index 234a211..91e1c2c 100644
+--- a/backend/src/routes/banners.public.routes.js
++++ b/backend/src/routes/banners.public.routes.js
+@@ -8,7 +8,5 @@ const { bannerService } = require('../services');
+ const router = express.Router();
+ 
+ router.get('/layBannerHienThi', asyncHandler(async (req, res) => ok(res, await bannerService.layBannerHienThi())));
+-router.get('/active', asyncHandler(async (req, res) => ok(res, await bannerService.layBannerHienThi())));
+-router.get('/', asyncHandler(async (req, res) => ok(res, await bannerService.layBannerHienThi())));
+ 
+ module.exports = router;
+diff --git a/backend/src/routes/library.routes.js b/backend/src/routes/library.routes.js
+index 5323932..3862f68 100644
+--- a/backend/src/routes/library.routes.js
++++ b/backend/src/routes/library.routes.js
+@@ -87,7 +87,6 @@ async function handleVerifyLaunch(req, res) {
+ }
+ 
+ router.post('/xacThucKhoiChay', asyncHandler(handleVerifyLaunch));
+-router.post('/verify-launch', asyncHandler(handleVerifyLaunch)); // Hỗ trợ tương thích ngược cho drm.js đã đóng gói
+ 
+ // ─── Phục vụ file tĩnh game (có bảo vệ DRM) ────────────────────────────────
+ router.get(
+diff --git a/frontend/src/api/cart.js b/frontend/src/api/cart.js
+index 4007c5d..a2d81c6 100644
+--- a/frontend/src/api/cart.js
++++ b/frontend/src/api/cart.js
+@@ -6,7 +6,4 @@ export const cartApi = {
+   yeuCauXoaSanPham: (gameId) => http.post('/cart/yeuCauXoaSanPham', { gameId }),
+ 
+   // Aliases for compatibility
+-  list: () => http.get('/cart/yeuCauXemGioHang'),
+-  add: (gameId) => http.post('/cart/yeuCauThemSanPham', { gameId }),
+-  remove: (gameId) => http.post('/cart/yeuCauXoaSanPham', { gameId }),
+ };
+diff --git a/frontend/src/api/library.js b/frontend/src/api/library.js
+index e8bd41e..807cbf9 100644
+--- a/frontend/src/api/library.js
++++ b/frontend/src/api/library.js
+@@ -6,10 +6,4 @@ export const libraryApi = {
+   yeuCauKhoiChay: (gameId) => http.post('/library/yeuCauKhoiChay', { gameId }),
+   xacThucKhoiChay: (body) => http.post('/library/xacThucKhoiChay', body),
+   yeuCauTaiGame: (gameId) => http.get('/library/yeuCauTaiGame', { params: { gameId } }),
+-
+-  // Aliases for compatibility
+-  list: () => http.get('/library/yeuCauXemThuVien'),
+-  redeemKey: (keyCode) => http.post('/library/kichHoatKey', { keyCode }),
+-  launch: (gameId) => http.post('/library/yeuCauKhoiChay', { gameId }),
+-  verifyLaunch: (body) => http.post('/library/xacThucKhoiChay', body),
+ };
+diff --git a/frontend/src/api/notification.js b/frontend/src/api/notification.js
+index f4b3424..6852d2d 100644
+--- a/frontend/src/api/notification.js
++++ b/frontend/src/api/notification.js
+@@ -6,7 +6,4 @@ export const notificationApi = {
+   danhDauDaDoc: (notificationId) => http.post('/notifications/danhDauDaDoc', { notificationId }),
+ 
+   // Aliases for compatibility
+-  list: (params = {}) => http.get('/notifications/layDanhSachThongBao', { params }),
+-  markRead: (id) => http.post('/notifications/danhDauDaDoc', { notificationId: id }),
+-  markAllRead: () => http.post('/notifications/danhDauTatCaDaDoc', {}),
+ };
+diff --git a/frontend/src/api/order.js b/frontend/src/api/order.js
+index 69ffdfd..51f6ecd 100644
+--- a/frontend/src/api/order.js
++++ b/frontend/src/api/order.js
+@@ -6,11 +6,4 @@ export const orderApi = {
+   yeuCauThanhToan: (couponCode = '') => http.post('/orders/yeuCauThanhToan', { couponCode }),
+   guiYeuCauHoanTien: (orderId, reason, gameIds) =>
+     http.post('/orders/guiYeuCauHoanTien', { orderId, reason, gameIds }),
+-
+-  // Aliases for compatibility
+-  list: () => http.get('/orders/layDanhSachDonHang'),
+-  preview: (couponCode = '') => http.post('/orders/kiemTraMaGiamGia', { couponCode }),
+-  checkout: (couponCode = '') => http.post('/orders/yeuCauThanhToan', { couponCode }),
+-  refund: (orderId, reason, gameIds) =>
+-    http.post('/orders/guiYeuCauHoanTien', { orderId, reason, gameIds }),
+ };
+diff --git a/frontend/src/api/profile.js b/frontend/src/api/profile.js
+index e1fa412..61131a3 100644
+--- a/frontend/src/api/profile.js
++++ b/frontend/src/api/profile.js
+@@ -9,9 +9,7 @@ export const profileApi = {
+   capNhatTrangThaiThongBao: (enabled) => http.post('/profile/capNhatTrangThaiThongBao', { enabled }),
+ 
+   // Aliases for compatibility
+-  get: () => http.get('/profile/layThongTinHoSo'),
+   updateDisplayName: (displayName) => http.post('/profile/guiTenHienThiMoi', { displayName }),
+-  update: (body) => http.post('/profile/capNhatHoSo', body),
+   changePassword: (body) => http.post('/profile/guiYeuCauThayDoiMatKhau', body),
+   updateNotifications: (enabled) => http.post('/profile/capNhatTrangThaiThongBao', { enabled }),
+ };
+diff --git a/frontend/src/api/wallet.js b/frontend/src/api/wallet.js
+index cd7c1e2..a785801 100644
+--- a/frontend/src/api/wallet.js
++++ b/frontend/src/api/wallet.js
+@@ -8,8 +8,4 @@ export const walletApi = {
+   yeuCauXemLichSuGiaoDich: (params = {}) => http.get('/wallet/yeuCauXemLichSuGiaoDich', { params }),
+ 
+   // Aliases for compatibility
+-  get: () => http.get('/wallet/yeuCauXemSoDu'),
+-  deposit: (body) => http.post('/wallet/guiYeuCauNapTien', body),
+-  withdraw: (body) => http.post('/wallet/guiYeuCauRutTien', body),
+-  transactions: (params = {}) => http.get('/wallet/yeuCauXemLichSuGiaoDich', { params }),
+ };
+diff --git a/frontend/src/api/wishlist.js b/frontend/src/api/wishlist.js
+index 3f625f2..e11630d 100644
+--- a/frontend/src/api/wishlist.js
++++ b/frontend/src/api/wishlist.js
+@@ -6,7 +6,4 @@ export const wishlistApi = {
+   yeuCauXoaWishlist: (gameId) => http.post('/wishlist/yeuCauXoaWishlist', { gameId }),
+ 
+   // Aliases for compatibility
+-  list: () => http.get('/wishlist/layDanhSachWishlist'),
+-  add: (gameId) => http.post('/wishlist/yeuCauThemWishlist', { gameId }),
+-  remove: (gameId) => http.post('/wishlist/yeuCauXoaWishlist', { gameId }),
+ };
+diff --git a/frontend/src/components/TopBar.jsx b/frontend/src/components/TopBar.jsx
+index 977e9a2..803263b 100644
+--- a/frontend/src/components/TopBar.jsx
++++ b/frontend/src/components/TopBar.jsx
+@@ -61,7 +61,7 @@ export default function TopBar() {
+     }
+     try {
+       setLoadingNotifs(true);
+-      const res = await notificationApi.list();
++      const res = await notificationApi.layDanhSachThongBao();
+       const items = res?.items || (Array.isArray(res) ? res : []);
+       setNotifications(items);
+       setUnreadCount(res?.unreadCount ?? items.filter((n) => !n.isRead).length);
+@@ -78,7 +78,7 @@ export default function TopBar() {
+ 
+   const handleMarkAllRead = async () => {
+     try {
+-      await notificationApi.markAllRead();
++      await notificationApi.danhDauTatCaDaDoc();
+       setNotifications((current) => current.map((n) => ({ ...n, isRead: true })));
+       setUnreadCount(0);
+     } catch (err) {
+@@ -89,7 +89,7 @@ export default function TopBar() {
+   const handleMarkOneRead = async (item) => {
+     if (item.isRead) return;
+     try {
+-      await notificationApi.markRead(item.id || item.notificationId);
++      await notificationApi.danhDauDaDoc(item.id || item.notificationId);
+       setNotifications((current) =>
+         current.map((n) =>
+           (n.id === item.id || n.notificationId === item.notificationId) ? { ...n, isRead: true } : n,
+diff --git a/frontend/src/context/ShopContext.jsx b/frontend/src/context/ShopContext.jsx
+index d3d1523..c503257 100644
+--- a/frontend/src/context/ShopContext.jsx
++++ b/frontend/src/context/ShopContext.jsx
+@@ -26,10 +26,10 @@ export function ShopProvider({ children }) {
+ 
+   const loadShopState = useCallback(async () => {
+     const [cartResult, wishlistResult, libraryResult, preview] = await Promise.all([
+-      cartApi.list(),
+-      wishlistApi.list(),
+-      libraryApi.list(),
+-      orderApi.preview(),
++      cartApi.yeuCauXemGioHang(),
++      wishlistApi.layDanhSachWishlist(),
++      libraryApi.yeuCauXemThuVien(),
++      orderApi.kiemTraMaGiamGia(),
+     ]);
+     return {
+       cart: cartResult.items.map((item) => item.gameId),
+@@ -74,7 +74,7 @@ export function ShopProvider({ children }) {
+ 
+   const addToCart = useCallback(async (id) => {
+     try {
+-      const result = await cartApi.add(id);
++      const result = await cartApi.yeuCauThemSanPham(id);
+       setCart((current) => [...new Set([...current, result.gameId])]);
+       setShopError('');
+       return { ok: true, message: 'Đã thêm vào giỏ hàng' };
+@@ -96,18 +96,18 @@ export function ShopProvider({ children }) {
+   }, [addToCart]);
+ 
+   const removeFromCart = useCallback(async (id) => {
+-    await cartApi.remove(id);
++    await cartApi.yeuCauXoaSanPham(id);
+     setCart((current) => current.filter((gameId) => gameId !== id));
+   }, []);
+ 
+   const toggleWishlist = useCallback(async (id) => {
+     if (wishlist.includes(id)) {
+-      await wishlistApi.remove(id);
++      await wishlistApi.yeuCauXoaWishlist(id);
+       setWishlist((current) => current.filter((gameId) => gameId !== id));
+       return { added: false };
+     }
+     try {
+-      await wishlistApi.add(id);
++      await wishlistApi.yeuCauThemWishlist(id);
+       setWishlist((current) => [...new Set([...current, id])]);
+       return { added: true };
+     } catch (error) {
+@@ -117,7 +117,7 @@ export function ShopProvider({ children }) {
+   }, [wishlist]);
+ 
+   const checkout = useCallback(async (couponCode) => {
+-    const result = await orderApi.checkout(couponCode);
++    const result = await orderApi.yeuCauThanhToan(couponCode);
+     const purchasedIds = result.items.map((item) => item.gameId);
+     setCart([]);
+     setWishlist((current) => current.filter((id) => !purchasedIds.includes(id)));
+diff --git a/frontend/src/pages/GameDetail.jsx b/frontend/src/pages/GameDetail.jsx
+index 5821b18..8b8dddd 100644
+--- a/frontend/src/pages/GameDetail.jsx
++++ b/frontend/src/pages/GameDetail.jsx
+@@ -38,7 +38,7 @@ export default function GameDetail() {
+       return () => { active = false; };
+     }
+ 
+-    libraryApi.list().then((games) => {
++    libraryApi.yeuCauXemThuVien().then((games) => {
+       if (active) setIsOwned(games.some((ownedGame) => ownedGame.gameId === id));
+     }).catch((requestError) => {
+       if (active) setError(requestError.message);
+diff --git a/frontend/src/pages/Library.jsx b/frontend/src/pages/Library.jsx
+index 79297a9..53c534c 100644
+--- a/frontend/src/pages/Library.jsx
++++ b/frontend/src/pages/Library.jsx
+@@ -63,7 +63,7 @@ export default function Library() {
+     if (!user?.roles?.includes('Customer')) return;
+     setLoading(true);
+     try {
+-      const data = await libraryApi.list();
++      const data = await libraryApi.yeuCauXemThuVien();
+       const list = Array.isArray(data) ? data : [];
+       setGames(list);
+       if (selectGameId) {
+@@ -104,7 +104,7 @@ export default function Library() {
+     setRedeeming(true);
+     setRedeemError('');
+     try {
+-      const result = await libraryApi.redeemKey(code);
++      const result = await libraryApi.kichHoatKey(code);
+       setNotice(result.message || `Kích hoạt thành công "${result.title || 'Game'}"!`);
+       setNoticeType('success');
+       setKeyCode('');
+@@ -124,7 +124,7 @@ export default function Library() {
+     setLaunching(true);
+     setNotice('');
+     try {
+-      const result = await libraryApi.launch(selectedGame.gameId);
++      const result = await libraryApi.yeuCauKhoiChay(selectedGame.gameId);
+       // Mở tab mới với playUrl
+       window.open(result.playUrl, '_blank', 'noopener,noreferrer');
+       setNotice(`Đang mở ${selectedGame.title}... Nếu tab không mở tự động, hãy kiểm tra trình chặn cửa sổ bật lên (popup blocker).`);
+diff --git a/frontend/src/pages/Orders.jsx b/frontend/src/pages/Orders.jsx
+index a131b06..a85c935 100644
+--- a/frontend/src/pages/Orders.jsx
++++ b/frontend/src/pages/Orders.jsx
+@@ -66,7 +66,7 @@ function RefundModal({ order, selectedItems, onClose, onSuccess }) {
+     setError('');
+ 
+     try {
+-      const res = await orderApi.refund(
++      const res = await orderApi.guiYeuCauHoanTien(
+         order.orderId,
+         reason.trim(),
+         selectedItems.map((item) => item.gameId),
+@@ -211,7 +211,7 @@ export default function Orders() {
+   const fetchOrders = () => {
+     setLoading(true);
+     orderApi
+-      .list()
++      .layDanhSachDonHang()
+       .then((result) => {
+         const orderList = result || [];
+         setOrders(orderList);
+diff --git a/frontend/src/pages/Profile.jsx b/frontend/src/pages/Profile.jsx
+index a1ac264..e69fc9d 100644
+--- a/frontend/src/pages/Profile.jsx
++++ b/frontend/src/pages/Profile.jsx
+@@ -75,15 +75,15 @@ export default function Profile() {
+     setError('');
+     setActivityError('');
+     try {
+-      const result = await profileApi.get();
++      const result = await profileApi.layThongTinHoSo();
+       setProfile(result);
+       setDisplayName(result.displayName || '');
+ 
+       if (isCustomer) {
+         const [libraryResult, walletResult, transactionsResult] = await Promise.allSettled([
+-          libraryApi.list(),
+-          walletApi.get(),
+-          walletApi.transactions(),
++          libraryApi.yeuCauXemThuVien(),
++          walletApi.yeuCauXemSoDu(),
++          walletApi.yeuCauXemLichSuGiaoDich(),
+         ]);
+         const errors = [];
+         if (libraryResult.status === 'fulfilled') {
+diff --git a/frontend/src/pages/Wishlist.jsx b/frontend/src/pages/Wishlist.jsx
+index 6b64714..2d974c1 100644
+--- a/frontend/src/pages/Wishlist.jsx
++++ b/frontend/src/pages/Wishlist.jsx
+@@ -13,7 +13,7 @@ export default function Wishlist() {
+ 
+   useEffect(() => {
+     let active = true;
+-    wishlistApi.list().then((result) => {
++    wishlistApi.layDanhSachWishlist().then((result) => {
+       if (active) setItems(result);
+     }).catch((requestError) => {
+       if (active) setError(requestError.message);
+diff --git a/frontend/src/pages/cart/Cart.jsx b/frontend/src/pages/cart/Cart.jsx
+index 4806910..d2f1830 100644
+--- a/frontend/src/pages/cart/Cart.jsx
++++ b/frontend/src/pages/cart/Cart.jsx
+@@ -21,7 +21,7 @@ export default function Cart() {
+ 
+   useEffect(() => {
+     let active = true;
+-    orderApi.preview().then((result) => {
++    orderApi.kiemTraMaGiamGia().then((result) => {
+       if (active) setPreview(result);
+     }).catch((requestError) => {
+       if (active) setError(requestError.message);
+@@ -48,7 +48,7 @@ export default function Cart() {
+     }
+     setError('');
+     try {
+-      const result = await orderApi.preview(code);
++      const result = await orderApi.kiemTraMaGiamGia(code);
+       setPreview(result);
+       setAppliedCoupon(result.couponCode || '');
+       setCouponMsg(`Đã áp dụng ${result.couponCode}: giảm ${formatVnd(result.couponDiscount)}.`);
+@@ -56,7 +56,7 @@ export default function Cart() {
+       setAppliedCoupon('');
+       setCouponMsg('');
+       try {
+-        setPreview(await orderApi.preview());
++        setPreview(await orderApi.kiemTraMaGiamGia());
+         setError(requestError.message);
+       } catch (previewError) {
+         setError(previewError.message);
+@@ -68,7 +68,7 @@ export default function Cart() {
+     setError('');
+     try {
+       await removeFromCart(gameId);
+-      setPreview(await orderApi.preview(appliedCoupon));
++      setPreview(await orderApi.kiemTraMaGiamGia(appliedCoupon));
+     } catch (requestError) {
+       setError(requestError.message);
+     }
+diff --git a/frontend/src/pages/developer/DeveloperRegistration.jsx b/frontend/src/pages/developer/DeveloperRegistration.jsx
+index 5814cfb..3ec7926 100644
+--- a/frontend/src/pages/developer/DeveloperRegistration.jsx
++++ b/frontend/src/pages/developer/DeveloperRegistration.jsx
+@@ -60,7 +60,7 @@ export default function DeveloperRegistration() {
+       return;
+     }
+     try {
+-      await libraryApi.redeemKey(key);
++      await libraryApi.kichHoatKey(key);
+       setMessage(`Đã kích hoạt thành công mã ${key} vào Thư viện.`);
+       await refreshShop();
+     } catch (err) {
+diff --git a/frontend/src/pages/settings/Settings.jsx b/frontend/src/pages/settings/Settings.jsx
+index 24d0585..4633ad7 100644
+--- a/frontend/src/pages/settings/Settings.jsx
++++ b/frontend/src/pages/settings/Settings.jsx
+@@ -69,7 +69,7 @@ export default function Settings() {
+     setMessage('');
+     setSaving(true);
+     try {
+-      const updated = await profileApi.update({
++      const updated = await profileApi.capNhatHoSo({
+         displayName: profile.displayName,
+         avatarUrl: profile.avatarUrl.trim() || null,
+       });
+diff --git a/frontend/src/pages/wallet/Wallet.jsx b/frontend/src/pages/wallet/Wallet.jsx
+index 53aff2e..65f6311 100644
+--- a/frontend/src/pages/wallet/Wallet.jsx
++++ b/frontend/src/pages/wallet/Wallet.jsx
+@@ -26,8 +26,8 @@ export default function Wallet() {
+   const loadData = useCallback(async () => {
+     try {
+       const [walletRes, txRes] = await Promise.all([
+-        walletApi.get().catch(() => null),
+-        walletApi.transactions({ limit: 5 }).catch(() => null),
++        walletApi.yeuCauXemSoDu().catch(() => null),
++        walletApi.yeuCauXemLichSuGiaoDich({ limit: 5 }).catch(() => null),
+       ]);
+ 
+       if (walletRes?.data?.balance !== undefined) {
+@@ -69,7 +69,7 @@ export default function Wallet() {
+     setMessage('');
+ 
+     try {
+-      const res = await walletApi.deposit({
++      const res = await walletApi.guiYeuCauNapTien({
+         amount: amt,
+         paymentMethod,
+       });
+@@ -109,7 +109,7 @@ export default function Wallet() {
+     setMessage('');
+ 
+     try {
+-      const res = await walletApi.withdraw({
++      const res = await walletApi.guiYeuCauRutTien({
+         amount: amt,
+         bankInfo: bankInfo.trim(),
+       });
+diff --git a/frontend/src/pages/wallet/WalletTransactions.jsx b/frontend/src/pages/wallet/WalletTransactions.jsx
+index 630112c..9e31fd0 100644
+--- a/frontend/src/pages/wallet/WalletTransactions.jsx
++++ b/frontend/src/pages/wallet/WalletTransactions.jsx
+@@ -33,7 +33,7 @@ export default function WalletTransactions() {
+       if (toDate) params.to = toDate;
+       if (keyword.trim()) params.keyword = keyword.trim();
+ 
+-      const res = await walletApi.transactions(params);
++      const res = await walletApi.yeuCauXemLichSuGiaoDich(params);
+       const list = res?.data || res || [];
+       setTransactions(Array.isArray(list) ? list : []);
+     } catch (err) {
